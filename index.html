@@ -2030,19 +2030,32 @@
     });
     return idx;
   }
+  /* Supabase caps one request at 1000 rows. 187 hydrants x 15 Pengujian rows
+     per page passes that easily once the register fills, and the failure is
+     silent — the missing rows would just read as "Belum diperiksa". So page
+     through until a short page comes back. The order matters: range() without
+     a stable sort can repeat or skip rows between pages. */
+  var SCAN_PAGE=1000, SCAN_MAX=50;      // hard stop so a bad response can't loop forever
   function scanCloud(cb){
     if(!sb){ cb(null); return; }
-    sb.from("hydrant_records").select("hydrant_id,data,signed")
-      .eq("section","pengujian")
-      .then(function(res){
-        if(!res || res.error || !Array.isArray(res.data)){ cb(null); return; }
-        var idx={};
-        res.data.forEach(function(r){
-          var dt=r.data && r.data.tarikh;
-          pushRow(idx, r.hydrant_id, dt, r.signed, r.data && r.data.penguji);
-        });
-        cb(idx);
-      }, function(){ cb(null); });
+    var idx={}, from=0, pages=0;
+    function step(){
+      sb.from("hydrant_records").select("hydrant_id,data,signed")
+        .eq("section","pengujian")
+        .order("hydrant_id",{ascending:true}).order("row_index",{ascending:true})
+        .range(from, from+SCAN_PAGE-1)
+        .then(function(res){
+          if(!res || res.error || !Array.isArray(res.data)){ cb(pages?idx:null); return; }
+          res.data.forEach(function(r){
+            var dt=r.data && r.data.tarikh;
+            pushRow(idx, r.hydrant_id, dt, r.signed, r.data && r.data.penguji);
+          });
+          pages++;
+          if(res.data.length===SCAN_PAGE && pages<SCAN_MAX){ from+=SCAN_PAGE; step(); }
+          else cb(idx);
+        }, function(){ cb(pages?idx:null); });
+    }
+    step();
   }
   function mergeIndex(a,b){
     var out={}, k;
