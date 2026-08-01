@@ -64,7 +64,9 @@
     background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);}
 
   /* ---- header ---- */
-  header{position:relative;z-index:20;border-bottom:1px solid rgba(255,255,255,.06);
+  /* above .searchrow (500) so the phone account menu can drop over it —
+     header z-index also forms the stacking context the panel lives in */
+  header{position:relative;z-index:1000;border-bottom:1px solid rgba(255,255,255,.06);
     padding:14px 28px;}
   header::before{content:"";position:absolute;inset:0;pointer-events:none;
     background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
@@ -177,6 +179,9 @@
     display:flex;align-items:center;gap:10px}
   .banner .d{width:8px;height:8px;border-radius:9999px}
   .banner .t{font-size:12px;color:rgba(255,255,255,.8)}
+  .banner .bt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .banner .bx{flex:none;font-size:12px;line-height:1;color:rgba(255,255,255,.45);
+    padding:2px 4px;border-radius:6px}
   .hint{position:absolute;top:80px;left:50%;transform:translateX(-50%);z-index:500;padding:8px 14px;
     display:flex;align-items:center;gap:8px;font-size:12px;color:rgba(253,224,71,.8);border-color:rgba(250,204,21,.2)!important;pointer-events:none}
 
@@ -282,22 +287,20 @@
        belongs to, so it stands down on phones. */
     .kicker{ display:none; }
 
-    /* row 1 — tabs pinned right, beside the brand */
-    .tabs  { order:2; margin-left:auto; padding:2px; gap:3px; flex:0 0 auto; }
-    .tabb  { padding:6px 13px; font-size:12px; min-height:32px; }
+    /* row 1 — brand left, hamburger right. The inline account controls move
+       into the menu panel so the row stays short.
+       (the .menubtn display switch lives with the menu's own styles further
+       down, so it is not overridden by them) */
+    .hright { display:none !important; }
 
-    /* row 2 — actions, right aligned */
-    .hright{ order:3; width:100%; margin-left:0; justify-content:flex-end; gap:6px; }
-    .addbtn{ padding:7px 13px; font-size:12px; min-height:36px; }
-    .rolebadge, .signout { min-height:36px; }
-    .signout { padding:7px 12px; }
+    /* row 2 — tabs, left aligned so they line up with the pills below */
+    .tabs  { order:3; margin-left:0; padding:2px; gap:3px; align-self:flex-start; }
+    .tabb  { padding:6px 14px; font-size:12px; min-height:32px; }
 
-    /* row 3 — pills, right aligned. Still a scroll strip if a narrow phone
-       cannot fit them, but justify-content only kicks in when there is room
-       to spare, so the start never becomes unreachable. */
+    /* row 3 — pills, left aligned, flush with the tabs above them */
     .pills {
       order:4; width:100%; margin-top:0;
-      justify-content:flex-end;
+      justify-content:flex-start;
       flex-wrap:nowrap; overflow-x:auto;
       -webkit-overflow-scrolling:touch;
       scrollbar-width:none; padding-bottom:0; gap:6px;
@@ -309,11 +312,13 @@
 
     /* ---- map zoom controls — thumb-friendly ---- */
     .leaflet-top.leaflet-right { top:10px; right:10px; }
-    .leaflet-control-zoom { border-radius:12px !important; overflow:hidden; }
+    .leaflet-control-zoom { border-radius:10px !important; overflow:hidden; }
     .leaflet-control-zoom-in,
     .leaflet-control-zoom-out {
-      min-width:44px !important; min-height:44px !important;
-      line-height:44px !important; font-size:20px !important;
+      display:block !important;          /* do not rely on Leaflet's own CSS for this */
+      min-width:34px !important; min-height:34px !important;
+      width:34px !important; height:34px !important;
+      line-height:34px !important; font-size:17px !important;
     }
 
     /* ---- registry card — bottom sheet ---- */
@@ -337,7 +342,11 @@
     .chip { bottom:56px; }
 
     /* banner & hint */
-    .banner { top:120px; max-width:calc(100% - 32px); }
+    /* sits directly under the search bar, and reads at the same size as the
+       "Tap hydrant" chip so the two map notices match */
+    .banner { top:8px; max-width:calc(100% - 20px); padding:6px 12px; gap:8px; }
+    .banner .t { font-size:12px; }
+    .banner .d { width:7px; height:7px; }
     .hint   { top:170px; max-width:calc(100vw - 32px); text-align:center; }
     #storeWarn { bottom:60px !important; left:8px !important; right:8px !important; max-width:none !important; }
 
@@ -576,6 +585,34 @@
     .sigmodal{display:none!important}
   }
 
+  /* ===================== MOBILE ACCOUNT MENU =====================
+     Hidden on desktop, where the same controls sit inline in the header. */
+  .menubtn{display:none;flex-direction:column;justify-content:center;gap:4px;
+    width:40px;height:40px;padding:0 10px;border-radius:10px;cursor:pointer;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
+  .menubtn span{display:block;height:2px;width:100%;border-radius:2px;background:rgba(255,255,255,.75);
+    transition:transform .18s,opacity .18s}
+  .menubtn.open span:nth-child(1){transform:translateY(6px) rotate(45deg)}
+  .menubtn.open span:nth-child(2){opacity:0}
+  .menubtn.open span:nth-child(3){transform:translateY(-6px) rotate(-45deg)}
+  .menupanel{position:absolute;top:calc(100% + 6px);right:0;z-index:900;min-width:216px;max-width:calc(100vw - 24px);
+    border-radius:14px;padding:6px;background:#14161b;border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 18px 44px rgba(0,0,0,.6);display:flex;flex-direction:column;gap:2px}
+  .menupanel.hide{display:none!important}
+  .menupanel .mrow{display:flex;flex-direction:column;gap:2px;padding:9px 11px;border-radius:9px}
+  .menupanel .mrow.mid{background:rgba(255,255,255,.03)}
+  .menupanel .mlab{font-family:var(--mono);font-size:8.5px;letter-spacing:.2em;text-transform:uppercase;
+    color:rgba(255,255,255,.42)}
+  .menupanel .mval{font-size:12.5px;color:#fff;word-break:break-all;line-height:1.3}
+  .menupanel .mitem{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:10px 11px;
+    border-radius:9px;cursor:pointer;border:none;background:none;color:#fff;
+    font-family:var(--sans);font-size:14px;font-weight:600;text-align:left}
+  .menupanel .mitem:hover{background:rgba(255,255,255,.07)}
+  .menupanel .mitem .mi{font-size:16px;line-height:1}
+  .menupanel .mitem.danger{color:#fca5a5}
+  .menupanel .mitem.danger:hover{background:rgba(239,68,68,.12)}
+  .menupanel .mitem.ro-hidden{display:none!important}
+
   /* ===================== TABS (Peta Pili / Dashboard) ===================== */
   .tabs{display:flex;gap:4px;padding:3px;border-radius:9999px;
     background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
@@ -690,6 +727,8 @@
   #dashView .ddel:hover{color:#fca5a5;background:rgba(239,68,68,.12)}
 
   @media (max-width:640px){
+    /* must sit after the .menubtn base rule above, or it loses on source order */
+    .menubtn{display:flex;order:2;margin-left:auto;flex:0 0 auto}
     .tabb{padding:7px 12px;font-size:12px}
     #dashView{padding:12px 12px 48px}
     #dashView .dcard{padding:14px}
@@ -724,6 +763,23 @@
         <div class="live"><span class="d soft-pulse"></span><span class="l">Live</span></div>
         <div class="rolebadge hide" id="roleBadge"><span class="r" id="roleTxt">—</span></div>
         <button class="signout hide" id="signOutBtn">Sign out</button>
+      </div>
+
+      <!-- phones only: the account + action controls collapse in here -->
+      <button class="menubtn" id="menuBtn" aria-label="Menu" aria-expanded="false" aria-controls="menuPanel">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="menupanel hide" id="menuPanel" role="menu" aria-labelledby="menuBtn">
+        <div class="mrow mid">
+          <span class="mlab">Email</span>
+          <span class="mval" id="mEmail">—</span>
+        </div>
+        <div class="mrow mid">
+          <span class="mlab">Peranan</span>
+          <span class="mval" id="mRole">—</span>
+        </div>
+        <button class="mitem" id="mAdd" role="menuitem"><span class="mi">+</span> Tambah Pili</button>
+        <button class="mitem danger" id="mSignOut" role="menuitem">Sign out</button>
       </div>
     </div>
   </header>
@@ -1286,9 +1342,12 @@
     if(parts.length){
       b.style.boxShadow="0 0 0 1px "+hex+"44,0 12px 30px rgba(0,0,0,.5)";
       b.style.cursor="pointer";
+      // one compact line — a long "buang penapis" caption made this wrap to
+      // three lines on a phone
       b.innerHTML='<span class="d soft-pulse" style="background:'+hex+'"></span>'
-        +'<span class="t">Menunjukkan '+parts.join(' · ')+' sahaja</span>'
-        +'<span class="t" style="opacity:.5;font-size:11px">✕ buang penapis</span>';
+        +'<span class="t bt">Menunjukkan '+parts.join(' · ')+' sahaja</span>'
+        +'<span class="bx" aria-hidden="true">✕</span>';
+      b.setAttribute("title","Ketik untuk buang penapis");
       b.onclick=function(){ activeFilter=null; inspFilter=null; refresh(); };
       b.classList.remove("hide");
     } else { b.onclick=null; b.classList.add("hide"); }
@@ -1913,6 +1972,11 @@
     // Viewers cannot add hydrants
     var add=el("headerAdd");
     if(add) add.classList.toggle("ro-hidden", !isAdmin());
+    // keep the phone menu showing the same account state
+    var me=el("mEmail"), mr=el("mRole"), ma=el("mAdd");
+    if(me) me.textContent = CURRENT_EMAIL || "—";
+    if(mr) mr.textContent = isAdmin() ? "Admin" : "Viewer";
+    if(ma) ma.classList.toggle("ro-hidden", !isAdmin());
   }
   // Fetch this user's role from the profiles table.
   function fetchRole(){
@@ -2514,6 +2578,30 @@
       document.getElementById("jLokasi").value="";
       renderJadual();
     };
+  })();
+
+  /* ---------- phone account menu ----------
+     The panel does not duplicate any logic: each item clicks the header
+     control it stands in for, so there is only ever one handler per action. */
+  (function wireMenu(){
+    var btn=document.getElementById("menuBtn"), panel=document.getElementById("menuPanel");
+    if(!btn||!panel) return;
+    function open(v){
+      panel.classList.toggle("hide", !v);
+      btn.classList.toggle("open", v);
+      btn.setAttribute("aria-expanded", String(v));
+    }
+    btn.onclick=function(e){ e.stopPropagation(); open(panel.classList.contains("hide")); };
+    document.addEventListener("click",function(e){
+      if(panel.classList.contains("hide")) return;
+      if(!panel.contains(e.target) && e.target!==btn) open(false);
+    });
+    document.addEventListener("keydown",function(e){
+      if((e.key==="Escape"||e.keyCode===27) && !panel.classList.contains("hide")) open(false);
+    });
+    var add=document.getElementById("mAdd"), so=document.getElementById("mSignOut");
+    if(add) add.onclick=function(){ open(false); var b=document.getElementById("headerAdd"); if(b) b.click(); };
+    if(so)  so.onclick =function(){ open(false); var b=document.getElementById("signOutBtn");  if(b) b.click(); };
   })();
 
   /* ---------- boot ---------- */
