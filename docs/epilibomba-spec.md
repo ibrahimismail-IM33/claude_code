@@ -6,17 +6,38 @@
 
 ## What it is
 
-**epilibomba** is a fire-hydrant (pili bomba) inspection app for **JBPM**
-(Jabatan Bomba dan Penyelamat Malaysia — the Malaysian Fire & Rescue Department).
-Field officers use it — on a phone, in the field, sometimes wearing gloves — to
-track hydrants, record inspections, and view a compliance dashboard.
+**epilibomba** (e-Pili Bomba Kunak) is a fire-hydrant (pili bomba) map and
+inspection-record app for **BBP Kunak, Sabah** (JBPM). Field officers use it —
+on a phone, in the field, sometimes wearing gloves — to locate hydrants, filter
+by category/status, add hydrants, and maintain the Kad Rekod Pili Bomba.
 
-- **Stack:** React + TypeScript (single-page app; `App.tsx`). Tailwind utility
-  classes for styling. SVG for the dashboard chart. **Supabase** as the backend.
+- **Actual shipped stack:** a single self-contained `index.html` (vanilla JS, no
+  build step) — Leaflet 1.9.4 + markercluster + OpenStreetMap tiles for the map,
+  **Supabase** (Postgres + Auth + Storage, project `isxfhocfkjamjchmicwq`) for
+  data, CDN with unpkg → jsdelivr fallback. Deployed on a static host with a
+  Cloudflare `_headers` file for CSP/HSTS/Permissions-Policy.
+- **Note on the React draft below:** the dashboard/donut work described further
+  down came from an earlier React + Tailwind exploration. The live app is the
+  single-file `index.html`; treat the React notes as design intent to port, not
+  as the current codebase.
 - **Language of the UI:** Bahasa Malaysia (e.g. *Pili Bomba*, *Jadual Pemeriksaan*,
   *Tambah Pili Baru*, *Lihat semua*, *Diperiksa* / *Belum diperiksa*).
-- **Delivery format so far:** the app has been iterated as a zipped project and
-  as standalone HTML drafts of the dashboard.
+
+## Backend (in repo under `sql/`)
+
+- **`profiles`** — one row per login; role `admin` | `viewer` (default `viewer`).
+  `is_admin()` helper drives every RLS rule. Any signed-in user reads; only admin
+  writes.
+- **`hydrants`** — 187 seeded rows (170 Awam `kerajaan` + 17 Swasta `swasta`:
+  A26, A92–A107 at Kilang T.S.H Wilmar). Columns: id, label, lat, lng, status,
+  location.
+- **`hydrant_records`** — one row per line of a record card, keyed
+  (hydrant_id, section, row_index); sections: header / kerosakan / pemantauan /
+  pengujian / kompaun; `data` is JSONB.
+- **Permanent signing:** once `signed = true`, a row can never be edited/deleted —
+  enforced by both an RLS policy (`signed = false` predicate) and an independent
+  `protect_signed_rows` trigger. Signature images live in a public `signatures`
+  storage bucket, upload-only (no update/delete policy).
 
 ## Core screens / features
 
