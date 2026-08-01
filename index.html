@@ -262,26 +262,45 @@
 
   @media (max-width:640px){
 
-    /* ---- header ---- */
-    header { padding:8px 12px 6px; }
-    .hrow  { gap:0; flex-wrap:wrap; align-items:center; }
-    .brand { gap:8px; }
-    .bar   { height:22px; width:3px; }
-    .kicker{ font-size:8px; letter-spacing:.18em; }
-    h1     { font-size:17px; }
+    /* ---- header ----
+       Three tight rows, everything after the brand pushed to the right:
+         1  brand ......................... Peta Pili | Dashboard
+         2  ........... Tambah Pili · ADMIN · SIGN OUT
+         3  ........................... Awam · Swasta                */
+    header { padding:7px 10px 8px; }
+    .hrow  { gap:6px; row-gap:7px; flex-wrap:wrap; align-items:center; }
+    .brand { gap:7px; flex:0 1 auto; min-width:0; }
+    .logo  { height:34px; width:34px; }
+    .bar   { height:20px; width:3px; }
+    h1     { font-size:15px; }
     h1 span{ display:none; }
     .divider,
     .clock,
     .live  { display:none !important; }
-    .hright{ margin-left:auto; gap:6px; }
-    .addbtn{ padding:8px 14px; font-size:12px; min-height:40px; }
+    /* The kicker is ~200px wide and was pushing the tabs onto their own row,
+       costing a whole line of map. The crest and title already say who this
+       belongs to, so it stands down on phones. */
+    .kicker{ display:none; }
 
-    /* Pills — horizontal scroll strip */
+    /* row 1 — tabs pinned right, beside the brand */
+    .tabs  { order:2; margin-left:auto; padding:2px; gap:3px; flex:0 0 auto; }
+    .tabb  { padding:6px 13px; font-size:12px; min-height:32px; }
+
+    /* row 2 — actions, right aligned */
+    .hright{ order:3; width:100%; margin-left:0; justify-content:flex-end; gap:6px; }
+    .addbtn{ padding:7px 13px; font-size:12px; min-height:36px; }
+    .rolebadge, .signout { min-height:36px; }
+    .signout { padding:7px 12px; }
+
+    /* row 3 — pills, right aligned. Still a scroll strip if a narrow phone
+       cannot fit them, but justify-content only kicks in when there is room
+       to spare, so the start never becomes unreachable. */
     .pills {
-      order:10; width:100%; margin-top:6px;
+      order:4; width:100%; margin-top:0;
+      justify-content:flex-end;
       flex-wrap:nowrap; overflow-x:auto;
       -webkit-overflow-scrolling:touch;
-      scrollbar-width:none; padding-bottom:2px; gap:6px;
+      scrollbar-width:none; padding-bottom:0; gap:6px;
     }
     .pills::-webkit-scrollbar { display:none; }
     .pill   { flex-shrink:0; padding:6px 10px; gap:6px; font-size:11px; min-height:36px; }
