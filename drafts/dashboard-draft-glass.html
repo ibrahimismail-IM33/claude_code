@@ -10,9 +10,10 @@
     --sans:'Inter',system-ui,sans-serif;
     --mono:'JetBrains Mono',monospace;
     --bg:#0a0b0d;
-    --txt:#f4f7fb; --dim:rgba(255,255,255,.55); --dim2:rgba(255,255,255,.36);
+    --txt:#f4f7fb; --dim:rgba(255,255,255,.70); --dim2:rgba(255,255,255,.54);
     --awam:#ef4444; --swasta:#facc15;
-    --ok:#22c55e; --wait:#f59e0b; --none:#8b93a1;
+    /* pastel status palette (meaning kept: hijau / kuning / kelabu) */
+    --ok:#8ee5b8; --wait:#f7d08a; --none:#c2ccda;
 
     /* glass tokens */
     --glass:rgba(255,255,255,.055);
@@ -105,18 +106,12 @@
     color:var(--dim);margin:0 0 16px;font-weight:700}
 
   /* ---- 3D donut (SVG, true extruded ring) ---- */
-  /* deep "stage" behind the chart so the ring reads like the reference */
-  .card.chart{background:
-      radial-gradient(120% 92% at 50% 4%,  rgba(88,45,190,.40), transparent 62%),
-      radial-gradient(110% 85% at 10% 104%, rgba(29,78,216,.34), transparent 62%),
-      radial-gradient(100% 80% at 96% 96%, rgba(14,116,144,.22), transparent 60%),
-      linear-gradient(180deg, rgba(31,27,78,.62), rgba(11,13,26,.66)), var(--glass)}
   .donutwrap{display:block;padding:2px 0 2px}
   .donutwrap svg{width:100%;height:auto;display:block;overflow:visible}
   .seg3d{transition:opacity .18s}
   .hit{cursor:pointer}
   .d-dim{opacity:.24}
-  .leadline{stroke:rgba(255,255,255,.42);stroke-width:1.3;fill:none}
+  .leadline{stroke:rgba(255,255,255,.52);stroke-width:1.3;fill:none}
   .leaddot{fill:#fff}
   .labg{cursor:pointer}
   .labg:hover .pc3{fill:#fff}
@@ -129,8 +124,10 @@
 
   /* stat rows */
   .stats{display:flex;flex-direction:column;gap:12px}
+  /* a <button> does not inherit page colour — without this the titles fell back
+     to the UA default and washed out against the glass */
   .stat{display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:14px;
-    background:var(--glass);border:1px solid var(--glass-brd);
+    background:var(--glass);border:1px solid var(--glass-brd);color:var(--txt);
     cursor:pointer;transition:.18s;text-align:left;
     backdrop-filter:blur(10px) saturate(150%);-webkit-backdrop-filter:blur(10px) saturate(150%);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.10)}
@@ -138,12 +135,12 @@
   .stat .bar{width:5px;align-self:stretch;border-radius:3px;min-height:44px;
     box-shadow:0 0 14px currentColor}
   .stat .body{flex:1;min-width:0}
-  .stat .t{display:block;font-size:15px;font-weight:700}
-  .stat .d{display:block;font-size:12px;color:var(--dim);margin-top:3px;line-height:1.35}
+  .stat .t{display:block;font-size:15.5px;font-weight:700;color:#fff;letter-spacing:.005em}
+  .stat .d{display:block;font-size:12px;color:rgba(255,255,255,.74);margin-top:4px;line-height:1.4}
   .stat .fig{text-align:right;flex:none}
   .stat .num{font-family:var(--mono);font-size:26px;font-weight:700;line-height:1}
-  .stat .pc{font-family:var(--mono);font-size:12px;color:var(--dim);margin-top:4px}
-  .stat .go{font-size:11px;color:var(--dim2);margin-top:6px}
+  .stat .pc{font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.72);margin-top:4px}
+  .stat .go{font-size:11px;color:rgba(255,255,255,.55);margin-top:6px}
 
   /* lists + tables */
   table{width:100%;border-collapse:collapse}
@@ -157,8 +154,8 @@
   .mono{font-family:var(--mono)}
   .tag{display:inline-block;padding:3px 9px;border-radius:9999px;font-family:var(--mono);
     font-size:10px;font-weight:700;border:1px solid transparent;backdrop-filter:blur(4px)}
-  .tag.ok{background:rgba(34,197,94,.16);color:#a7f3c0;border-color:rgba(34,197,94,.32)}
-  .tag.wait{background:rgba(245,158,11,.16);color:#fcd34d;border-color:rgba(245,158,11,.32)}
+  .tag.ok{background:rgba(142,229,184,.15);color:#b7f0d4;border-color:rgba(142,229,184,.34)}
+  .tag.wait{background:rgba(247,208,138,.15);color:#ffe7b8;border-color:rgba(247,208,138,.34)}
 
   /* jadual form */
   .form{display:grid;grid-template-columns:160px 1fr 1fr auto;gap:10px;
@@ -292,7 +289,7 @@
             <span class="d">Tiada rekod Pengujian bagi tempoh ini</span>
           </span>
           <span class="fig">
-            <div class="num" id="nNone" style="color:#9ca3af">84</div>
+            <div class="num" id="nNone" style="color:var(--none)">84</div>
             <div class="pc" id="pNone">49.4%</div>
             <div class="go">Lihat di peta →</div>
           </span>
@@ -375,10 +372,12 @@
   /* ---------- 3D donut — extruded ring drawn in SVG ----------
      Top face + outer wall + inner wall are real projected geometry, so the
      ring has a genuine visible side edge like a solid object. */
+  /* pastel: light top face, medium wall — the wall still has to read darker
+     than the face or the ring stops looking solid */
   var SEG=[
-    {key:'ok',   label:'Diperiksa',       t1:'#5ee9a0', t2:'#16a34a', s1:'#14804a', s2:'#0a4a2b'},
-    {key:'wait', label:'Belum di-sign',   t1:'#fcd34d', t2:'#ea9007', s1:'#a86408', s2:'#6d3f05'},
-    {key:'none', label:'Belum diperiksa', t1:'#c3cad5', t2:'#8b93a1', s1:'#5a626e', s2:'#363c45'}
+    {key:'ok',   label:'Diperiksa',       t1:'#b7f0d4', t2:'#7fd8ab', s1:'#5aab84', s2:'#3d7a5c'},
+    {key:'wait', label:'Belum di-sign',   t1:'#ffe7b8', t2:'#f5c477', s1:'#c79a51', s2:'#8f6c34'},
+    {key:'none', label:'Belum diperiksa', t1:'#dde4ee', t2:'#b6c0d0', s1:'#8a94a5', s2:'#5f6774'}
   ];
   var CX=280, CY=214, R=140, RI=140*0.58, K=0.40, DEP=32, START=-90;
 
