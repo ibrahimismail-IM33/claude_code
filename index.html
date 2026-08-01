@@ -1274,7 +1274,12 @@
       b.classList.remove("hide");
     } else { b.onclick=null; b.classList.add("hide"); }
   }
-  function refresh(){ renderPills(); renderRegistry(); renderBanner(); renderMarkers(); }
+  function refresh(){
+    renderPills(); renderRegistry(); renderBanner(); renderMarkers();
+    // The Awam/Swasta pills sit in the shared header, so they can be tapped
+    // while the dashboard is the visible tab — it has to redraw too.
+    if(typeof curTab!=="undefined" && curTab==="dash" && typeof renderDash==="function") renderDash(false);
+  }
 
   /* ---------- detail modal ---------- */
   var mroot=document.getElementById("modalRoot");
@@ -2062,12 +2067,17 @@
     return rows.some(function(r){ return r.s; }) ? "ok" : "wait";
   }
 
-  /* ---- dashboard scope follows the map's Awam/Swasta pill ---- */
-  function dashScopeKey(){ return activeFilter==="swasta" ? "swasta" : "kerajaan"; }
+  /* ---- dashboard scope follows the map's Awam/Swasta pill ----
+     Including the cleared state: no pill selected means the map is showing
+     everything, so the dashboard covers all 187 too. */
+  function dashList(){
+    return activeFilter ? hydrants.filter(function(h){ return h.status===activeFilter; }) : hydrants;
+  }
+  function dashScopeLabel(){
+    return activeFilter==="swasta" ? "Swasta" : (activeFilter==="kerajaan" ? "Awam" : "Semua");
+  }
   function dashData(){
-    var key=dashScopeKey();
-    var list=hydrants.filter(function(h){ return h.status===key; });
-    var d={total:list.length, ok:0, wait:0, none:0};
+    var list=dashList(), d={total:list.length, ok:0, wait:0, none:0};
     list.forEach(function(h){ d[inspStatusOf(h)]++; });
     return d;
   }
@@ -2294,11 +2304,11 @@
     });
   }
   function renderRecent(){
-    var key=dashScopeKey(), byId={};
-    hydrants.forEach(function(h){ byId[String(h.id)]=h; });
+    var byId={};
+    dashList().forEach(function(h){ byId[String(h.id)]=h; });
     var rows=[];
     Object.keys(inspIndex).forEach(function(id){
-      var h=byId[id]; if(!h || h.status!==key) return;
+      var h=byId[id]; if(!h) return;
       rowsInPeriod(h.id).forEach(function(r){
         rows.push({d:r.d, label:h.label, loc:h.location||"—", p:r.p||"—", s:r.s});
       });
@@ -2353,7 +2363,7 @@
     wireLoc(body);
   }
   function renderDash(animate){
-    document.getElementById("dashScope").textContent = dashScopeKey()==="swasta" ? "Swasta" : "Awam";
+    document.getElementById("dashScope").textContent = dashScopeLabel();
     document.getElementById("dashPeriodNote").textContent =
       periodIx===0 ? "Kitaran 6 bulan · tempoh semasa" : "Tempoh arkib · rujukan sahaja";
     document.getElementById("dashSrc").textContent = inspSource;
