@@ -377,8 +377,12 @@
 
   function pt(a,r,dx){ var t=a*Math.PI/180;
     return [CX+r*K*Math.cos(t)+(dx||0), CY+r*Math.sin(t)]; }
+  /* STEP is the arc sampling resolution in degrees. It is coarsened while the
+     entry animation runs and restored for the final frame, which is the single
+     biggest lever on how much work each animated frame costs. */
+  var STEP=2;
   function samples(a0,a1,r,dx){
-    var n=Math.max(2,Math.ceil(Math.abs(a1-a0)/2)), out=[];
+    var n=Math.max(2,Math.ceil(Math.abs(a1-a0)/STEP)), out=[];
     for(var i=0;i<=n;i++) out.push(pt(a0+(a1-a0)*i/n, r, dx));
     return out;
   }
@@ -411,7 +415,10 @@
   function sinOf(a){ return Math.sin(a*Math.PI/180); }
   function cosOf(a){ return Math.cos(a*Math.PI/180); }
 
-  function buildDonut(d){
+  /* sweep 0..1 draws the ring from 0 to 360 degrees */
+  function buildDonut(d,sweep){
+    if(sweep===undefined) sweep=1;
+    var lim=START+360*sweep;
     var t=d.total||1, vals=[d.ok,d.wait,d.none];
     var defs='', body='', faces='', leads='', meta=[], a=START;
 
@@ -423,38 +430,48 @@
           + '<stop offset="0" stop-color="'+s.s1+'"/><stop offset="1" stop-color="'+s.s2+'"/></linearGradient>'
           + '<linearGradient id="cp'+s.key+'" x1="0" y1="0" x2="1" y2="0">'
           + '<stop offset="0" stop-color="'+s.t2+'"/><stop offset="1" stop-color="'+s.s1+'"/></linearGradient>';
-      if(frac*360>GAP+1) meta.push({s:s,a0:a0,a1:a1,d0:a0+GAP/2,d1:a1-GAP/2,frac:frac,val:vals[i]});
+      if(frac*360>GAP+1){
+        var d0=a0+GAP/2, d1=a1-GAP/2;
+        if(d0<lim) meta.push({s:s,a0:a0,a1:a1,d0:d0,d1:d1,e1:Math.min(d1,lim),
+                              frac:frac,val:vals[i],whole:d1<=lim});
+      }
     });
 
-    function seg(cls,key,dd,fill,extra){
+    function seg(key,dd,fill,extra){
       return '<path class="seg3d hit" data-key="'+key+'" d="'+dd+'" fill="'+fill+'"'+(extra||'')+'/>';
     }
     // cut faces, then walls, then the top faces on top of them
     meta.forEach(function(m){
-      if(sinOf(m.d0)>0) body+=seg('cap',m.s.key,capPath(m.d0),'url(#cp'+m.s.key+')');
-      if(sinOf(m.d1)<0) body+=seg('cap',m.s.key,capPath(m.d1),'url(#cp'+m.s.key+')');
+      if(sinOf(m.d0)>0) body+=seg(m.s.key,capPath(m.d0),'url(#cp'+m.s.key+')');
+      if(sinOf(m.e1)<0) body+=seg(m.s.key,capPath(m.e1),'url(#cp'+m.s.key+')');
     });
     meta.forEach(function(m){
-      clipBand(m.d0,m.d1,-90,90).forEach(function(b){        // outer edge, right side
-        body+=seg('wall',m.s.key,wallPath(b[0],b[1],R),'url(#sw'+m.s.key+')');
+      clipBand(m.d0,m.e1,-90,90).forEach(function(b){        // outer edge, right side
+        body+=seg(m.s.key,wallPath(b[0],b[1],R),'url(#sw'+m.s.key+')');
       });
-      clipBand(m.d0,m.d1,90,270).forEach(function(b){        // inner edge, through the hole
-        body+=seg('wall',m.s.key,wallPath(b[0],b[1],RI),'url(#sw'+m.s.key+')',' opacity=".9"');
+      clipBand(m.d0,m.e1,90,270).forEach(function(b){        // inner edge, through the hole
+        body+=seg(m.s.key,wallPath(b[0],b[1],RI),'url(#sw'+m.s.key+')',' opacity=".9"');
       });
     });
     meta.forEach(function(m){
-      faces+=seg('face',m.s.key,facePath(m.d0,m.d1),'url(#tf'+m.s.key+')',
+      faces+=seg(m.s.key,facePath(m.d0,m.e1),'url(#tf'+m.s.key+')',
         ' stroke="rgba(255,255,255,.22)" stroke-width=".8"');
     });
 
-    // labels sit to the left and right, level with their segment
-    var left=[], right=[];
-    meta.forEach(function(m){
-      m.mid=(m.a0+m.a1)/2;
-      m.dot=pt(m.mid,(R+RI)/2,0);
-      m.out=pt(m.mid,R+12,cosOf(m.mid)>=0?DEP:0);
+    /* Labels are laid out from the FULL set of segments, not the swept subset,
+       so their positions never shift while the ring grows — only their
+       opacity changes as each segment completes. */
+    var left=[], right=[], a2=START;
+    SEG.forEach(function(s,i){
+      var frac=vals[i]/t, a0=a2, a1=a2+frac*360; a2=a1;
+      if(frac*360<=GAP+1) return;
+      var d1=a1-GAP/2, mid=(a0+a1)/2;
+      var m={s:s,frac:frac,val:vals[i],mid:mid,
+             dot:pt(mid,(R+RI)/2,0),
+             out:pt(mid,R+12,cosOf(mid)>=0?DEP:0),
+             op:Math.max(0,Math.min(1,(lim-d1)/10))};
       m.y=m.out[1];
-      (cosOf(m.mid)>=0 ? right : left).push(m);
+      (cosOf(mid)>=0 ? right : left).push(m);
     });
     // keep stacked labels on one side from colliding
     function spread(list){
@@ -471,7 +488,9 @@
       var railX=isRight?railR:railL, tx=isRight?railX+6:railX-6;
       var anchor=isRight?'start':'end', y=m.y;
       minY=Math.min(minY,y-26); maxY=Math.max(maxY,y+24);
+      if(m.op<=0) return;
       leads+='<g class="labg" data-key="'+m.s.key+'" tabindex="0" role="button" '
+          + (m.op<1?'opacity="'+m.op.toFixed(2)+'" ':'')
           + 'aria-label="'+m.s.label+' '+m.val+' pili">'
           + '<path class="leadline" d="M'+m.dot[0].toFixed(1)+' '+m.dot[1].toFixed(1)
           +   ' L'+m.out[0].toFixed(1)+' '+m.out[1].toFixed(1)
@@ -491,8 +510,8 @@
       + '<stop offset="0" stop-color="#fff" stop-opacity=".20"/>'
       + '<stop offset=".6" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>'
       + body + faces
-      + '<path d="'+facePath(START,START+359.99)+'" fill="url(#sheen)" pointer-events="none"/>'
-      + '<text class="center-n" x="'+CX+'" y="'+(CY-2)+'" text-anchor="middle">'+d.total+'</text>'
+      + (sweep>0.01 ? '<path d="'+facePath(START,Math.min(lim,START+359.99))+'" fill="url(#sheen)" pointer-events="none"/>' : '')
+      + '<text class="center-n" x="'+CX+'" y="'+(CY-2)+'" text-anchor="middle">'+Math.round(d.total*sweep)+'</text>'
       + '<text class="center-l" x="'+CX+'" y="'+(CY+17)+'" text-anchor="middle">JUMLAH PILI</text>'
       + leads
       + '</svg>';
@@ -507,29 +526,64 @@
       p.classList.toggle('d-dim', !!k && p.getAttribute('data-key')!==k);
     });
   }
-  function wireDonut(){
-    Array.prototype.forEach.call($('donutWrap').querySelectorAll('[data-key]'),function(el){
-      var k=el.getAttribute('data-key');
-      el.addEventListener('click',function(){ hitStatus(k); });
-      el.addEventListener('mouseenter',function(){ hoverKey(k); });
-      el.addEventListener('mouseleave',function(){ hoverKey(null); });
-      el.addEventListener('keydown',function(e){
-        if(e.key==='Enter'||e.key===' '){ e.preventDefault(); hitStatus(k); }
-      });
+  /* One set of delegated listeners on the wrapper, attached once. The SVG
+     inside is replaced on every animation frame, so per-element listeners
+     would have to be re-attached ~60 times a second. */
+  function keyOf(el){
+    while(el && el!==$('donutWrap')){
+      if(el.getAttribute && el.getAttribute('data-key')) return el.getAttribute('data-key');
+      el=el.parentNode;
+    }
+    return null;
+  }
+  function wireDonutOnce(){
+    var w=$('donutWrap');
+    w.addEventListener('click',function(e){ var k=keyOf(e.target); if(k) hitStatus(k); });
+    w.addEventListener('mouseover',function(e){ hoverKey(keyOf(e.target)); });
+    w.addEventListener('mouseleave',function(){ hoverKey(null); });
+    w.addEventListener('keydown',function(e){
+      if(e.key==='Enter'||e.key===' '){ var k=keyOf(e.target); if(k){ e.preventDefault(); hitStatus(k); } }
     });
+  }
+
+  /* ---------- entry animation ----------
+     Ring sweeps 0 -> 360 degrees and every figure counts up from 0.
+     Time-based, so it always finishes in ANIM_MS no matter how fast the
+     device draws; a slow phone simply renders fewer frames. */
+  var ANIM_MS=900, animId=null;
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function easeOut(p){ return 1-Math.pow(1-p,3); }
+
+  function paint(d,p){
+    var t=d.total||1;
+    $('donutWrap').innerHTML=buildDonut(d,p);
+    $('nOk').textContent   = Math.round(d.ok*p);
+    $('nWait').textContent = Math.round(d.wait*p);
+    $('nNone').textContent = Math.round(d.none*p);
+    $('pOk').textContent   = (d.ok/t*100*p).toFixed(1)+'%';
+    $('pWait').textContent = (d.wait/t*100*p).toFixed(1)+'%';
+    $('pNone').textContent = (d.none/t*100*p).toFixed(1)+'%';
+  }
+  function animateDonut(d){
+    if(animId){ cancelAnimationFrame(animId); animId=null; }
+    if(reduceMotion || !window.requestAnimationFrame){ STEP=2; paint(d,1); return; }
+    STEP=6;                                   // coarser arcs while moving
+    var t0=0;
+    function frame(ts){
+      if(!t0) t0=ts;
+      var p=Math.min(1,(ts-t0)/ANIM_MS);
+      if(p>=1){ STEP=2; paint(d,1); animId=null; return; }   // full detail on the last frame
+      paint(d,easeOut(p));
+      animId=requestAnimationFrame(frame);
+    }
+    animId=requestAnimationFrame(frame);
   }
 
   function render(){
     var d=DATA[scope], t=d.total||1;
     $('scopeLbl').textContent = scope==='awam' ? 'Awam' : 'Swasta';
 
-    var fOk=d.ok/t, fWait=d.wait/t, fNone=d.none/t;
-    $('donutWrap').innerHTML=buildDonut(d);
-    wireDonut();
-
-    $('nOk').textContent=d.ok;     $('pOk').textContent=(fOk*100).toFixed(1)+'%';
-    $('nWait').textContent=d.wait; $('pWait').textContent=(fWait*100).toFixed(1)+'%';
-    $('nNone').textContent=d.none; $('pNone').textContent=(fNone*100).toFixed(1)+'%';
+    animateDonut(d);
 
     var rows=RECENT[scope].map(function(r){
       return '<tr><td class="mono">'+dmy(r.t)+'</td>'
@@ -609,6 +663,7 @@
     renderJadual(); toast('Jadual ditambah');
   };
 
+  wireDonutOnce();
   render();
 })();
 </script>
