@@ -1,10 +1,22 @@
-# e-Pili Bomba Kunak — working memory
+# e-Pili Bomba Kunak
 
-Rolling record of what this project is, what was decided and why, what was
-built, and what is still open. Written so a cold start can pick up without
-re-reading the whole conversation.
+Project context for Claude Code sessions: what this is, what was decided and
+why, what was built, and what is still open. Read §3 (decisions) and §10
+(conventions) before changing anything — several choices here look arbitrary
+but are load-bearing, and §5 lists mistakes already made once.
 
 Last updated: 2026-08-02 · branch `claude/epilibomba-build-compile-3hhuqp`
+
+**Before you start**
+- This is a **live government app** at epilibomba.com used by BBP Kunak
+  officers. Prefer a small verified change over a large plausible one.
+- The app's CSS is **global** — `.card`, `.btn`, `.pill`, `.mono` are taken.
+  Scope anything new (the dashboard lives under `#dashView`).
+- **Verify in a browser before saying it works.** Playwright with Chromium at
+  `/opt/pw-browsers/chromium` is available; several bugs in §4 were invisible
+  in a screenshot and only showed up when measured.
+- Ask before changing anything in §7 (open questions) — those are the user's
+  calls, not yours.
 
 ---
 
