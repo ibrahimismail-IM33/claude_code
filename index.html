@@ -643,6 +643,13 @@
   #dashView .loclink:hover{color:#d7ecfa;text-decoration:underline}
   #dashView .loclink:focus-visible{outline:none;text-decoration:underline;color:#d7ecfa}
   #dashView .dempty{text-align:center;color:rgba(255,255,255,.4);font-size:13px;padding:26px 0}
+  #dashView .jsrc{float:right;font-weight:400;letter-spacing:.06em;text-transform:none;
+    color:rgba(255,255,255,.45);font-size:10px}
+  /* a visit whose date has passed stays in the list, just stepped back */
+  #dashView tr.jpast td{color:rgba(255,255,255,.45)}
+  #dashView tr.jpast .loclink{color:rgba(143,187,217,.6)}
+  #dashView .jlapsed{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:rgba(255,255,255,.38);border:1px solid rgba(255,255,255,.14);border-radius:9999px;padding:1px 6px;margin-left:6px}
 
   /* jadual form */
   #dashView .dform{display:grid;grid-template-columns:160px 1fr 1fr auto;gap:10px;
@@ -806,7 +813,7 @@
       </div>
 
       <div class="dcard">
-        <h2>Jadual pemeriksaan</h2>
+        <h2>Jadual pemeriksaan <span id="dashJadualSrc" class="jsrc"></span></h2>
         <div class="dform">
           <div class="df"><label for="jTarikh">Tarikh</label><input id="jTarikh" type="date"></div>
           <div class="df"><label for="jPasukan">Pasukan</label><input id="jPasukan" type="text" placeholder="cth: Pasukan A"></div>
@@ -2211,14 +2218,66 @@
     dAnimId=requestAnimationFrame(frame);
   }
 
-  /* ---------- jadual pemeriksaan (device-local for now) ---------- */
+  /* ---------- jadual pemeriksaan ----------
+     Lives in Supabase so the whole station shares one plan. The local copy
+     is only a cache, so the list still shows if the network is down — and if
+     the jadual table has not been created yet the app quietly stays on the
+     device-local behaviour and says so on screen. */
   var JKEY="bbpkunak_jadual";
   function loadJadual(){
     try{ var r=window.localStorage.getItem(JKEY); var a=r?JSON.parse(r):[]; return Array.isArray(a)?a:[]; }
     catch(e){ return []; }
   }
   function saveJadual(a){ try{ window.localStorage.setItem(JKEY, JSON.stringify(a)); }catch(e){} }
-  var JADUAL = loadJadual();
+  var JADUAL = loadJadual(), jadualSource="", jadualCloud=false;
+
+  function jadualLoad(){
+    if(!sb){ jadualSource="Peranti ini sahaja"; renderJadual(); return; }
+    sb.from("jadual_pemeriksaan").select("id,tarikh,pasukan,lokasi").order("tarikh",{ascending:true})
+      .then(function(res){
+        if(res && !res.error && Array.isArray(res.data)){
+          JADUAL=res.data.map(function(r){ return {id:r.id,t:r.tarikh,pas:r.pasukan,l:r.lokasi}; });
+          saveJadual(JADUAL); jadualCloud=true; jadualSource="Dikongsi ✓";
+        } else {
+          jadualCloud=false;
+          jadualSource = (res && res.error) ? "Jadual belum disediakan di awan — peranti ini sahaja"
+                                            : "Awan tidak dapat dicapai — salinan peranti";
+        }
+        renderJadual();
+      }, function(){
+        jadualCloud=false; jadualSource="Awan tidak dapat dicapai — salinan peranti"; renderJadual();
+      });
+  }
+  function jadualAdd(t,pas,l){
+    if(!sb || !jadualCloud){                       // local fallback
+      JADUAL.push({id:"local-"+Date.now(),t:t,pas:pas,l:l}); saveJadual(JADUAL); renderJadual(); return;
+    }
+    sb.from("jadual_pemeriksaan")
+      .insert({tarikh:t,pasukan:pas,lokasi:l,created_by:CURRENT_EMAIL||null})
+      .then(function(res){
+        if(res && res.error){ alert("Gagal simpan jadual: "+(res.error.message||"")); return; }
+        jadualLoad();
+      }, function(){ alert("Gagal simpan jadual — periksa sambungan."); });
+  }
+  function jadualDel(id){
+    if(String(id).indexOf("local-")===0 || !sb || !jadualCloud){
+      JADUAL=JADUAL.filter(function(r){ return String(r.id)!==String(id); });
+      saveJadual(JADUAL); renderJadual(); return;
+    }
+    sb.from("jadual_pemeriksaan").delete().eq("id",id).then(function(res){
+      if(res && res.error){ alert("Gagal buang: "+(res.error.message||"")); return; }
+      jadualLoad();
+    }, function(){ alert("Gagal buang — periksa sambungan."); });
+  }
+  /* upcoming first (soonest at the top), then past visits below, newest first */
+  function jadualSorted(){
+    var t=today();
+    var up=JADUAL.filter(function(r){ return String(r.t||"")>=t; })
+                 .sort(function(a,b){ return String(a.t).localeCompare(String(b.t)); });
+    var old=JADUAL.filter(function(r){ return String(r.t||"")<t; })
+                  .sort(function(a,b){ return String(b.t).localeCompare(String(a.t)); });
+    return up.concat(old);
+  }
 
   /* ---------- rendering ---------- */
   function dmy(iso){
@@ -2261,23 +2320,34 @@
     wireLoc(body);
   }
   function renderJadual(){
-    var body=document.getElementById("dashJadual");
-    if(!JADUAL.length){
+    var body=document.getElementById("dashJadual"), note=document.getElementById("dashNote");
+    if(note){
+      note.textContent = jadualCloud
+        ? "Jadual pemeriksaan dikongsi — semua pengguna melihat senarai yang sama."
+        : "Jadual pemeriksaan disimpan pada peranti ini sahaja. "+
+          "Jalankan sql/supabase-jadual-setup.sql untuk berkongsi dengan semua.";
+      note.style.display = "";
+    }
+    var srcEl=document.getElementById("dashJadualSrc");
+    if(srcEl) srcEl.textContent=jadualSource;
+
+    var rows=jadualSorted();
+    if(!rows.length){
       body.innerHTML='<tr><td colspan="4" class="dempty">Tiada jadual lagi — tambah di atas.</td></tr>';
       return;
     }
-    var sorted=JADUAL.slice().sort(function(a,b){ return String(a.t||"").localeCompare(String(b.t||"")); });
-    body.innerHTML=sorted.map(function(r){
-      var i=JADUAL.indexOf(r);
-      return '<tr><td class="dmono">'+dmy(r.t)+"</td>"
+    var t=today();
+    body.innerHTML=rows.map(function(r){
+      var past=String(r.t||"")<t;
+      return '<tr'+(past?' class="jpast"':'')+'><td class="dmono">'+dmy(r.t)+(past?' <span class="jlapsed">lepas</span>':"")+"</td>"
         + "<td>"+esc(r.pas)+"</td>"
         + "<td>"+locBtn(r.l)+"</td>"
-        + '<td><button class="ddel" data-i="'+i+'" title="Buang" aria-label="Buang baris">✕</button></td></tr>';
+        + '<td>'+(isAdmin()?'<button class="ddel" data-id="'+esc(String(r.id))+'" title="Buang" aria-label="Buang baris">✕</button>':"")+"</td></tr>";
     }).join("");
     body.querySelectorAll(".ddel").forEach(function(b){
       b.onclick=function(){
         if(!isAdmin()) return;
-        JADUAL.splice(+b.getAttribute("data-i"),1); saveJadual(JADUAL); renderJadual();
+        jadualDel(b.getAttribute("data-id"));
       };
     });
     wireLoc(body);
@@ -2328,6 +2398,7 @@
     document.getElementById("tabDash").setAttribute("aria-selected", String(dash));
     if(dash){
       refreshInspIndex();
+      jadualLoad();                  // pull the shared schedule
       renderDash(true);              // animate only when the tab is opened
     } else if(map){
       // Leaflet mis-measures itself while hidden
@@ -2395,7 +2466,7 @@
           p=document.getElementById("jPasukan").value.trim(),
           l=document.getElementById("jLokasi").value.trim();
       if(!t||!p||!l){ alert("Sila isi Tarikh, Pasukan dan Lokasi."); return; }
-      JADUAL.push({t:t,pas:p,l:l}); saveJadual(JADUAL);
+      jadualAdd(t,p,l);
       document.getElementById("jTarikh").value="";
       document.getElementById("jPasukan").value="";
       document.getElementById("jLokasi").value="";
