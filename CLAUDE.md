@@ -111,6 +111,8 @@ Draw order: caps → walls → top faces (painter's algorithm).
 |---|---|---|
 | Chart palette | Cream `#FDF0D5` / steel `#669BBC` / navy `#003049` | User-supplied. Ordered lightest = most complete |
 | Navy as text | **Never** — substitute `#9CAAB6` | Navy is 1.42:1 on dark, unreadable. Fill-only colour |
+| Figure ink | Green `#4ADE80` / blue `#60A5FA` / red `#F87171`, **numbers and chart labels only** | Status reads at a glance: pass / pending / outstanding. Measured on the card base `#121419` — 10.6 : 7.3 : 6.7, all above 4.5:1. The donut *fill* is untouched, so slice and label no longer share a colour — that was the user's call |
+| Figure glow | Subtle. `text-shadow` on the cards, `filter:drop-shadow` on the SVG | SVG text does not take `text-shadow` reliably across engines; `drop-shadow` does. Kept low so digits stay crisp on a phone in sun |
 | Chart form | Flat-shaded 3D donut, upright, depth right, 50% depth | Matches supplied reference |
 | Glass / glassmorphism | **Removed** | User asked for flat |
 | Chart background stage | **Removed** | Card matches the rest |
@@ -228,6 +230,9 @@ Watch items:
 ## 8. Verified vs not
 
 **Verified in a real browser** (Playwright, Chromium):
+- Figure ink and glow: computed colour on all six figures (3 cards + 3 chart
+  labels), contrast measured against the real card background, donut segment
+  fills confirmed unchanged
 - Dashboard figures from real Pengujian data, all scope states (Semua/Awam/
   Swasta) reconciling to their totals
 - Pagination against 2400 rows over 160 hydrants — 3 requests, exact counts

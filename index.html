@@ -656,10 +656,25 @@
   #dashView .leaddot{fill:#fff;pointer-events:none}
   #dashView .labg{outline:none}
   #dashView .pc3,#dashView .nm3{cursor:pointer;transition:fill .15s}
-  #dashView .labg:hover .pc3,#dashView .labg:focus-visible .pc3{fill:#fff;text-decoration:underline}
-  #dashView .labg:hover .nm3,#dashView .labg:focus-visible .nm3{text-decoration:underline}
   #dashView .pc3{font-family:var(--mono);font-size:22px;font-weight:700;fill:rgba(255,255,255,.94)}
   #dashView .nm3{font-family:var(--sans);font-size:12.5px;font-weight:600}
+  /* Status ink. The donut segments keep the supplied cream/steel/navy fill —
+     only the figures carry these. Green/blue/red read as pass / pending /
+     outstanding, which is what an officer is scanning for. All three are
+     above 4.5:1 on the dashboard's dark base; the navy that the "Belum
+     diperiksa" slice is filled with is 1.42:1 and can never be text. */
+  #dashView .labg.k-ok   .pc3,#dashView .labg.k-ok   .nm3{fill:#4ADE80}
+  #dashView .labg.k-wait .pc3,#dashView .labg.k-wait .nm3{fill:#60A5FA}
+  #dashView .labg.k-none .pc3,#dashView .labg.k-none .nm3{fill:#F87171}
+  /* drop-shadow, not text-shadow: SVG text honours it in every engine */
+  #dashView .labg.k-ok   .pc3{filter:drop-shadow(0 0 5px rgba(74,222,128,.5))}
+  #dashView .labg.k-wait .pc3{filter:drop-shadow(0 0 5px rgba(96,165,250,.5))}
+  #dashView .labg.k-none .pc3{filter:drop-shadow(0 0 5px rgba(248,113,113,.5))}
+  /* hover has to out-specify the key rules above, hence the class on each */
+  #dashView .labg.k-ok:hover .pc3,#dashView .labg.k-ok:focus-visible .pc3,
+  #dashView .labg.k-wait:hover .pc3,#dashView .labg.k-wait:focus-visible .pc3,
+  #dashView .labg.k-none:hover .pc3,#dashView .labg.k-none:focus-visible .pc3{fill:#fff;text-decoration:underline}
+  #dashView .labg:hover .nm3,#dashView .labg:focus-visible .nm3{text-decoration:underline}
   #dashView .center-n{font-family:var(--mono);font-size:32px;font-weight:700;fill:#f4f7fb}
   #dashView .center-l{font-family:var(--mono);font-size:8.5px;letter-spacing:.18em;fill:rgba(255,255,255,.5)}
 
@@ -676,6 +691,10 @@
   #dashView .dstat .d{display:block;font-size:12px;color:rgba(255,255,255,.74);margin-top:4px;line-height:1.4}
   #dashView .dstat .fig{text-align:right;flex:none}
   #dashView .dstat .num{display:block;font-family:var(--mono);font-size:26px;font-weight:700;line-height:1}
+  /* the card figures, same ink as their chart label so the two agree */
+  #dashView .dstat .num.n-ok  {color:#4ADE80;text-shadow:0 0 8px rgba(74,222,128,.45)}
+  #dashView .dstat .num.n-wait{color:#60A5FA;text-shadow:0 0 8px rgba(96,165,250,.45)}
+  #dashView .dstat .num.n-none{color:#F87171;text-shadow:0 0 8px rgba(248,113,113,.45)}
   #dashView .dstat .pc{display:block;font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.72);margin-top:4px}
   #dashView .dstat .go{display:block;font-size:11px;color:rgba(255,255,255,.55);margin-top:6px}
 
@@ -879,7 +898,7 @@
                 <span class="d">Baris Pengujian lengkap dan bertandatangan</span>
               </span>
               <span class="fig">
-                <span class="num" id="dnOk" style="color:#FDF0D5">0</span>
+                <span class="num n-ok" id="dnOk">0</span>
                 <span class="pc" id="dpOk">0%</span>
                 <span class="go">Lihat di peta →</span>
               </span>
@@ -891,7 +910,7 @@
                 <span class="d">Pengujian sudah diisi, tandatangan belum</span>
               </span>
               <span class="fig">
-                <span class="num" id="dnWait" style="color:#9FC6DF">0</span>
+                <span class="num n-wait" id="dnWait">0</span>
                 <span class="pc" id="dpWait">0%</span>
                 <span class="go">Lihat di peta →</span>
               </span>
@@ -903,7 +922,7 @@
                 <span class="d">Tiada rekod Pengujian bagi tempoh ini</span>
               </span>
               <span class="fig">
-                <span class="num" id="dnNone" style="color:#9CAAB6">0</span>
+                <span class="num n-none" id="dnNone">0</span>
                 <span class="pc" id="dpNone">0%</span>
                 <span class="go">Lihat di peta →</span>
               </span>
@@ -2306,7 +2325,7 @@
       var anchor=isRight?"start":"end", y=m.y;
       minY=Math.min(minY,y-26); maxY=Math.max(maxY,y+24);
       if(m.op<=0) return;
-      leads+='<g class="labg" data-key="'+m.s.key+'" tabindex="0" role="button" '
+      leads+='<g class="labg k-'+m.s.key+'" data-key="'+m.s.key+'" tabindex="0" role="button" '
           + (m.op<1?'opacity="'+m.op.toFixed(2)+'" ':"")
           + 'aria-label="'+m.s.label+' '+m.val+' pili">'
           + '<path class="leadline" d="M'+m.dot[0].toFixed(1)+" "+m.dot[1].toFixed(1)
@@ -2314,7 +2333,7 @@
           +   " L"+railX.toFixed(1)+" "+y.toFixed(1)+'"/>'
           + '<circle class="leaddot" cx="'+m.dot[0].toFixed(1)+'" cy="'+m.dot[1].toFixed(1)+'" r="3.4"/>'
           + '<text class="pc3" x="'+tx.toFixed(1)+'" y="'+(y-3).toFixed(1)+'" text-anchor="'+anchor+'">'+(m.frac*100).toFixed(1)+'%</text>'
-          + '<text class="nm3" x="'+tx.toFixed(1)+'" y="'+(y+15).toFixed(1)+'" text-anchor="'+anchor+'" fill="'+m.s.ink+'">'+m.s.label+'</text>'
+          + '<text class="nm3" x="'+tx.toFixed(1)+'" y="'+(y+15).toFixed(1)+'" text-anchor="'+anchor+'">'+m.s.label+'</text>'
           + '</g>';
     }
     right.forEach(function(m){ emit(m,true); });
