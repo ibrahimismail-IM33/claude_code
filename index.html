@@ -2363,13 +2363,27 @@
       .order("tarikh",{ascending:true}).range(0,999)
       .then(function(res){
         if(res && !res.error && Array.isArray(res.data)){
-          JADUAL=res.data.map(function(r){ return {id:r.id,t:r.tarikh,pas:r.pasukan,l:r.lokasi}; });
+          var fresh=res.data.map(function(r){ return {id:r.id,t:r.tarikh,pas:r.pasukan,l:r.lokasi}; });
           jadualCapped = res.data.length>=1000;
+          // Replace only THIS period's slice of the cache and keep the rest.
+          // Overwriting the whole cache would leave other periods empty the
+          // moment the connection drops, which reads as "no visits planned"
+          // rather than "not loaded".
+          var others=loadJadual().filter(function(r){
+            var d=String(r.t||""); return !(d>=pr[0] && d<=pr[1]);
+          });
+          JADUAL=others.concat(fresh);
           saveJadual(JADUAL); jadualCloud=true; jadualSource="Dikongsi ✓";
         } else {
           jadualCloud=false;
-          jadualSource = (res && res.error) ? "Jadual belum disediakan di awan — peranti ini sahaja"
-                                            : "Awan tidak dapat dicapai — salinan peranti";
+          // Only say "not set up yet" when the table really is missing —
+          // otherwise an admin goes hunting for a SQL problem that is
+          // actually just a dropped connection. 42P01 = undefined_table.
+          var er=res && res.error;
+          var missing = er && (String(er.code)==="42P01" ||
+                              /does not exist|schema cache/i.test(String(er.message||"")));
+          jadualSource = missing ? "Jadual belum disediakan di awan — peranti ini sahaja"
+                                 : "Awan tidak dapat dicapai — salinan peranti";
         }
         renderJadual();
       }, function(){
