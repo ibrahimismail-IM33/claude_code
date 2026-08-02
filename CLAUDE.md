@@ -120,7 +120,7 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | No. Pili in Jadual | **Removed** from table and form | User asked |
 | Jadual permissions | Admin only | Matches hydrants and records — one permission model |
 | Jadual "done" tick | **No** | The signed Pengujian row already proves it. A second flag would drift |
-| Jadual order | **Newest entry on top** (by `created_at`) | Supersedes the earlier upcoming-first order. An admin adding a visit sees it appear immediately instead of hunting for where it slotted in by date. Past dates still carry the `lepas` tag wherever they sit |
+| Jadual order | **Latest Tarikh first** (descending date) | Supersedes both earlier orders (upcoming-first, then newest-entry-first). Dates are ISO strings, so a string compare *is* a date compare — no parsing, no timezone. Rows sharing a date keep the newest entry on top. Past dates still carry the `lepas` tag wherever they sit |
 | Dashboard scope | Follows the Awam/Swasta pills, incl. cleared = Semua | Must match the map exactly |
 | Mobile header | Hamburger menu for account actions; tabs left-aligned with pills | User sketch |
 | Mobile kicker | Shows **"BBP KUNAK"** only; `· Sabah · Bomba Malaysia` hidden | Full string is ~200px and forced an extra header row. Short form costs nothing |
@@ -132,8 +132,8 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Jadual edit control | **Icon only** (pencil SVG), admin only, beside delete | User asked. `title` + `aria-label` carry the meaning; the column stays narrow |
 | Edit form | **Reuses the add form** — button flips to "Simpan", "Batal" appears | One set of fields and one set of validation, nothing to keep in step |
 | Delete confirm | Added `confirm()` | Delete now sits one button away from edit and cannot be undone. Gap raised 2px → 6px for the same reason |
-| Jadual date filter | Dari / Hingga, **either end optional**, on top of the period | A period is six months; an officer usually wants one week. Filters client-side over rows already loaded — no extra query |
-| Filter on period change | **Cleared** (and any open edit dropped) | Periods don't overlap, so a carried-over filter would match nothing and read as "no visits planned" |
+| Jadual date filter | **Removed** | Built, then the user asked for it gone — the period selector plus a date-sorted list is enough. Don't re-add it without being asked |
+| Open edit on period change | **Dropped** | An edit belongs to the period it started in |
 
 ---
 
@@ -235,8 +235,8 @@ Watch items:
 - Jadual in all three states: no cloud, cloud-but-table-missing, cloud working
 - Jadual edit: form loads the row, `update` (not `insert`) is sent, row count
   unchanged, form resets, Batal restores it; delete confirm dismiss/accept
-- Jadual date filter: open-ended both ways, backwards range auto-swaps, empty
-  range says why, reset restores, cleared on period change, no overflow at 390px
+- Jadual order: latest date first, same-date tie broken by newest entry, and a
+  mid-range date added slots in by date rather than jumping to the top
 - Mobile at 360/390/430px — no horizontal overflow, alignment measured
 - Account menu opens/closes, and its items work despite standing in for
   `display:none` buttons

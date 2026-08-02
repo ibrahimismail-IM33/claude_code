@@ -753,15 +753,10 @@
   #dashView .dedit:hover{color:#9CC9E4;background:rgba(102,155,188,.14)}
   #dashView .dedit:focus-visible,#dashView .ddel:focus-visible{outline:2px solid rgba(102,155,188,.8);outline-offset:1px}
   #dashView tr.jedit td{background:rgba(102,155,188,.10)}
-  /* date-range filter over the rows already inside the selected period */
-  #dashView .jfilter{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:12px}
-  #dashView .jfilter .df{flex:0 1 170px}
   #dashView .jclear{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);
     color:#f4f7fb;border-radius:9px;padding:0 14px;min-height:44px;cursor:pointer;
     font-size:13px;font-weight:600;font-family:var(--sans);white-space:nowrap}
   #dashView .jclear:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.26)}
-  #dashView .jcount{font-family:var(--mono);font-size:10px;letter-spacing:.08em;
-    color:rgba(255,255,255,.45);margin-left:auto;padding-bottom:13px}
 
   @media (max-width:640px){
     /* pinned to the header's own top-right corner so it always sits flush
@@ -935,12 +930,6 @@
           <div class="df"><label for="jLokasi">Lokasi</label><input id="jLokasi" type="text" placeholder="cth: Balai Bomba Kunak"></div>
           <button class="dbtn" id="jAdd" type="button">+ Tambah</button>
           <button class="jclear hide" id="jCancel" type="button">Batal</button>
-        </div>
-        <div class="jfilter">
-          <div class="df"><label for="jFrom">Tapis dari</label><input id="jFrom" type="date"></div>
-          <div class="df"><label for="jTo">Hingga</label><input id="jTo" type="date"></div>
-          <button class="jclear" id="jReset" type="button">Semua tarikh</button>
-          <span class="jcount" id="jCount"></span>
         </div>
         <div class="dtwrap"><table>
           <thead><tr><th style="width:130px">Tarikh</th><th style="width:170px">Pasukan</th>
@@ -2501,29 +2490,16 @@
       var d=String(r.t||""); return d>=pr[0] && d<=pr[1];
     });
   }
-  /* Newest entry on top — an admin adding a visit sees it appear immediately
-     rather than hunting for where it slotted in by date. Rows whose date has
-     already passed still carry the "lepas" tag wherever they sit. */
-  /* Date-range filter, applied on top of the period. Either end may be left
-     blank, so "dari" alone means "from this date onwards" and "hingga" alone
-     means "up to this date". A range wider than the period simply matches
-     everything in it — the period selector still decides the folder. */
-  var jFrom="", jTo="";
-  function jadualFiltered(){
-    var rows=jadualInPeriod();
-    if(!jFrom && !jTo) return rows;
-    return rows.filter(function(r){
-      var d=String(r.t||"");
-      if(jFrom && d<jFrom) return false;
-      if(jTo   && d>jTo)   return false;
-      return true;
-    });
-  }
+  /* Sorted by Tarikh, latest date first. Dates are ISO "YYYY-MM-DD", so a
+     plain string compare is already a date compare — no parsing, and no
+     timezone to get wrong. Rows sharing a date keep the newest entry on top
+     so an admin still sees a just-added visit at the head of its day. */
   function jadualSorted(){
-    return jadualFiltered().slice().sort(function(a,b){
+    return jadualInPeriod().slice().sort(function(a,b){
+      var da=String(a.t||""), db=String(b.t||"");
+      if(da!==db) return db.localeCompare(da);
       var ca=String(a.c||""), cb=String(b.c||"");
       if(ca && cb && ca!==cb) return cb.localeCompare(ca);
-      // no timestamp (older cached rows): fall back to insertion id, newest first
       return String(b.id).localeCompare(String(a.id), undefined, {numeric:true});
     });
   }
@@ -2603,17 +2579,8 @@
     if(lbl) lbl.textContent=periodLabel();
 
     var rows=jadualSorted(), more=document.getElementById("jMore");
-    var filtering=!!(jFrom||jTo), inPeriod=jadualInPeriod().length;
-    var cnt=document.getElementById("jCount");
-    if(cnt) cnt.textContent = filtering
-      ? rows.length+" / "+inPeriod+" baris"
-      : (inPeriod ? inPeriod+" baris" : "");
     if(!rows.length){
-      // say which of the two reasons the list is empty, so a forgotten date
-      // filter does not read as "nothing planned"
-      body.innerHTML='<tr><td colspan="4" class="dempty">'+(filtering
-        ? "Tiada jadual dalam julat tarikh ini — tekan “Semua tarikh” untuk lihat semua."
-        : "Tiada jadual bagi "+esc(periodLabel())+" — tambah di atas.")+"</td></tr>";
+      body.innerHTML='<tr><td colspan="4" class="dempty">Tiada jadual bagi '+esc(periodLabel())+' — tambah di atas.</td></tr>';
       if(more) more.classList.add("hide");
       return;
     }
@@ -2740,12 +2707,7 @@
     }).join("");
     sel.onchange=function(){
       periodIx=+this.value||0;
-      // periods do not overlap, so a date filter from the old one would match
-      // nothing here — reset it, and drop any half-finished edit with it
-      jFrom=""; jTo="";
-      var f=document.getElementById("jFrom"), t2=document.getElementById("jTo");
-      if(f) f.value=""; if(t2) t2.value="";
-      if(jEditId) jEditEnd();
+      if(jEditId) jEditEnd();       // an edit belongs to the period it started in
       jadualLoad();                 // the schedule follows the same selector
       renderDash(true);
       if(inspFilter) refresh();
@@ -2779,25 +2741,6 @@
     wrap.addEventListener("keydown",function(e){
       if(e.key==="Enter"||e.key===" "){ var k=keyOf(e.target); if(k){ e.preventDefault(); goMapStatus(k); } }
     });
-
-    var jf=document.getElementById("jFrom"), jt=document.getElementById("jTo"),
-        jr=document.getElementById("jReset");
-    function applyJFilter(){
-      jFrom=jf?jf.value:""; jTo=jt?jt.value:"";
-      // a backwards range would silently match nothing — swap it instead
-      if(jFrom && jTo && jFrom>jTo){
-        var s=jFrom; jFrom=jTo; jTo=s;
-        if(jf) jf.value=jFrom; if(jt) jt.value=jTo;
-      }
-      jadualShowAll=false;
-      renderJadual();
-    }
-    if(jf) jf.onchange=applyJFilter;
-    if(jt) jt.onchange=applyJFilter;
-    if(jr) jr.onclick=function(){
-      if(jf) jf.value=""; if(jt) jt.value="";
-      applyJFilter();
-    };
 
     var jcan=document.getElementById("jCancel");
     if(jcan) jcan.onclick=function(){ jEditEnd(); renderJadual(); };
