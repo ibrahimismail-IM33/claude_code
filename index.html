@@ -1218,16 +1218,46 @@
     }, function(err){ cloudStatus("Cloud ERROR · "+((err&&err.message)||"network")); });
   }
   // Pull every hydrant from the cloud and replace local state (keeps a local cache too).
-  function cloudLoad(){
+  // quiet=true leaves the map where the officer put it — a background refresh
+  // must never re-fit the view out from under someone reading a marker.
+  function cloudLoad(quiet){
     if(!sb) return;
     sb.from("hydrants").select("id,label,lat,lng,status,location,last_inspected").order("id").then(function(res){
       if(res && !res.error && Array.isArray(res.data) && res.data.length){
         var prev={}; hydrants.forEach(function(h){ if(h.lastInspected) prev[h.id]=h.lastInspected; });
         hydrants = res.data.map(function(r){ return {id:r.id,label:r.label,lat:+r.lat,lng:+r.lng,status:r.status,location:r.location||"",lastInspected:r.last_inspected||prev[r.id]||""}; });
-        persist(); fittedKey=""; refresh();
+        // A background pull must not move the map, even when the pull brings a
+        // hydrant someone else just added — that changes the fit key, and a
+        // re-fit would jump the view away from what the officer is reading.
+        persist(); if(quiet) noFitOnce=true; else fittedKey=""; refresh();
+        if(quiet) reopenDetailIfOpen();
       }
     }, function(){ /* offline / blocked -> keep local copy */ });
   }
+
+  /* ---------- keeping two devices in step ----------
+     Officers work the same register at once — one signs a row on a phone
+     while another has the app open on a tablet. Nothing pushed that change
+     to the second device: it read the cloud once at startup and then showed
+     its cache until someone reloaded the page by hand. So re-read whenever
+     the app comes back to the foreground, which is exactly the moment
+     somebody looks at it again. Throttled, so flicking between tabs does
+     not hammer the network on a field connection. */
+  var lastPull=0, PULL_MIN=15000;
+  function pullFresh(force){
+    if(!sb) return;
+    var now=Date.now();
+    if(!force && now-lastPull<PULL_MIN) return;
+    lastPull=now;
+    cloudLoad(true);                       // location, last_inspected, new pili
+    if(typeof curTab!=="undefined" && curTab==="dash"){
+      refreshInspIndex();                  // Diperiksa / Belum di-sign figures
+      jadualLoad();                        // a visit planned on another device
+    }
+  }
+  document.addEventListener("visibilitychange", function(){ if(!document.hidden) pullFresh(false); });
+  window.addEventListener("focus",  function(){ pullFresh(false); });
+  window.addEventListener("online", function(){ pullFresh(true); });
   // Insert-or-update one hydrant in the cloud.
   function cloudSave(h){
     if(!sb || !h) return;
@@ -1301,7 +1331,7 @@
     return pad(x.getDate())+"/"+pad(x.getMonth()+1)+"/"+String(x.getFullYear()).slice(-2);}
 
   /* ---------- map ---------- */
-  var map=null, markerLayer=null, markers=new Map(), fittedKey="";
+  var map=null, markerLayer=null, markers=new Map(), fittedKey="", noFitOnce=false;
   function initMap(){
     if(typeof L==="undefined"){document.getElementById("map").innerHTML=
       '<div style="height:100%;display:grid;place-items:center;color:rgba(255,255,255,.4);font-family:var(--mono);font-size:13px;text-align:center;padding:24px">Map library blocked — connect to the internet and open this file directly in a browser to load the map.</div>';
@@ -1359,6 +1389,7 @@
       markers.set(h.id,m);
     });
     var key=vis.map(function(h){return h.id;}).sort(function(a,b){return a-b;}).join(",");
+    if(noFitOnce){ noFitOnce=false; fittedKey=key; return; }
     if(key!==fittedKey && vis.length){ fittedKey=key; map.fitBounds(L.latLngBounds(vis.map(function(h){return [h.lat,h.lng];})),{padding:[90,90],maxZoom:18}); }
   }
 
@@ -1420,8 +1451,19 @@
 
   /* ---------- detail modal ---------- */
   var mroot=document.getElementById("modalRoot");
-  function clearModal(){ mroot.innerHTML=""; }
+  var openDetailId=null;
+  function clearModal(){ mroot.innerHTML=""; openDetailId=null; }
+  /* A background pull can land while a marker's popup is open — redraw it so
+     the Lokasi and Last Inspected on screen are the ones just fetched. Only
+     the detail popup: mroot is shared with the "Tambah Pili" form, and
+     rebuilding that would throw away what the officer is typing. */
+  function reopenDetailIfOpen(){
+    if(openDetailId===null || !mroot.querySelector("#dOpenForm")) return;
+    var h=hydrants.find(function(x){ return x.id===openDetailId; });
+    if(h) openDetail(h);
+  }
   function openDetail(h){
+    openDetailId=h.id;
     var sel=h.status, cf=STATUS[sel], label=h.label||"";
     var li=h.lastInspected;
     var liTxt = li ? (function(){ var d=new Date(li); return isNaN(d.getTime())? esc(li) : (pad(d.getDate())+"/"+pad(d.getMonth()+1)+"/"+d.getFullYear()); })() : "—";
@@ -1663,9 +1705,21 @@
     try{ var raw=window.localStorage.getItem(formKey(id)); if(raw){ var d=JSON.parse(raw); if(d&&d.header) return normalizeForm(d); } }catch(e){}
     return blankForm();
   }
-  function saveForm(id,f){ try{ window.localStorage.setItem(formKey(id), JSON.stringify(f)); }catch(e){} syncLastInspected(id,f); return cloudFormSave(id,f); }
+  function saveForm(id,f){ try{ window.localStorage.setItem(formKey(id), JSON.stringify(f)); }catch(e){} syncLocation(id,f); syncLastInspected(id,f); return cloudFormSave(id,f); }
   function latestPengujianDate(f){
     var best=""; (f&&f.pengujian||[]).forEach(function(r){ var d=r&&r.tarikh; if(d && d>best) best=d; }); return best;
+  }
+  /* Lokasi on the Kad Rekod is the address of record, so the map has to follow
+     it: the popup, the registry list, the search index and every Lokasi link
+     on the dashboard all read hydrant.location. Blank never overwrites — an
+     officer clearing the field should not wipe the registered address. */
+  function syncLocation(id,f){
+    var loc = f && f.header && String(f.header.lokasi||"").trim();
+    if(!loc) return;
+    var t=hydrants.find(function(x){ return x.id===id; });
+    if(t && t.location!==loc){
+      t.location=loc; persist(); cloudSave(t); refresh(); reopenDetailIfOpen();
+    }
   }
   function syncLastInspected(id,f){
     var d=latestPengujianDate(f); if(!d) return;
@@ -1947,6 +2001,7 @@
           if(res && res.error){ okb.disabled=false; okb.textContent="Sahkan & Kunci"; ftoast("Simpan gagal: "+(res.error.message||"")); return; }
           row._signed=true; row._sig=url; row._signedBy=CURRENT_EMAIL; row._signedAt=payload.signed_at;
           try{ window.localStorage.setItem(formKey(h.id), JSON.stringify(f)); }catch(e){}
+          syncLocation(h.id,f); syncLastInspected(h.id,f);
           close();
           el.innerHTML=buildFormHtml(h,f); wireForm(h,f,el);
           ftoast("Tandatangan disimpan. Baris dikunci kekal.");
