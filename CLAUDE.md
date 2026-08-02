@@ -123,8 +123,12 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Past schedule rows | Kept, listed below upcoming, marked `lepas` | Nothing silently disappears |
 | Dashboard scope | Follows the Awam/Swasta pills, incl. cleared = Semua | Must match the map exactly |
 | Mobile header | Hamburger menu for account actions; tabs left-aligned with pills | User sketch |
-| Mobile kicker | **Hidden** on phones | ~200px wide, forced an extra header row. Bought back 41px of map. **Not asked for — offer to restore** |
-| Zoom buttons | 34px on mobile | User asked. **Below the 44px touch minimum — flagged** |
+| Mobile kicker | Shows **"BBP KUNAK"** only; `· Sabah · Bomba Malaysia` hidden | Full string is ~200px and forced an extra header row. Short form costs nothing |
+| Zoom buttons | 34px on mobile | User asked, and confirmed fine in the field. Below the 44px touch minimum — accepted |
+| Archive on period reset | Keep the **full hydrant list** | Already inherent: the dashboard recomputes per hydrant from dated `hydrant_records`, so an archived period keeps full detail and its status filters still work on the map |
+| Jadual folders | One per period, decided by the row's **Tarikh** | Rollover needs no migration — the date decides which folder a row belongs to |
+| Jadual page size | 100 rows + "Lihat semua" | Bounded, but nothing is ever hidden — the rest are one tap away |
+| Jadual past periods | Still editable by admin | User's call |
 
 ---
 
@@ -206,13 +210,13 @@ init, so it can't compete with 187 markers loading.
 
 ## 7. Still open
 
-- **Archive on period reset** — when a period rolls over, should archives keep
-  the full hydrant list or just totals? Asked, never answered. Currently periods
-  are computed from dates, so nothing is archived or lost.
-- **Kicker on mobile** — hidden without being asked. Offer to restore.
-- **Zoom at 34px** — below the 44px touch minimum. Offered 38–40px compromise.
-- **Jadual row cap** — the schedule query isn't paginated. Fine for years at
-  station volume, but it is the same class of bug as #1 above if it ever grows.
+Nothing blocking. Everything raised so far has been decided — see §3.
+
+Watch items:
+- **Jadual over 1000 rows in one period** — the query is filtered to the
+  selected period and capped at 1000. Far beyond realistic volume for six
+  months, and if it ever hits the cap the header says so rather than
+  undercounting quietly. Paginate if it becomes real.
 
 ---
 
@@ -230,20 +234,15 @@ init, so it can't compete with 187 markers loading.
 - z-index regression: modal, login gate, header/search boundary
 - Animation cost under CPU throttling
 
-**Not verified — the sandbox blocks CDNs and Supabase:**
-- The real Supabase connection. `scanCloud` and the jadual queries have only run
-  against a stand-in client. Logic and payloads are right; the round-trip isn't
-  proven.
-- Anything rendered **on** the Leaflet map: the zoom-button size against the real
-  control, the banner over real tiles, and `map.invalidateSize()` when returning
-  from Dashboard to Peta Pili.
+**Confirmed on the live site (2026-08-02):**
+- Dashboard header reads **"Data awan ✓"** — the real Supabase round trip works
+- Dashboard → Peta Pili returns a full map, no grey sliver
+- Zoom buttons at 34px are fine in the field
 
-**First things to check on the live site:**
-1. Dashboard header says **"Data awan ✓"**, not "peranti ini"
-2. Dashboard → Peta Pili — map fills the pane, not a grey sliver
-3. Tap Awam — banner appears under the search bar, one line, chip-sized
-4. Zoom buttons look right at 34px
-5. If the jadual SQL was run: add a row, confirm it appears on a second device
+**Still only tested against a stand-in client:**
+- The jadual table's own round trip (`gte`/`lte` period filter, insert, delete).
+  Logic and payloads verified; run `supabase-jadual-setup.sql` then add a row and
+  confirm it appears on a second device.
 
 ---
 
