@@ -2358,12 +2358,14 @@
     jadualShowAll=false;
     if(!sb){ jadualSource="Peranti ini sahaja"; renderJadual(); return; }
     var pr=periodRange();
-    sb.from("jadual_pemeriksaan").select("id,tarikh,pasukan,lokasi")
+    sb.from("jadual_pemeriksaan").select("id,tarikh,pasukan,lokasi,created_at")
       .gte("tarikh",pr[0]).lte("tarikh",pr[1])
-      .order("tarikh",{ascending:true}).range(0,999)
+      .order("created_at",{ascending:false}).range(0,999)
       .then(function(res){
         if(res && !res.error && Array.isArray(res.data)){
-          var fresh=res.data.map(function(r){ return {id:r.id,t:r.tarikh,pas:r.pasukan,l:r.lokasi}; });
+          var fresh=res.data.map(function(r){
+            return {id:r.id,t:r.tarikh,pas:r.pasukan,l:r.lokasi,c:r.created_at||""};
+          });
           jadualCapped = res.data.length>=1000;
           // Replace only THIS period's slice of the cache and keep the rest.
           // Overwriting the whole cache would leave other periods empty the
@@ -2392,7 +2394,8 @@
   }
   function jadualAdd(t,pas,l){
     if(!sb || !jadualCloud){                       // local fallback
-      JADUAL.push({id:"local-"+Date.now(),t:t,pas:pas,l:l}); saveJadual(JADUAL); renderJadual(); return;
+      JADUAL.push({id:"local-"+Date.now(),t:t,pas:pas,l:l,c:new Date().toISOString()});
+      saveJadual(JADUAL); renderJadual(); return;
     }
     sb.from("jadual_pemeriksaan")
       .insert({tarikh:t,pasukan:pas,lokasi:l,created_by:CURRENT_EMAIL||null})
@@ -2419,14 +2422,16 @@
       var d=String(r.t||""); return d>=pr[0] && d<=pr[1];
     });
   }
-  /* upcoming first (soonest at the top), then past visits below, newest first */
+  /* Newest entry on top — an admin adding a visit sees it appear immediately
+     rather than hunting for where it slotted in by date. Rows whose date has
+     already passed still carry the "lepas" tag wherever they sit. */
   function jadualSorted(){
-    var t=today(), rows=jadualInPeriod();
-    var up=rows.filter(function(r){ return String(r.t||"")>=t; })
-               .sort(function(a,b){ return String(a.t).localeCompare(String(b.t)); });
-    var old=rows.filter(function(r){ return String(r.t||"")<t; })
-                .sort(function(a,b){ return String(b.t).localeCompare(String(a.t)); });
-    return up.concat(old);
+    return jadualInPeriod().slice().sort(function(a,b){
+      var ca=String(a.c||""), cb=String(b.c||"");
+      if(ca && cb && ca!==cb) return cb.localeCompare(ca);
+      // no timestamp (older cached rows): fall back to insertion id, newest first
+      return String(b.id).localeCompare(String(a.id), undefined, {numeric:true});
+    });
   }
   function periodLabel(){ return halfLabel(PERIODS[periodIx]); }
   /* which period folder does this date fall into? */

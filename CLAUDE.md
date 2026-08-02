@@ -120,7 +120,7 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | No. Pili in Jadual | **Removed** from table and form | User asked |
 | Jadual permissions | Admin only | Matches hydrants and records — one permission model |
 | Jadual "done" tick | **No** | The signed Pengujian row already proves it. A second flag would drift |
-| Past schedule rows | Kept, listed below upcoming, marked `lepas` | Nothing silently disappears |
+| Jadual order | **Newest entry on top** (by `created_at`) | Supersedes the earlier upcoming-first order. An admin adding a visit sees it appear immediately instead of hunting for where it slotted in by date. Past dates still carry the `lepas` tag wherever they sit |
 | Dashboard scope | Follows the Awam/Swasta pills, incl. cleared = Semua | Must match the map exactly |
 | Mobile header | Hamburger menu for account actions; tabs left-aligned with pills | User sketch |
 | Mobile kicker | Shows **"BBP KUNAK"** only; `· Sabah · Bomba Malaysia` hidden | Full string is ~200px and forced an extra header row. Short form costs nothing |
