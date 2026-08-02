@@ -293,14 +293,14 @@
        down, so it is not overridden by them) */
     .hright { display:none !important; }
 
-    /* row 2 — tabs, left aligned so they line up with the pills below */
-    .tabs  { order:3; margin-left:0; padding:2px; gap:3px; align-self:flex-start; }
+    /* row 2 — tabs (Peta Pili / Dashboard) and pills (Awam / Swasta) sit
+       side by side on the same row, sharing the width */
+    .tabs  { order:3; margin-left:0; padding:2px; gap:3px; align-self:flex-start; flex:0 0 auto; }
     .tabb  { padding:6px 14px; font-size:12px; min-height:32px; }
 
-    /* row 3 — pills, left aligned, flush with the tabs above them */
     .pills {
-      order:4; width:100%; margin-top:0;
-      justify-content:flex-start;
+      order:3; width:auto; margin-top:0; flex:1 1 auto; min-width:0;
+      justify-content:flex-end;
       flex-wrap:nowrap; overflow-x:auto;
       -webkit-overflow-scrolling:touch;
       scrollbar-width:none; padding-bottom:0; gap:6px;
@@ -724,8 +724,15 @@
   #dashView .df label{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;
     text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:6px}
   #dashView .df input{width:100%;background:#181b21;border:1px solid rgba(255,255,255,.11);
-    color:#f4f7fb;border-radius:9px;padding:11px 12px;font-family:var(--sans);font-size:14px;min-height:44px}
+    color:#f4f7fb;border-radius:9px;padding:11px 12px;font-family:var(--sans);font-size:14px;min-height:44px;
+    -webkit-appearance:none;appearance:none;color-scheme:dark;box-sizing:border-box}
   #dashView .df input::placeholder{color:rgba(255,255,255,.34)}
+  /* iOS/Android WebViews render a native light chrome behind type=date unless
+     appearance is reset above; color-scheme:dark covers most engines, and this
+     filter guarantees the calendar icon stays visible on the dark field too. */
+  #dashView .df input[type=date]::-webkit-calendar-picker-indicator{filter:invert(1) brightness(1.6);cursor:pointer}
+  #dashView .df input[type=date]::-webkit-datetime-edit{color:#f4f7fb}
+  #dashView .df input[type=date]::-webkit-datetime-edit-fields-wrapper{color:#f4f7fb}
   #dashView .df input:focus{outline:none;border-color:rgba(102,155,188,.75);
     box-shadow:0 0 0 3px rgba(102,155,188,.20)}
   #dashView .dbtn{border:1px solid rgba(102,155,188,.5);color:#04222f;border-radius:9px;padding:12px 18px;
@@ -736,8 +743,10 @@
   #dashView .ddel:hover{color:#fca5a5;background:rgba(239,68,68,.12)}
 
   @media (max-width:640px){
-    /* must sit after the .menubtn base rule above, or it loses on source order */
-    .menubtn{display:flex;order:2;margin-left:auto;flex:0 0 auto}
+    /* pinned to the header's own top-right corner so it always sits flush
+       right, regardless of how brand/tabs/pills wrap at different phone
+       widths (flex order + margin-left:auto could drift on some viewports) */
+    .menubtn{display:flex;position:absolute;top:0;right:0;margin-left:0}
     .tabb{padding:7px 12px;font-size:12px}
     #dashView{padding:12px 12px 48px}
     #dashView .dcard{padding:14px}
@@ -2447,6 +2456,13 @@
   /* ---------- rendering ---------- */
   function dmy(iso){
     if(!iso) return "—";
+    /* Parse the "YYYY-MM-DD" pieces directly instead of going through
+       new Date(iso), which reads the string as UTC midnight and then
+       renders it back in the device's local timezone — on any timezone
+       behind UTC that silently shifts the displayed date back a day
+       (the exact "wrong date selected" bug seen in Jadual Pemeriksaan). */
+    var m=String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return m[3]+"/"+m[2]+"/"+m[1];
     var d=new Date(iso); if(isNaN(d.getTime())) return iso;
     return pad(d.getDate())+"/"+pad(d.getMonth()+1)+"/"+d.getFullYear();
   }
