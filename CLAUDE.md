@@ -129,6 +129,11 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Jadual folders | One per period, decided by the row's **Tarikh** | Rollover needs no migration — the date decides which folder a row belongs to |
 | Jadual page size | 100 rows + "Lihat semua" | Bounded, but nothing is ever hidden — the rest are one tap away |
 | Jadual past periods | Still editable by admin | User's call |
+| Jadual edit control | **Icon only** (pencil SVG), admin only, beside delete | User asked. `title` + `aria-label` carry the meaning; the column stays narrow |
+| Edit form | **Reuses the add form** — button flips to "Simpan", "Batal" appears | One set of fields and one set of validation, nothing to keep in step |
+| Delete confirm | Added `confirm()` | Delete now sits one button away from edit and cannot be undone. Gap raised 2px → 6px for the same reason |
+| Jadual date filter | Dari / Hingga, **either end optional**, on top of the period | A period is six months; an officer usually wants one week. Filters client-side over rows already loaded — no extra query |
+| Filter on period change | **Cleared** (and any open edit dropped) | Periods don't overlap, so a carried-over filter would match nothing and read as "no visits planned" |
 
 ---
 
@@ -228,6 +233,10 @@ Watch items:
 - Pagination against 2400 rows over 160 hydrants — 3 requests, exact counts
 - Both routes to the map (status filter, Lokasi search)
 - Jadual in all three states: no cloud, cloud-but-table-missing, cloud working
+- Jadual edit: form loads the row, `update` (not `insert`) is sent, row count
+  unchanged, form resets, Batal restores it; delete confirm dismiss/accept
+- Jadual date filter: open-ended both ways, backwards range auto-swaps, empty
+  range says why, reset restores, cleared on period change, no overflow at 390px
 - Mobile at 360/390/430px — no horizontal overflow, alignment measured
 - Account menu opens/closes, and its items work despite standing in for
   `display:none` buttons

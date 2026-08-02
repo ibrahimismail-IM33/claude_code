@@ -734,6 +734,27 @@
   #dashView .ddel{background:none;border:none;color:rgba(255,255,255,.34);cursor:pointer;
     font-size:15px;padding:6px 10px;border-radius:6px;min-height:36px}
   #dashView .ddel:hover{color:#fca5a5;background:rgba(239,68,68,.12)}
+  /* row actions: icon only, no label — the column is narrow and the icons
+     are unambiguous. Title + aria-label carry the meaning for screen readers. */
+  /* gap, not 2px: delete now sits next to edit, and a mis-tap that deletes
+     instead of editing has no undo */
+  #dashView .jact{display:flex;gap:6px;justify-content:flex-end}
+  #dashView .dedit{background:none;border:none;color:rgba(255,255,255,.34);cursor:pointer;
+    padding:6px 8px;border-radius:6px;min-height:36px;display:inline-flex;align-items:center}
+  #dashView .dedit svg{width:15px;height:15px;display:block;fill:none;
+    stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  #dashView .dedit:hover{color:#9CC9E4;background:rgba(102,155,188,.14)}
+  #dashView .dedit:focus-visible,#dashView .ddel:focus-visible{outline:2px solid rgba(102,155,188,.8);outline-offset:1px}
+  #dashView tr.jedit td{background:rgba(102,155,188,.10)}
+  /* date-range filter over the rows already inside the selected period */
+  #dashView .jfilter{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:12px}
+  #dashView .jfilter .df{flex:0 1 170px}
+  #dashView .jclear{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);
+    color:#f4f7fb;border-radius:9px;padding:0 14px;min-height:44px;cursor:pointer;
+    font-size:13px;font-weight:600;font-family:var(--sans);white-space:nowrap}
+  #dashView .jclear:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.26)}
+  #dashView .jcount{font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+    color:rgba(255,255,255,.45);margin-left:auto;padding-bottom:13px}
 
   @media (max-width:640px){
     /* must sit after the .menubtn base rule above, or it loses on source order */
@@ -904,10 +925,17 @@
           <div class="df"><label for="jPasukan">Pasukan</label><input id="jPasukan" type="text" placeholder="cth: Pasukan A"></div>
           <div class="df"><label for="jLokasi">Lokasi</label><input id="jLokasi" type="text" placeholder="cth: Balai Bomba Kunak"></div>
           <button class="dbtn" id="jAdd" type="button">+ Tambah</button>
+          <button class="jclear hide" id="jCancel" type="button">Batal</button>
+        </div>
+        <div class="jfilter">
+          <div class="df"><label for="jFrom">Tapis dari</label><input id="jFrom" type="date"></div>
+          <div class="df"><label for="jTo">Hingga</label><input id="jTo" type="date"></div>
+          <button class="jclear" id="jReset" type="button">Semua tarikh</button>
+          <span class="jcount" id="jCount"></span>
         </div>
         <div class="dtwrap"><table>
           <thead><tr><th style="width:130px">Tarikh</th><th style="width:170px">Pasukan</th>
-            <th>Lokasi</th><th style="width:44px"></th></tr></thead>
+            <th>Lokasi</th><th style="width:80px"></th></tr></thead>
           <tbody id="dashJadual"></tbody>
         </table></div>
         <button class="jmore hide" id="jMore" type="button"></button>
@@ -2404,6 +2432,48 @@
         jadualLoad();
       }, function(){ alert("Gagal simpan jadual — periksa sambungan."); });
   }
+  /* The row being edited, if any. The add form doubles as the edit form —
+     one set of fields, one set of validation, nothing to keep in step. */
+  var jEditId=null;
+  function jEditStart(id){
+    var row=null;
+    JADUAL.forEach(function(r){ if(String(r.id)===String(id)) row=r; });
+    if(!row) return;
+    jEditId=row.id;
+    document.getElementById("jTarikh").value=row.t||"";
+    document.getElementById("jPasukan").value=row.pas||"";
+    document.getElementById("jLokasi").value=row.l||"";
+    var add=document.getElementById("jAdd"), can=document.getElementById("jCancel");
+    if(add) add.textContent="Simpan";
+    if(can) can.classList.remove("hide");
+    renderJadual();
+    document.getElementById("jPasukan").focus();
+  }
+  function jEditEnd(){
+    jEditId=null;
+    document.getElementById("jTarikh").value="";
+    document.getElementById("jPasukan").value="";
+    document.getElementById("jLokasi").value="";
+    var add=document.getElementById("jAdd"), can=document.getElementById("jCancel");
+    if(add) add.textContent="+ Tambah";
+    if(can) can.classList.add("hide");
+  }
+  /* Edit an existing row. A local-only row never reached the cloud, so it is
+     edited in place in the cache; anything else goes back to Supabase and the
+     list is re-pulled so every device sees the same correction. */
+  function jadualUpdate(id,t,pas,l){
+    if(String(id).indexOf("local-")===0 || !sb || !jadualCloud){
+      JADUAL=JADUAL.map(function(r){
+        return String(r.id)===String(id) ? {id:r.id,t:t,pas:pas,l:l,c:r.c||""} : r;
+      });
+      saveJadual(JADUAL); renderJadual(); return;
+    }
+    sb.from("jadual_pemeriksaan").update({tarikh:t,pasukan:pas,lokasi:l}).eq("id",id)
+      .then(function(res){
+        if(res && res.error){ alert("Gagal kemas kini: "+(res.error.message||"")); return; }
+        jadualLoad();
+      }, function(){ alert("Gagal kemas kini — periksa sambungan."); });
+  }
   function jadualDel(id){
     if(String(id).indexOf("local-")===0 || !sb || !jadualCloud){
       JADUAL=JADUAL.filter(function(r){ return String(r.id)!==String(id); });
@@ -2425,8 +2495,23 @@
   /* Newest entry on top — an admin adding a visit sees it appear immediately
      rather than hunting for where it slotted in by date. Rows whose date has
      already passed still carry the "lepas" tag wherever they sit. */
+  /* Date-range filter, applied on top of the period. Either end may be left
+     blank, so "dari" alone means "from this date onwards" and "hingga" alone
+     means "up to this date". A range wider than the period simply matches
+     everything in it — the period selector still decides the folder. */
+  var jFrom="", jTo="";
+  function jadualFiltered(){
+    var rows=jadualInPeriod();
+    if(!jFrom && !jTo) return rows;
+    return rows.filter(function(r){
+      var d=String(r.t||"");
+      if(jFrom && d<jFrom) return false;
+      if(jTo   && d>jTo)   return false;
+      return true;
+    });
+  }
   function jadualSorted(){
-    return jadualInPeriod().slice().sort(function(a,b){
+    return jadualFiltered().slice().sort(function(a,b){
       var ca=String(a.c||""), cb=String(b.c||"");
       if(ca && cb && ca!==cb) return cb.localeCompare(ca);
       // no timestamp (older cached rows): fall back to insertion id, newest first
@@ -2502,8 +2587,17 @@
     if(lbl) lbl.textContent=periodLabel();
 
     var rows=jadualSorted(), more=document.getElementById("jMore");
+    var filtering=!!(jFrom||jTo), inPeriod=jadualInPeriod().length;
+    var cnt=document.getElementById("jCount");
+    if(cnt) cnt.textContent = filtering
+      ? rows.length+" / "+inPeriod+" baris"
+      : (inPeriod ? inPeriod+" baris" : "");
     if(!rows.length){
-      body.innerHTML='<tr><td colspan="4" class="dempty">Tiada jadual bagi '+esc(periodLabel())+' — tambah di atas.</td></tr>';
+      // say which of the two reasons the list is empty, so a forgotten date
+      // filter does not read as "nothing planned"
+      body.innerHTML='<tr><td colspan="4" class="dempty">'+(filtering
+        ? "Tiada jadual dalam julat tarikh ini — tekan “Semua tarikh” untuk lihat semua."
+        : "Tiada jadual bagi "+esc(periodLabel())+" — tambah di atas.")+"</td></tr>";
       if(more) more.classList.add("hide");
       return;
     }
@@ -2523,14 +2617,33 @@
       return '<tr'+(past?' class="jpast"':'')+'><td class="dmono">'+dmy(r.t)+(past?' <span class="jlapsed">lepas</span>':"")+"</td>"
         + "<td>"+esc(r.pas)+"</td>"
         + "<td>"+locBtn(r.l)+"</td>"
-        + '<td>'+(isAdmin()?'<button class="ddel" data-id="'+esc(String(r.id))+'" title="Buang" aria-label="Buang baris">✕</button>':"")+"</td></tr>";
+        + '<td>'+(isAdmin()?'<span class="jact">'
+          + '<button class="dedit" data-id="'+esc(String(r.id))+'" title="Sunting" aria-label="Sunting baris">'
+          + '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z"></path>'
+          + '<path d="M14.5 7.5 16.5 9.5"></path></svg></button>'
+          + '<button class="ddel" data-id="'+esc(String(r.id))+'" title="Buang" aria-label="Buang baris">✕</button>'
+          + '</span>':"")+"</td></tr>";
     }).join("");
     body.querySelectorAll(".ddel").forEach(function(b){
       b.onclick=function(){
         if(!isAdmin()) return;
-        jadualDel(b.getAttribute("data-id"));
+        var id=b.getAttribute("data-id");
+        // delete is now one button away from edit and cannot be undone
+        if(!window.confirm("Buang baris jadual ini?")) return;
+        if(String(jEditId)===String(id)) jEditEnd();   // don't leave the form editing a deleted row
+        jadualDel(id);
       };
     });
+    body.querySelectorAll(".dedit").forEach(function(b){
+      b.onclick=function(){
+        if(!isAdmin()){ alert("Hanya admin boleh menyunting jadual."); return; }
+        jEditStart(b.getAttribute("data-id"));
+      };
+    });
+    if(jEditId){
+      var tr=body.querySelector('.dedit[data-id="'+String(jEditId).replace(/"/g,'\\"')+'"]');
+      if(tr){ while(tr && tr.tagName!=="TR") tr=tr.parentNode; if(tr) tr.classList.add("jedit"); }
+    }
     wireLoc(body);
   }
   function renderDash(animate){
@@ -2611,6 +2724,12 @@
     }).join("");
     sel.onchange=function(){
       periodIx=+this.value||0;
+      // periods do not overlap, so a date filter from the old one would match
+      // nothing here — reset it, and drop any half-finished edit with it
+      jFrom=""; jTo="";
+      var f=document.getElementById("jFrom"), t2=document.getElementById("jTo");
+      if(f) f.value=""; if(t2) t2.value="";
+      if(jEditId) jEditEnd();
       jadualLoad();                 // the schedule follows the same selector
       renderDash(true);
       if(inspFilter) refresh();
@@ -2645,12 +2764,48 @@
       if(e.key==="Enter"||e.key===" "){ var k=keyOf(e.target); if(k){ e.preventDefault(); goMapStatus(k); } }
     });
 
+    var jf=document.getElementById("jFrom"), jt=document.getElementById("jTo"),
+        jr=document.getElementById("jReset");
+    function applyJFilter(){
+      jFrom=jf?jf.value:""; jTo=jt?jt.value:"";
+      // a backwards range would silently match nothing — swap it instead
+      if(jFrom && jTo && jFrom>jTo){
+        var s=jFrom; jFrom=jTo; jTo=s;
+        if(jf) jf.value=jFrom; if(jt) jt.value=jTo;
+      }
+      jadualShowAll=false;
+      renderJadual();
+    }
+    if(jf) jf.onchange=applyJFilter;
+    if(jt) jt.onchange=applyJFilter;
+    if(jr) jr.onclick=function(){
+      if(jf) jf.value=""; if(jt) jt.value="";
+      applyJFilter();
+    };
+
+    var jcan=document.getElementById("jCancel");
+    if(jcan) jcan.onclick=function(){ jEditEnd(); renderJadual(); };
+
     document.getElementById("jAdd").onclick=function(){
       if(!isAdmin()){ alert("Hanya admin boleh menambah jadual."); return; }
       var t=document.getElementById("jTarikh").value,
           p=document.getElementById("jPasukan").value.trim(),
           l=document.getElementById("jLokasi").value.trim();
       if(!t||!p||!l){ alert("Sila isi Tarikh, Pasukan dan Lokasi."); return; }
+      if(jEditId){
+        var eid=jEditId, emsg=document.getElementById("jMsg");
+        if(emsg){
+          var epr=periodRange();
+          if(t<epr[0] || t>epr[1]){
+            emsg.textContent='Dipindahkan ke Jadual '+periodOfDate(t)+' — tukar Tempoh di atas untuk melihatnya.';
+            emsg.classList.remove("hide");
+          } else emsg.classList.add("hide");
+        }
+        jEditEnd();
+        jadualUpdate(eid,t,p,l);
+        renderJadual();
+        return;
+      }
       // A row files under the period its date falls in. If that is not the
       // period on screen it will not appear here, so say where it went
       // rather than letting it look like the add silently failed.
