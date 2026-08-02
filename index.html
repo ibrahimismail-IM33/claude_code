@@ -663,9 +663,11 @@
      outstanding, which is what an officer is scanning for. All three are
      above 4.5:1 on the dashboard's dark base; the navy that the "Belum
      diperiksa" slice is filled with is 1.42:1 and can never be text. */
-  #dashView .labg.k-ok   .pc3,#dashView .labg.k-ok   .nm3{fill:#4ADE80}
-  #dashView .labg.k-wait .pc3,#dashView .labg.k-wait .nm3{fill:#60A5FA}
-  #dashView .labg.k-none .pc3,#dashView .labg.k-none .nm3{fill:#F87171}
+  /* the percentage only — the word beneath it keeps the chart's own ink so it
+     still matches the slice its leader line points at */
+  #dashView .labg.k-ok   .pc3{fill:#4ADE80}
+  #dashView .labg.k-wait .pc3{fill:#60A5FA}
+  #dashView .labg.k-none .pc3{fill:#F87171}
   /* drop-shadow, not text-shadow: SVG text honours it in every engine */
   #dashView .labg.k-ok   .pc3{filter:drop-shadow(0 0 5px rgba(74,222,128,.5))}
   #dashView .labg.k-wait .pc3{filter:drop-shadow(0 0 5px rgba(96,165,250,.5))}
@@ -2333,7 +2335,7 @@
           +   " L"+railX.toFixed(1)+" "+y.toFixed(1)+'"/>'
           + '<circle class="leaddot" cx="'+m.dot[0].toFixed(1)+'" cy="'+m.dot[1].toFixed(1)+'" r="3.4"/>'
           + '<text class="pc3" x="'+tx.toFixed(1)+'" y="'+(y-3).toFixed(1)+'" text-anchor="'+anchor+'">'+(m.frac*100).toFixed(1)+'%</text>'
-          + '<text class="nm3" x="'+tx.toFixed(1)+'" y="'+(y+15).toFixed(1)+'" text-anchor="'+anchor+'">'+m.s.label+'</text>'
+          + '<text class="nm3" x="'+tx.toFixed(1)+'" y="'+(y+15).toFixed(1)+'" text-anchor="'+anchor+'" fill="'+m.s.ink+'">'+m.s.label+'</text>'
           + '</g>';
     }
     right.forEach(function(m){ emit(m,true); });
