@@ -123,6 +123,9 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Jadual permissions | Admin only | Matches hydrants and records — one permission model |
 | Jadual "done" tick | **No** | The signed Pengujian row already proves it. A second flag would drift |
 | Jadual order | **Latest Tarikh first** (descending date) | Supersedes both earlier orders (upcoming-first, then newest-entry-first). Dates are ISO strings, so a string compare *is* a date compare — no parsing, no timezone. Rows sharing a date keep the newest entry on top. Past dates still carry the `lepas` tag wherever they sit |
+| Lokasi master | The **Kad Rekod** wins — saving the card writes `hydrant.location` | User's call. The popup, registry, search and every dashboard Lokasi link read that one field, so they all follow. A blank card field never overwrites, so clearing it cannot wipe a registered address |
+| Cross-device refresh | Re-read on foreground/focus/online, **plus a 60s poll while visible** | The app read the cloud once at startup and then showed its cache, so a second device only caught up when you opened each hydrant by hand. Foreground alone is not enough — a device left open on the counter never fires one. Throttled to one pull per 10s; nothing runs while the tab is hidden |
+| Background pull and the map | **Never re-fits the view** (`cloudLoad(quiet)` + `noFitOnce`) | A pull that brings a hydrant someone else added changes the fit key, and a re-fit would jump the map away from what the officer is reading |
 | Dashboard scope | Follows the Awam/Swasta pills, incl. cleared = Semua | Must match the map exactly |
 | Mobile header | Hamburger menu for account actions; tabs left-aligned with pills | User sketch |
 | Mobile kicker | Shows **"BBP KUNAK"** only; `· Sabah · Bomba Malaysia` hidden | Full string is ~200px and forced an extra header row. Short form costs nothing |
@@ -220,6 +223,14 @@ init, so it can't compete with 187 markers loading.
 Nothing blocking. Everything raised so far has been decided — see §3.
 
 Watch items:
+- **Live Supabase drift:** storage policies are 1 of 2 — `signatures write`
+  exists, **`signatures read` is missing** from the project. The bucket is
+  public so images still download, but the setup script creates both. Put it
+  back with:
+  `create policy "signatures read" on storage.objects for select using (bucket_id = 'signatures');`
+- **An open record card does not refresh** while it is open. It re-reads on
+  open, which is enough, and refreshing under someone would throw away what
+  they are typing. Left deliberately.
 - **Jadual over 1000 rows in one period** — the query is filtered to the
   selected period and capped at 1000. Far beyond realistic volume for six
   months, and if it ever hits the cap the header says so rather than
@@ -230,6 +241,11 @@ Watch items:
 ## 8. Verified vs not
 
 **Verified in a real browser** (Playwright, Chromium):
+- Lokasi sync: card save updates the hydrant, sends the upsert, and the popup
+  and place search both follow
+- Cross-device: a remote edit + signature appears on the second device on
+  foreground and again on the idle 60s poll, dashboard figures move with it,
+  and `fitBounds` is called 0 times during a background pull
 - Figure ink and glow: computed colour on all six figures (3 cards + 3 chart
   labels), contrast measured against the real card background, donut segment
   fills confirmed unchanged

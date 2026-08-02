@@ -1243,11 +1243,11 @@
      the app comes back to the foreground, which is exactly the moment
      somebody looks at it again. Throttled, so flicking between tabs does
      not hammer the network on a field connection. */
-  var lastPull=0, PULL_MIN=15000;
+  var lastPull=0, PULL_MIN=10000, PULL_EVERY=60000;
   function pullFresh(force){
     if(!sb) return;
     var now=Date.now();
-    if(!force && now-lastPull<PULL_MIN) return;
+    if(!force && now-lastPull<PULL_MIN) return;   // don't hammer a field connection
     lastPull=now;
     cloudLoad(true);                       // location, last_inspected, new pili
     if(typeof curTab!=="undefined" && curTab==="dash"){
@@ -1258,6 +1258,11 @@
   document.addEventListener("visibilitychange", function(){ if(!document.hidden) pullFresh(false); });
   window.addEventListener("focus",  function(){ pullFresh(false); });
   window.addEventListener("online", function(){ pullFresh(true); });
+  /* A device left open on the counter never comes back to the foreground, so
+     coming-back-to-focus alone is not enough — poll while the app is actually
+     being looked at. Nothing runs while the tab is hidden or the screen is
+     off, so this costs nothing in a pocket. */
+  setInterval(function(){ if(!document.hidden) pullFresh(false); }, PULL_EVERY);
   // Insert-or-update one hydrant in the cloud.
   function cloudSave(h){
     if(!sb || !h) return;
@@ -1451,8 +1456,9 @@
 
   /* ---------- detail modal ---------- */
   var mroot=document.getElementById("modalRoot");
-  var openDetailId=null;
-  function clearModal(){ mroot.innerHTML=""; openDetailId=null; }
+  var openDetailId=null, openDetailSig="";
+  function clearModal(){ mroot.innerHTML=""; openDetailId=null; openDetailSig=""; }
+  function detailSig(h){ return String(h.location||"")+"|"+String(h.lastInspected||"")+"|"+String(h.status||""); }
   /* A background pull can land while a marker's popup is open — redraw it so
      the Lokasi and Last Inspected on screen are the ones just fetched. Only
      the detail popup: mroot is shared with the "Tambah Pili" form, and
@@ -1460,10 +1466,10 @@
   function reopenDetailIfOpen(){
     if(openDetailId===null || !mroot.querySelector("#dOpenForm")) return;
     var h=hydrants.find(function(x){ return x.id===openDetailId; });
-    if(h) openDetail(h);
+    if(h && detailSig(h)!==openDetailSig) openDetail(h);   // only when it really changed
   }
   function openDetail(h){
-    openDetailId=h.id;
+    openDetailId=h.id; openDetailSig=detailSig(h);
     var sel=h.status, cf=STATUS[sel], label=h.label||"";
     var li=h.lastInspected;
     var liTxt = li ? (function(){ var d=new Date(li); return isNaN(d.getTime())? esc(li) : (pad(d.getDate())+"/"+pad(d.getMonth()+1)+"/"+d.getFullYear()); })() : "—";
