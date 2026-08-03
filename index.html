@@ -568,6 +568,8 @@
 
   /* ---------- signatures ---------- */
   .sigimg{max-width:100%;max-height:34px;object-fit:contain;display:block;margin:0 auto}
+  .sigwait{display:block;margin:0 auto;font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;
+    color:rgba(120,120,120,.65);text-align:center;line-height:34px;opacity:.65}
   .flastedit{display:inline-block;margin-left:10px;font-family:var(--mono);font-size:10px;
     letter-spacing:.04em;color:rgba(255,255,255,.45);font-weight:400}
   @media print{ .flastedit{display:none} }
@@ -1765,6 +1767,7 @@
          failing — in which case we fall back to the stored value, which is
          exactly what the app used before. No broken images either way. */
   var SIG_TTL = 3600;                       // an hour is plenty to read/print
+  var SIG_CACHE = {};                       // path -> {url, exp} so reopening a card is instant
   function sigPath(v){
     v = String(v||"");
     if(!v) return "";
@@ -1773,30 +1776,65 @@
     if(/^https?:/i.test(v)) return "";      // some other URL — cannot sign it
     return v;                               // already a path
   }
+  /* Anything left without a link falls back to the value stored on the row.
+     On a public bucket that is the image itself; on a private one it will
+     fail to load, but a cell that stays blank forever is worse. */
+  function fallbackRest(f){
+    SEC_ORDER.forEach(function(s){
+      (f[s]||[]).forEach(function(r){ if(r && r._signed && r._sig && !r._sigUrl) r._sigUrl=r._sig; });
+    });
+  }
   function resolveSigs(f, cb){
     cb = cb || function(){};
-    if(!sb){ cb(); return; }
+    if(!sb){ fallbackRest(f); cb(); return; }
     var targets=[];
     SEC_ORDER.forEach(function(s){
       (f[s]||[]).forEach(function(r){
         if(r && r._signed && r._sig){ var p=sigPath(r._sig); if(p) targets.push({row:r, path:p}); }
       });
     });
-    if(!targets.length){ cb(); return; }
+    // anything still inside its lifetime is reused, so going back into a card
+    // costs nothing and the signature is there on the first paint
+    var now=Date.now(), miss=[];
+    targets.forEach(function(t){
+      var c=SIG_CACHE[t.path];
+      if(c && c.exp>now+30000) t.row._sigUrl=c.url; else miss.push(t);
+    });
+    if(!miss.length){ fallbackRest(f); cb(); return; }
+    targets=miss;
     var paths=targets.map(function(t){ return t.path; });
     var q;
     try{ q = sb.storage.from("signatures").createSignedUrls(paths, SIG_TTL); }
-    catch(e){ cb(); return; }
-    if(!q || typeof q.then!=="function"){ cb(); return; }
+    catch(e){ fallbackRest(f); cb(); return; }
+    if(!q || typeof q.then!=="function"){ fallbackRest(f); cb(); return; }
     q.then(function(res){
       if(res && !res.error && Array.isArray(res.data)){
         res.data.forEach(function(d,i){
           var u = d && (d.signedUrl || d.signedURL);
-          if(u && targets[i]) targets[i].row._sigUrl = u;
+          if(u && targets[i]){
+            targets[i].row._sigUrl = u;
+            SIG_CACHE[targets[i].path] = {url:u, exp:Date.now()+SIG_TTL*1000};
+          }
         });
       }
+      fallbackRest(f);                       // whatever the server did not sign
       cb();
-    }, function(){ cb(); });   // offline or still public -> keep the stored value
+    }, function(){ fallbackRest(f); cb(); });  // offline, or bucket still public
+  }
+  /* Fill the resolved links into a card that is already on screen. Rebuilding
+     the whole card would be simpler but would throw away anything typed since
+     it opened, and would make the card visibly flicker. */
+  function paintSigs(el, f){
+    if(!el) return;
+    el.querySelectorAll(".sigwait").forEach(function(ph){
+      var sec=ph.getAttribute("data-sig-sec"), ri=+ph.getAttribute("data-sig-row");
+      var row=f[sec] && f[sec][ri];
+      var u=row && row._sigUrl;
+      if(!u) return;
+      var img=document.createElement("img");
+      img.className="sigimg"; img.alt="T.T"; img.src=u;
+      ph.parentNode.replaceChild(img, ph);
+    });
   }
   function cleanRow(r){ var o={}; Object.keys(r).forEach(function(k){ if(k.charAt(0)!=="_") o[k]=r[k]; }); return o; }
   /* ================= offline safety net =================================
@@ -1941,8 +1979,13 @@
         // _sig is the durable reference (storage path, or a legacy public URL
         // on rows signed before the bucket was locked down). _sigUrl is the
         // short-lived link resolved for this viewing only, never persisted.
-        var src = row._sigUrl || row._sig;
-        return src ? '<img class="sigimg" src="'+esc(src)+'" alt="T.T">' : '<span class="sigimg" style="font-size:9px;color:#166534">SIGNED</span>';
+        if(row._sigUrl) return '<img class="sigimg" src="'+esc(row._sigUrl)+'" alt="T.T">';
+        // The link is still being fetched. Show a quiet placeholder rather
+        // than an <img> pointing at the stored value: on a private bucket
+        // that is a dead URL, and a broken-image icon on a signed row looks
+        // like the signature has been lost.
+        if(row._sig) return '<span class="sigwait" data-sig-sec="'+sec+'" data-sig-row="'+ri+'">T.T</span>';
+        return '<span class="sigimg" style="font-size:9px;color:#166534">SIGNED</span>';
       }
       return '<button class="sigbtn" data-sec="'+sec+'" data-row="'+ri+'" title="Lampirkan tandatangan (admin)">+ T.T</button>';
     }
@@ -2077,6 +2120,7 @@
     el.innerHTML=buildFormHtml(h,f); el.classList.remove("hide"); document.body.classList.add("form-open");
     wireForm(h,f,el);
     renderPendingNotice(h,el);
+    resolveSigs(f, function(){ paintSigs(el, f); });   // usually a cache hit
     // Anything parked from an earlier offline session goes up FIRST, so the
     // cloud copy we then read already contains it and there is nothing to warn
     // about. Only genuinely contested rows survive the flush.
@@ -2090,10 +2134,11 @@
         f = applyCloudRows(blankForm(), rows);
         if(f && f.header && !f.header.lokasi && h.location) f.header.lokasi = h.location;
         try{ window.localStorage.setItem(formKey(h.id), JSON.stringify(f)); }catch(e){}
-        resolveSigs(f, function(){
-          el.innerHTML=buildFormHtml(h,f); wireForm(h,f,el);
-          renderPendingNotice(h,el);
-        });
+        el.innerHTML=buildFormHtml(h,f); wireForm(h,f,el);
+        renderPendingNotice(h,el);
+        // the signature links are a separate round trip; the officer should
+        // not wait on them to see the card
+        resolveSigs(f, function(){ paintSigs(el, f); });
       });
     });
   }
