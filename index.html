@@ -1753,6 +1753,51 @@
       cb(res && !res.error && Array.isArray(res.data) ? res.data : null);
     }, function(){ cb(null); });
   }
+  /* ---------- signature links ----------
+     Signature images are personal data. Rather than a public URL that anyone
+     with the link can fetch, the card asks the server for a short-lived link
+     at the moment it is opened.
+
+     Two things this must survive:
+       - rows signed before the change, whose stored value is a full public
+         URL rather than a path
+       - the bucket still being public (during the changeover) or the request
+         failing — in which case we fall back to the stored value, which is
+         exactly what the app used before. No broken images either way. */
+  var SIG_TTL = 3600;                       // an hour is plenty to read/print
+  function sigPath(v){
+    v = String(v||"");
+    if(!v) return "";
+    var m = v.match(/\/object\/(?:public|sign)\/signatures\/([^?]+)/);
+    if(m) return decodeURIComponent(m[1]);  // legacy full URL
+    if(/^https?:/i.test(v)) return "";      // some other URL — cannot sign it
+    return v;                               // already a path
+  }
+  function resolveSigs(f, cb){
+    cb = cb || function(){};
+    if(!sb){ cb(); return; }
+    var targets=[];
+    SEC_ORDER.forEach(function(s){
+      (f[s]||[]).forEach(function(r){
+        if(r && r._signed && r._sig){ var p=sigPath(r._sig); if(p) targets.push({row:r, path:p}); }
+      });
+    });
+    if(!targets.length){ cb(); return; }
+    var paths=targets.map(function(t){ return t.path; });
+    var q;
+    try{ q = sb.storage.from("signatures").createSignedUrls(paths, SIG_TTL); }
+    catch(e){ cb(); return; }
+    if(!q || typeof q.then!=="function"){ cb(); return; }
+    q.then(function(res){
+      if(res && !res.error && Array.isArray(res.data)){
+        res.data.forEach(function(d,i){
+          var u = d && (d.signedUrl || d.signedURL);
+          if(u && targets[i]) targets[i].row._sigUrl = u;
+        });
+      }
+      cb();
+    }, function(){ cb(); });   // offline or still public -> keep the stored value
+  }
   function cleanRow(r){ var o={}; Object.keys(r).forEach(function(k){ if(k.charAt(0)!=="_") o[k]=r[k]; }); return o; }
   /* ================= offline safety net =================================
      An officer fills a card where there is no signal. The save fails, the
@@ -1893,7 +1938,11 @@
   function cellInput(sec,ri,col,val,row){
     if(col.t==="sign"){
       if(row && row._signed){
-        return row._sig ? '<img class="sigimg" src="'+esc(row._sig)+'" alt="T.T">' : '<span class="sigimg" style="font-size:9px;color:#166534">SIGNED</span>';
+        // _sig is the durable reference (storage path, or a legacy public URL
+        // on rows signed before the bucket was locked down). _sigUrl is the
+        // short-lived link resolved for this viewing only, never persisted.
+        var src = row._sigUrl || row._sig;
+        return src ? '<img class="sigimg" src="'+esc(src)+'" alt="T.T">' : '<span class="sigimg" style="font-size:9px;color:#166534">SIGNED</span>';
       }
       return '<button class="sigbtn" data-sec="'+sec+'" data-row="'+ri+'" title="Lampirkan tandatangan (admin)">+ T.T</button>';
     }
@@ -2041,8 +2090,10 @@
         f = applyCloudRows(blankForm(), rows);
         if(f && f.header && !f.header.lokasi && h.location) f.header.lokasi = h.location;
         try{ window.localStorage.setItem(formKey(h.id), JSON.stringify(f)); }catch(e){}
-        el.innerHTML=buildFormHtml(h,f); wireForm(h,f,el);
-        renderPendingNotice(h,el);
+        resolveSigs(f, function(){
+          el.innerHTML=buildFormHtml(h,f); wireForm(h,f,el);
+          renderPendingNotice(h,el);
+        });
       });
     });
   }
@@ -2175,12 +2226,14 @@
       var blob=dataUrlToBlob(durl);
       sb.storage.from("signatures").upload(path, blob, {contentType:"image/png",upsert:false}).then(function(up){
         if(up && up.error){ okb.disabled=false; okb.textContent="Sahkan & Kunci"; ftoast("Muat naik gagal: "+(up.error.message||"")); return; }
+        // store the path: a public URL stops working the moment the bucket is
+        // locked down, and the row is permanent so it could never be corrected
         var pub=sb.storage.from("signatures").getPublicUrl(path);
-        var url=(pub&&pub.data&&pub.data.publicUrl)||"";
-        var payload={hydrant_id:h.id,section:sec,row_index:ri,data:cleanRow(row),signed:true,signed_by:CURRENT_EMAIL,signed_at:new Date().toISOString(),signature:url};
+        var shown=(pub&&pub.data&&pub.data.publicUrl)||"";
+        var payload={hydrant_id:h.id,section:sec,row_index:ri,data:cleanRow(row),signed:true,signed_by:CURRENT_EMAIL,signed_at:new Date().toISOString(),signature:path};
         sb.from("hydrant_records").upsert(payload,{onConflict:"hydrant_id,section,row_index"}).then(function(res){
           if(res && res.error){ okb.disabled=false; okb.textContent="Sahkan & Kunci"; ftoast("Simpan gagal: "+(res.error.message||"")); return; }
-          row._signed=true; row._sig=url; row._signedBy=CURRENT_EMAIL; row._signedAt=payload.signed_at;
+          row._signed=true; row._sig=path; row._sigUrl=durl||shown; row._signedBy=CURRENT_EMAIL; row._signedAt=payload.signed_at;
           try{ window.localStorage.setItem(formKey(h.id), JSON.stringify(f)); }catch(e){}
           syncLocation(h.id,f); syncLastInspected(h.id,f);
           close();
