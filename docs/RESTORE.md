@@ -22,6 +22,10 @@ Each nightly run produces one artifact under
 
 > Before 2026-08-03 the signature images were **not** in the backup. Any
 > artifact older than that restores records whose signature links are dead.
+>
+> The bucket became **private** on 2026-08-03, so backing up the images now
+> needs a `SUPABASE_SERVICE_KEY` secret. Until that secret exists the backup
+> fails loudly and the images are not captured.
 
 ---
 
@@ -83,6 +87,24 @@ counts matched.
 
 ---
 
+## Automated weekly check
+
+`.github/workflows/restore-test.yml` does the data half of this drill every
+Monday 07:30 MYT: it downloads the newest backup, restores it into a
+throwaway Postgres, and checks the counts and the signature images. It opens
+an issue labelled `restore-failure` if anything is wrong.
+
+Last verified: **2026-08-03** — 188 pili, 31 rekod, 8 bertandatangan,
+8 signature images, all valid.
+
+> **What that check does NOT cover, proven by the same run:** 16 statements
+> fail when the dump is loaded into a bare PostgreSQL —
+> `role "authenticated" does not exist` (×14) and `relation "auth.users"
+> does not exist`. That is every RLS policy and the `profiles → auth.users`
+> link. **The data comes back; the access control does not.** Restoring the
+> dump alone would leave every record readable and writable by anyone signed
+> in. Step 5 below is not optional.
+
 ## If you ever restore for real
 
 Order matters:
@@ -90,9 +112,20 @@ Order matters:
 1. Create the new project
 2. Load `epilibomba-public-*.sql`
 3. Load `epilibomba-auth-*.sql` (accounts — people cannot log in without it)
-4. Create the `signatures` bucket, set it **public**, upload `signatures/`
-   keeping the same folder and file names
-5. Run `sql/supabase-audit-setup.sql` to put the audit trigger back
+4. Create the `signatures` bucket, leave it **private**, upload `signatures/`
+   keeping the same folder and file names, then add the read policy:
+   ```sql
+   create policy "signatures read" on storage.objects
+     for select to authenticated using (bucket_id = 'signatures');
+   create policy "signatures write" on storage.objects
+     for insert to authenticated with check (bucket_id = 'signatures' and public.is_admin());
+   ```
+   Without the read policy the app cannot create signed links and every
+   signature shows blank.
+5. **Re-run every script in `sql/`** — `supabase-setup.sql`, then
+   `-records-`, then `-jadual-`, then `-audit-`. This is what rebuilds the
+   RLS policies, `is_admin()`, and the signed-row protection, none of which
+   survive in the dump. Skipping this leaves the data wide open.
 6. Update `SUPABASE_URL` and `SUPABASE_KEY` in `index.html`, and the Supabase
    origins in `_headers` (CSP), to the new project, then publish
 

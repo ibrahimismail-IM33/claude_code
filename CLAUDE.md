@@ -281,12 +281,17 @@ Watch items:
   exposed as RPC (search_path is pinned, so no escalation path);
   leaked-password protection is off; `cloudLoad` and `cloudFormLoad` are still
   unbounded (latent at 1000 rows).
-- **No restore has ever been tested.** `RESTORE.md` in the site repo is a
-  15-minute drill; run it once, then every six months, and record the result
-  in §8. I could not run it myself: this container has no GitHub token to
-  download the artifact, and there is no delete-project tool, so creating a
-  scratch project would have left something on the account only the user can
-  remove.
+- **Restore is verified and now automatic.** `restore-test.yml` in the site
+  repo runs every Monday: downloads the newest backup, restores it into a
+  throwaway Postgres, checks the counts and the signature images, and opens
+  an issue on failure. First verified run 2026-08-03 — 188 pili, 31 rekod,
+  8 bertandatangan, 8 valid images.
+- **A restore does NOT bring back the security layer.** Proven by that run:
+  16 statements fail on a bare Postgres — every RLS policy plus the
+  `profiles → auth.users` link, because there is no `authenticated` role and
+  no `auth` schema. Re-running everything in `sql/` is a mandatory recovery
+  step, not a tidy-up; skipping it leaves every record writable by anyone
+  signed in.
 - **Backup retention is 90 days** in GitHub artifacts, which vanish with the
   repo. Consider a copy held elsewhere.
 - **`SITE_REPO_TOKEN` must be set** in `claude_code` → Settings → Secrets →
