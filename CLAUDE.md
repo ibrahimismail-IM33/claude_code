@@ -40,6 +40,8 @@ Live at **epilibomba.com**. UI language is Bahasa Malaysia.
 | Path | What |
 |---|---|
 | `index.html` | The entire app |
+| `vendor/` | Leaflet, markercluster and the Supabase client, **served from this site, not a CDN**. See `vendor/README.md` for versions and how to update |
+| `tests/` | Node + Playwright regression tests. See `tests/README.md` |
 | `_headers` | CSP / HSTS / Permissions-Policy. `geolocation=(self)` is required by "Guna Lokasi Saya" |
 | `sql/supabase-setup.sql` | **1st** — profiles, `is_admin()`, hydrants (187 seeded) |
 | `sql/supabase-records-setup.sql` | **2nd** — hydrant_records, signatures bucket, permanent row lock |
@@ -109,6 +111,8 @@ Draw order: caps → walls → top faces (painter's algorithm).
 
 | Decision | Choice | Why |
 |---|---|---|
+| Third-party libraries | **Self-hosted in `vendor/`**, no CDN, no SRI needed | A script from unpkg/jsdelivr runs with full access to the signed-in session and every record card, and `@supabase/supabase-js@2` floated — whatever the CDN called "latest 2.x" reached every officer with no review. Self-hosting removes the path entirely and lets CSP `script-src` drop to `'self'`. Versions pinned in `vendor/README.md` |
+| Signatures bucket | **Stays public for now** (user's call), missing read policy restored | Making it private breaks the stored public URLs and needs path-based signed links. Deferred deliberately, not forgotten — the exposure is that anyone with a URL can view a signature without logging in |
 | Chart palette | Cream `#FDF0D5` / steel `#669BBC` / navy `#003049` | User-supplied. Ordered lightest = most complete |
 | Navy as text | **Never** — substitute `#9CAAB6` | Navy is 1.42:1 on dark, unreadable. Fill-only colour |
 | Figure ink | Green `#4ADE80` / blue `#60A5FA` / red `#F87171` on the **card numbers and the chart percentages only** | Status reads at a glance: pass / pending / outstanding. Measured on the card base `#121419` — 10.6 : 7.3 : 6.7, all above 4.5:1. The donut fill and the word under each percentage keep the cream/steel/`#9CAAB6` ink, so a label still matches the slice its leader line points at |
@@ -238,14 +242,15 @@ init, so it can't compete with 187 markers loading.
 Nothing blocking. Everything raised so far has been decided — see §3.
 
 Watch items:
-- **Live Supabase drift:** storage policies are 1 of 2 — `signatures write`
-  exists, **`signatures read` is missing** from the project. The bucket is
-  public so images still download, but the setup script creates both. Put it
-  back with:
-  `create policy "signatures read" on storage.objects for select using (bucket_id = 'signatures');`
-- **P1 and below from the audit are still open** — no SRI on the CDN tags and
-  `@supabase/supabase-js@2` floats unpinned; the signatures bucket is public;
-  7 of 8 accounts are admin; `hydrant_records` has no `updated_by`.
+- **Signatures bucket is still public.** Anyone with a URL can fetch an
+  officer's signature image without logging in. Fixing it means a private
+  bucket plus signed URLs generated at render time, which breaks the public
+  URLs already stored in `hydrant_records.signature`. User chose to defer.
+- **P2 and below from the audit are still open** — 7 of 8 accounts are admin;
+  `hydrant_records` has no `updated_by`, so unsigned edits are untraceable;
+  `SECURITY DEFINER` functions are exposed as RPC (search_path is pinned, so
+  no escalation path); leaked-password protection is off; `cloudLoad` and
+  `cloudFormLoad` are still unbounded (latent at 1000 rows).
 - **An open record card does not refresh** while it is open. It re-reads on
   open, which is enough, and refreshing under someone would throw away what
   they are typing. Left deliberately.
@@ -288,6 +293,10 @@ Watch items:
 - Zoom buttons at 34px are fine in the field
 
 **Committed regression tests** (`tests/`, see `tests/README.md`):
+- `csp-and-vendor.js` — 21 assertions: no CDN tag or CDN origin left anywhere,
+  every vendor file present, and the app booted under the **real CSP read from
+  `_headers`** with the real Leaflet — 187 pins in 7 clusters, zoom control,
+  Supabase client, zero CSP violations, zero page errors
 - `p0-offline-sync.js` — 20 assertions over 5 scenarios: offline edit
   survives and reaches the server, contested row warns instead of
   overwriting, signed rows are never touched, reconnect pushes without the

@@ -9,30 +9,25 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-  // If unpkg is blocked, pull Leaflet from a second CDN before our app runs.
-  if (typeof L === "undefined") {
-    document.write('<scr'+'ipt src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></scr'+'ipt>');
-  }
-</script>
+<!-- ===================================================================
+     Libraries are served from THIS site, not a CDN (see vendor/README.md).
+     A third-party script here would run with full access to the signed-in
+     Supabase session, and @supabase/supabase-js@2 used to float: whatever
+     jsdelivr called "latest 2.x" shipped to every officer with no review.
+     Serving our own copies removes that path entirely and lets the CSP in
+     _headers drop to script-src 'self'. Update = replace the file and
+     re-publish; the versions are pinned in vendor/README.md.
+     ================================================================== -->
+<link rel="stylesheet" href="vendor/leaflet.css" />
+<script src="vendor/leaflet.js"></script>
 
-<!-- Marker clustering: groups far-apart pins into counts until you zoom in (big performance win at 187 markers) -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
-      onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css';" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
-      onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css';" />
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-<script>
-  if (typeof L !== "undefined" && typeof L.markerClusterGroup !== "function") {
-    document.write('<scr'+'ipt src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></scr'+'ipt>');
-  }
-</script>
+<!-- Marker clustering: groups far-apart pins into counts until you zoom in (big performance win at 188 markers) -->
+<link rel="stylesheet" href="vendor/MarkerCluster.css" />
+<link rel="stylesheet" href="vendor/MarkerCluster.Default.css" />
+<script src="vendor/leaflet.markercluster.js"></script>
 
 <!-- Supabase client (shared cloud database). Harmless if you don't configure it. -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="vendor/supabase.js"></script>
 
 <style>
   :root{

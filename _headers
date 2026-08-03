@@ -19,6 +19,12 @@
 #    The Content-Security-Policy below lists the exact origins this app
 #    loads from. If you ever add a new CDN, font, or map tile provider,
 #    it MUST be added here or the browser will silently block it.
+#
+#    NOTE: script-src is 'self' only. Leaflet, markercluster and the
+#    Supabase client are served from vendor/ on this same site, NOT from
+#    a CDN. Do not re-add unpkg or jsdelivr here without a very good
+#    reason — a third-party script runs with full access to the signed-in
+#    session and to every record card.
 # ============================================================================
 
 /*
@@ -27,4 +33,4 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=(), usb=(), accelerometer=(), gyroscope=(), magnetometer=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://isxfhocfkjamjchmicwq.supabase.co; connect-src 'self' https://isxfhocfkjamjchmicwq.supabase.co wss://isxfhocfkjamjchmicwq.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://isxfhocfkjamjchmicwq.supabase.co; connect-src 'self' https://isxfhocfkjamjchmicwq.supabase.co wss://isxfhocfkjamjchmicwq.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
