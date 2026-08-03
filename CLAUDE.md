@@ -238,6 +238,15 @@ Draw order: caps → walls → top faces (painter's algorithm).
   planted `liar@example.com` and checked it was rejected — testing the happy
   path would have passed. An audit field must take identity from the token and
   never fall back to the request body.
+- **Shipped a workflow that could never run.** `publish-to-site.yml` had a
+  multi-line commit message inside a `run:` block, which ends the YAML block
+  scalar and corrupts everything after it. GitHub registered the file and
+  said nothing; the only tell was the Actions list showing the **file path**
+  instead of the workflow name, and `workflow_dispatch` being rejected as
+  "not a trigger". **A workflow displaying its path as its name is an
+  unparseable workflow.** Validate with `yaml.safe_load` before pushing, and
+  never interpolate `github.event.*` text into a shell script — pass it as an
+  env var, or a commit message containing backticks executes as code.
 - **Recommended work I could not finish.** I proposed creating a scratch
   Supabase project for a restore test "then deleting it" without first checking
   that I had a way to delete it, or a token to download the backup artifact. I
@@ -294,8 +303,9 @@ Watch items:
   signed in.
 - **Backup retention is 90 days** in GitHub artifacts, which vanish with the
   repo. Consider a copy held elsewhere.
-- **`SITE_REPO_TOKEN` must be set** in `claude_code` → Settings → Secrets →
-  Actions, or the publish workflow fails on every push.
+- **Publishing is automatic** — `publish-to-site.yml` copies `index.html`,
+  `_headers` and `vendor/` to the site repo on every push to main, using the
+  `SITE_REPO_TOKEN` secret. Verified working 2026-08-03. Do not hand-copy.
 - **An open record card does not refresh** while it is open. It re-reads on
   open, which is enough, and refreshing under someone would throw away what
   they are typing. Left deliberately.
