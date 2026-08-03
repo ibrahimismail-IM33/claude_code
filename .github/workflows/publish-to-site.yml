@@ -87,16 +87,25 @@ jobs:
           echo "checks passed"
 
       - name: Push
+        env:
+          # Passed as an environment variable, never interpolated into the
+          # script: a commit message is attacker-controllable text and would
+          # otherwise be executed as shell. It also broke the YAML, because a
+          # multi-line message cannot sit inside a run: block.
+          SRC_MSG: ${{ github.event.head_commit.message }}
         run: |
           set -euo pipefail
           cd site
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet && git diff --staged --quiet && [ -z "$(git status --porcelain)" ]; then
+          if [ -z "$(git status --porcelain)" ]; then
             echo "site is already up to date"; exit 0
           fi
           git add -A
-          git commit -m "Publish ${GITHUB_SHA::7} from ${GITHUB_REPOSITORY}
-
-${{ github.event.head_commit.message }}"
+          {
+            echo "Publish ${GITHUB_SHA:0:7} from ${GITHUB_REPOSITORY}"
+            echo
+            echo "${SRC_MSG:-(no message)}"
+          } > /tmp/commit-msg.txt
+          git commit -F /tmp/commit-msg.txt
           git push
