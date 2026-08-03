@@ -206,6 +206,20 @@ Draw order: caps → walls → top faces (painter's algorithm).
     the connection returns, and only genuinely contested rows are held back
     and shown to the officer. Guarded by `tests/p0-offline-sync.js`.
 
+11. **The nightly backup did not include the signature images.** It dumped
+    `public` and `auth.users` only; the images live in Storage, outside both.
+    8 files, 1.1 MB, and every signed record depends on one — a restore would
+    have produced records claiming to be signed and pointing at dead links.
+    The signature *is* the evidence, so this was the largest blast radius of
+    anything found in the audit. The workflow now downloads them into the same
+    artifact with `storage-objects.csv` to match file to record, needs no new
+    secret (list from `storage.objects` over the existing DB URL, bucket is
+    public), and fails loudly if any image is missing. **If the bucket is ever
+    made private this step needs a service-role key.**
+12. **A failed backup told nobody.** It now opens or comments on an issue
+    labelled `backup-failure`, which needs `permissions: issues: write` on the
+    job — without that the alert itself fails silently.
+
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"
@@ -216,6 +230,16 @@ Draw order: caps → walls → top faces (painter's algorithm).
   was still right, but it was routine hygiene, not a near-miss.
 - **Asserted before checking.** The lesson that keeps paying: measure in a real
   browser, don't reason from the screenshot.
+- **Shipped an audit column the client could forge.** The first version of
+  `stamp_row_audit()` used `coalesce(jwt_email, new.updated_by)`, so a modified
+  page could write any name into the audit trail. Caught only because the test
+  planted `liar@example.com` and checked it was rejected — testing the happy
+  path would have passed. An audit field must take identity from the token and
+  never fall back to the request body.
+- **Recommended work I could not finish.** I proposed creating a scratch
+  Supabase project for a restore test "then deleting it" without first checking
+  that I had a way to delete it, or a token to download the backup artifact. I
+  had neither. Check the whole path is available before recommending it.
 
 ---
 
@@ -255,8 +279,14 @@ Watch items:
   exposed as RPC (search_path is pinned, so no escalation path);
   leaked-password protection is off; `cloudLoad` and `cloudFormLoad` are still
   unbounded (latent at 1000 rows).
-- **Backups run nightly and succeed, but no restore has ever been tested** and
-  a failed run notifies nobody. Retention is 90 days in GitHub artifacts.
+- **No restore has ever been tested.** `RESTORE.md` in the site repo is a
+  15-minute drill; run it once, then every six months, and record the result
+  in §8. I could not run it myself: this container has no GitHub token to
+  download the artifact, and there is no delete-project tool, so creating a
+  scratch project would have left something on the account only the user can
+  remove.
+- **Backup retention is 90 days** in GitHub artifacts, which vanish with the
+  repo. Consider a copy held elsewhere.
 - **`SITE_REPO_TOKEN` must be set** in `claude_code` → Settings → Secrets →
   Actions, or the publish workflow fails on every push.
 - **An open record card does not refresh** while it is open. It re-reads on
