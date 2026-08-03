@@ -2112,6 +2112,20 @@
       savePending(h.id,null); renderPendingNotice(h,el);
     };
   }
+  /* Everything about a card that is actually rendered. Deliberately excludes
+     _sigUrl, which is a short-lived link resolved per viewing and would
+     otherwise make every card look changed. */
+  function formFingerprint(f){
+    if(!f) return "";
+    var out=[f.header||{}];
+    SEC_ORDER.forEach(function(s){
+      (f[s]||[]).forEach(function(r){
+        var o={}; Object.keys(r||{}).forEach(function(k){ if(k!=="_sigUrl") o[k]=r[k]; });
+        out.push(o);
+      });
+    });
+    try{ return JSON.stringify(out); }catch(e){ return String(Math.random()); }
+  }
   function openForm(h){
     var el=document.getElementById("formOverlay");
     var f=loadForm(h.id);
@@ -2131,10 +2145,18 @@
         // holds, so rows cleared by an admin cannot linger in this browser's cache
         // (and cannot be pushed back up on the next save).
         snapCloudBase(h.id, rows);
-        f = applyCloudRows(blankForm(), rows);
-        if(f && f.header && !f.header.lokasi && h.location) f.header.lokasi = h.location;
-        try{ window.localStorage.setItem(formKey(h.id), JSON.stringify(f)); }catch(e){}
-        el.innerHTML=buildFormHtml(h,f); wireForm(h,f,el);
+        var fresh = applyCloudRows(blankForm(), rows);
+        if(fresh && fresh.header && !fresh.header.lokasi && h.location) fresh.header.lokasi = h.location;
+        try{ window.localStorage.setItem(formKey(h.id), JSON.stringify(fresh)); }catch(e){}
+        padToCards(fresh, cardCount(fresh));      // compare like with like
+        // Redrawing a card that has not changed makes it visibly blink on a
+        // phone — and the cached copy is usually identical to the cloud one,
+        // so that blink was happening on almost every open. Only rebuild when
+        // the record actually differs from what is already on screen.
+        if(formFingerprint(fresh) !== formFingerprint(f)){
+          f = fresh;
+          el.innerHTML=buildFormHtml(h,f); wireForm(h,f,el);
+        }
         renderPendingNotice(h,el);
         // the signature links are a separate round trip; the officer should
         // not wait on them to see the card

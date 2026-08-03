@@ -64,9 +64,10 @@ async function boot(b, recs, mode){
   await p.waitForTimeout(1500);
   await p.evaluate(()=>document.getElementById('authGate').classList.add('hide'));
   await p.evaluate(()=>window.__clickMarker(0)); await p.waitForTimeout(300);
-  await p.click('#dOpenForm'); await p.waitForTimeout(1400);
+  await p.click('#dOpenForm');
   return p;
 }
+const settle = p => p.waitForTimeout(1400);
 const imgSrc = p => p.evaluate(()=>{const i=document.querySelector('.ftab.pengujian img.sigimg');return i?i.getAttribute('src'):null;});
 const LEGACY = [{hydrant_id:1,section:'pengujian',row_index:0,data:{tarikh:'2026-07-01',penguji:'Ali'},signed:true,
   signature:'https://proj.supabase.co/storage/v1/object/public/signatures/1/pengujian_0_123.png'}];
@@ -78,6 +79,7 @@ const NEWSTYLE = [{hydrant_id:1,section:'pengujian',row_index:0,data:{tarikh:'20
 
   console.log('T1  legacy row (public URL already in the database)');
   let p=await boot(b,LEGACY,'ok');
+  await settle(p);
   check('path extracted from old URL', await p.evaluate(()=>window.__signedCalls[0].paths), ['1/pengujian_0_123.png']);
   check('link expiry requested', await p.evaluate(()=>window.__signedCalls[0].ttl), 3600);
   check('renders the signed link', (await imgSrc(p)||'').indexOf('/object/sign/')>=0, true);
@@ -85,23 +87,27 @@ const NEWSTYLE = [{hydrant_id:1,section:'pengujian',row_index:0,data:{tarikh:'20
 
   console.log('T2  row stored as a path');
   p=await boot(b,NEWSTYLE,'ok');
+  await settle(p);
   check('path used as-is', await p.evaluate(()=>window.__signedCalls[0].paths), ['1/pengujian_0_456.png']);
   check('renders the signed link', (await imgSrc(p)||'').indexOf('/object/sign/')>=0, true);
   await p.close();
 
   console.log('T3  signing service returns an error (bucket still public)');
   p=await boot(b,LEGACY,'fail');
+  await settle(p);
   check('falls back to stored URL', (await imgSrc(p)||'').indexOf('/object/public/')>=0, true);
   check('image still shown', !!(await imgSrc(p)), true);
   await p.close();
 
   console.log('T4  offline / request rejects');
   p=await boot(b,LEGACY,'throw');
+  await settle(p);
   check('falls back, no broken image', (await imgSrc(p)||'').indexOf('/object/public/')>=0, true);
   await p.close();
 
   console.log('T5  a new signature stores the PATH, not a public URL');
   p=await boot(b,[],'ok');
+  await settle(p);
   await p.evaluate(()=>{
     const b=document.querySelector('.ftab.pengujian .sigbtn'); b.click();
   });
@@ -121,6 +127,33 @@ const NEWSTYLE = [{hydrant_id:1,section:'pengujian',row_index:0,data:{tarikh:'20
   const stored = await p.evaluate(()=>{const r=window.__recs.find(x=>x.section==='pengujian'&&x.row_index===0);return r?r.signature:null;});
   check('stored value is a path', stored && stored.indexOf('http')<0 && stored.indexOf('/pengujian_0_')>0, true);
   check('not a public URL',       (stored||'').indexOf('/object/public/')>=0, false);
+  await p.close();
+
+  console.log('T7  no blink: the card must not redraw when nothing changed');
+  p=await boot(b,LEGACY,'ok');
+  await p.waitForTimeout(250);
+  await p.evaluate(()=>{ window.__sheet = document.querySelector('.fsheet'); });   // hold the first-drawn node
+  await settle(p);
+  check('card was NOT rebuilt', await p.evaluate(()=>
+      !!window.__sheet && document.contains(window.__sheet)), true);
+  check('signature still shown', (await imgSrc(p)||'').indexOf('/object/sign/')>=0, true);
+  await p.close();
+
+  console.log('T8  but it DOES redraw when the cloud copy differs');
+  p=await boot(b,LEGACY,'ok');
+  await p.waitForTimeout(250);
+  await p.evaluate(()=>{ window.__sheet = document.querySelector('.fsheet'); });
+  await settle(p);
+  await p.evaluate(()=>{                       // someone else edits, then reopen
+    window.__recs[0].data.penguji='DIUBAH';
+    document.querySelector('#fClose').click();
+  });
+  await p.waitForTimeout(300);
+  await p.evaluate(()=>window.__clickMarker(0)); await p.waitForTimeout(300);
+  await p.click('#dOpenForm'); await settle(p);
+  check('shows the changed value', await p.evaluate(()=>{
+      const i=document.querySelector('.ftab.pengujian input.fin:not(.fin-date)');
+      return i?i.value:null; }), 'DIUBAH');
   await p.close();
 
   console.log('\n'+pass+' passed, '+fail+' failed');
