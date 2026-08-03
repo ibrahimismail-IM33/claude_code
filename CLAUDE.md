@@ -46,6 +46,8 @@ Live at **epilibomba.com**. UI language is Bahasa Malaysia.
 | `sql/supabase-setup.sql` | **1st** — profiles, `is_admin()`, hydrants (187 seeded) |
 | `sql/supabase-records-setup.sql` | **2nd** — hydrant_records, signatures bucket, permanent row lock |
 | `sql/supabase-jadual-setup.sql` | **3rd, optional** — shared inspection schedule |
+| `sql/supabase-audit-setup.sql` | **4th** — `updated_by` + a trigger that stamps it from the login token |
+| `.github/workflows/publish-to-site.yml` | Copies `index.html`, `_headers`, `vendor/` to the **site repo** on every push to main |
 | `drafts/dashboard-draft-glass.html` | Standalone dashboard design draft (superseded by the real thing, kept for reference) |
 | `docs/epilibomba-spec.md` | Earlier design spec |
 
@@ -111,6 +113,8 @@ Draw order: caps → walls → top faces (painter's algorithm).
 
 | Decision | Choice | Why |
 |---|---|---|
+| Two repos | `claude_code` builds, **`ibrahimismail-IM33/e-pili-bomba` is what Cloudflare publishes** | They drifted 7 commits apart once and officers used a live app missing fixes. A workflow now copies the three published paths on every push to main, and refuses to publish if a CDN tag reappears or `sql/`/`tests/` would go public |
+| Audit identity | Taken from the **JWT inside the database**, never from the request body, no fallback | A first version had `coalesce(jwt_email, new.updated_by)`, which let a modified page write any name it liked. Caught in testing. An audit column the client can set is decorative |
 | Third-party libraries | **Self-hosted in `vendor/`**, no CDN, no SRI needed | A script from unpkg/jsdelivr runs with full access to the signed-in session and every record card, and `@supabase/supabase-js@2` floated — whatever the CDN called "latest 2.x" reached every officer with no review. Self-hosting removes the path entirely and lets CSP `script-src` drop to `'self'`. Versions pinned in `vendor/README.md` |
 | Signatures bucket | **Stays public for now** (user's call), missing read policy restored | Making it private breaks the stored public URLs and needs path-based signed links. Deferred deliberately, not forgotten — the exposure is that anyone with a URL can view a signature without logging in |
 | Chart palette | Cream `#FDF0D5` / steel `#669BBC` / navy `#003049` | User-supplied. Ordered lightest = most complete |
@@ -246,11 +250,15 @@ Watch items:
   officer's signature image without logging in. Fixing it means a private
   bucket plus signed URLs generated at render time, which breaks the public
   URLs already stored in `hydrant_records.signature`. User chose to defer.
-- **P2 and below from the audit are still open** — 7 of 8 accounts are admin;
-  `hydrant_records` has no `updated_by`, so unsigned edits are untraceable;
-  `SECURITY DEFINER` functions are exposed as RPC (search_path is pinned, so
-  no escalation path); leaked-password protection is off; `cloudLoad` and
-  `cloudFormLoad` are still unbounded (latent at 1000 rows).
+- **Still open from the audit** — 7 of 8 accounts are admin (user chose to
+  keep roles and add the audit trail instead); `SECURITY DEFINER` functions are
+  exposed as RPC (search_path is pinned, so no escalation path);
+  leaked-password protection is off; `cloudLoad` and `cloudFormLoad` are still
+  unbounded (latent at 1000 rows).
+- **Backups run nightly and succeed, but no restore has ever been tested** and
+  a failed run notifies nobody. Retention is 90 days in GitHub artifacts.
+- **`SITE_REPO_TOKEN` must be set** in `claude_code` → Settings → Secrets →
+  Actions, or the publish workflow fails on every push.
 - **An open record card does not refresh** while it is open. It re-reads on
   open, which is enough, and refreshing under someone would throw away what
   they are typing. Left deliberately.

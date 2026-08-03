@@ -568,6 +568,9 @@
 
   /* ---------- signatures ---------- */
   .sigimg{max-width:100%;max-height:34px;object-fit:contain;display:block;margin:0 auto}
+  .flastedit{display:inline-block;margin-left:10px;font-family:var(--mono);font-size:10px;
+    letter-spacing:.04em;color:rgba(255,255,255,.45);font-weight:400}
+  @media print{ .flastedit{display:none} }
   .fpending{margin:0 0 12px;padding:12px 14px;border-radius:10px;
     background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.42);
     color:#fde68a;font-size:13px;line-height:1.5}
@@ -1746,7 +1749,7 @@
   }
   function cloudFormLoad(id, cb){
     if(!sb){ cb(null); return; }
-    sb.from("hydrant_records").select("section,row_index,data,signed,signed_by,signed_at,signature").eq("hydrant_id",id).then(function(res){
+    sb.from("hydrant_records").select("section,row_index,data,signed,signed_by,signed_at,signature,updated_by,updated_at").eq("hydrant_id",id).then(function(res){
       cb(res && !res.error && Array.isArray(res.data) ? res.data : null);
     }, function(){ cb(null); });
   }
@@ -1868,9 +1871,15 @@
       cloudStatus("Cloud connected ✓"); return {ok:true};
     }, function(err){ park(); var m=(err&&err.message)||"network error"; cloudStatus("Cloud ERROR · "+m); return {ok:false, reason:m}; });
   }
+  var LAST_EDIT=null;
   function applyCloudRows(f, rows){
     if(!rows) return f;
+    LAST_EDIT=null;
     rows.forEach(function(rec){
+      // who touched this card last — stamped by the database from the login
+      // token, so it is evidence rather than something the page asserts
+      if(rec.updated_at && (!LAST_EDIT || rec.updated_at>LAST_EDIT.at))
+        LAST_EDIT={at:rec.updated_at, by:rec.updated_by||""};
       if(rec.section==="header"){ f.header=Object.assign(f.header, rec.data||{}); return; }
       if(SECTIONS[rec.section]){ var arr=f[rec.section];
         while(arr.length<=rec.row_index) arr.push(emptyRow(rec.section));
@@ -1943,7 +1952,14 @@
   }
   function buildFormHtml(h,f){
     var cards=cardCount(f); padToCards(f,cards);
-    var out='<div class="ftoolbar"><div class="ftitle">Kad Rekod Pili Bomba \u2014 <b>'+esc(h.label)+'</b> <span id="cloudStat" class="cloudstat hide"></span></div>'
+    var edit="";
+    if(LAST_EDIT && LAST_EDIT.at){
+      var ed=new Date(LAST_EDIT.at);
+      edit=' <span class="flastedit">Dikemas kini '
+         + (isNaN(ed.getTime())?esc(LAST_EDIT.at):(pad(ed.getDate())+"/"+pad(ed.getMonth()+1)+"/"+ed.getFullYear()+" "+pad(ed.getHours())+":"+pad(ed.getMinutes())))
+         + (LAST_EDIT.by?(" oleh "+esc(LAST_EDIT.by)):"")+'</span>';
+    }
+    var out='<div class="ftoolbar"><div class="ftitle">Kad Rekod Pili Bomba \u2014 <b>'+esc(h.label)+'</b> <span id="cloudStat" class="cloudstat hide"></span>'+edit+'</div>'
       +'<div class="factions"><button class="fbtn" id="fSave">Save</button><button class="fbtn" id="fPrint">Print</button><button class="fbtn ghost" id="fClose">Close</button></div></div>'
       +'<div class="fsheet">';
     for(var c=0;c<cards;c++){

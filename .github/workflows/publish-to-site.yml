@@ -1,0 +1,102 @@
+# ============================================================================
+#  Publish the app to the site repo (ibrahimismail-IM33/e-pili-bomba)
+#
+#  WHY THIS EXISTS
+#    The site repo once sat 7 commits behind this one and nobody noticed —
+#    officers were using a live app missing fixes that had been "pushed".
+#    Copying by hand is what failed, so it is done here instead.
+#
+#  WHAT IT COPIES
+#    index.html, _headers and vendor/ — nothing else. Everything in the site
+#    repo is served publicly by Cloudflare Pages, so sql/ and tests/ must
+#    never go there.
+#
+#  WHAT IT LEAVES ALONE
+#    login-bg.jpg, README.md and .github/ in the site repo are untouched.
+#
+#  ONE-TIME SETUP (required, or this workflow just fails)
+#    A token that may push to the site repo:
+#      GitHub → Settings → Developer settings → Personal access tokens →
+#        Fine-grained tokens → Generate new token
+#        Repository access : only ibrahimismail-IM33/e-pili-bomba
+#        Permissions       : Contents → Read and write
+#    Then in THIS repo:
+#      Settings → Secrets and variables → Actions → New repository secret
+#        Name  : SITE_REPO_TOKEN
+#        Value : the token
+# ============================================================================
+name: Publish to site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - '_headers'
+      - 'vendor/**'
+      - '.github/workflows/publish-to-site.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-to-site
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the app
+        uses: actions/checkout@v4
+
+      - name: Check out the site repo
+        uses: actions/checkout@v4
+        with:
+          repository: ibrahimismail-IM33/e-pili-bomba
+          token: ${{ secrets.SITE_REPO_TOKEN }}
+          path: site
+
+      - name: Copy the published files
+        run: |
+          set -euo pipefail
+          test -f index.html
+          test -f _headers
+          test -d vendor
+          # vendor/ is replaced wholesale so a removed library cannot linger
+          rm -rf site/vendor
+          cp index.html _headers site/
+          cp -r vendor site/vendor
+          # these must never reach a public site
+          rm -rf site/sql site/tests
+
+      - name: Refuse to publish a broken build
+        run: |
+          set -euo pipefail
+          cd site
+          for f in index.html _headers vendor/leaflet.js vendor/leaflet.css \
+                   vendor/leaflet.markercluster.js vendor/supabase.js \
+                   vendor/images/marker-icon.png login-bg.jpg; do
+            [ -s "$f" ] || { echo "::error::missing or empty: $f"; exit 1; }
+          done
+          if grep -qE 'src="https://(unpkg\.com|cdn\.jsdelivr\.net)' index.html; then
+            echo "::error::index.html loads a script from a CDN — see vendor/README.md"; exit 1
+          fi
+          if [ -d sql ] || [ -d tests ]; then
+            echo "::error::sql/ or tests/ would be published publicly"; exit 1
+          fi
+          echo "checks passed"
+
+      - name: Push
+        run: |
+          set -euo pipefail
+          cd site
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet && git diff --staged --quiet && [ -z "$(git status --porcelain)" ]; then
+            echo "site is already up to date"; exit 0
+          fi
+          git add -A
+          git commit -m "Publish ${GITHUB_SHA::7} from ${GITHUB_REPOSITORY}
+
+${{ github.event.head_commit.message }}"
+          git push
