@@ -133,6 +133,13 @@
     padding:4px 6px;border-radius:9999px;box-shadow:0 4px 14px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06)}
   .hydrant-date-badge.kerajaan{border-color:rgba(239,68,68,.35);box-shadow:0 4px 14px rgba(0,0,0,.55),0 0 0 1px rgba(239,68,68,.15) inset,0 0 10px rgba(239,68,68,.25)}
   .hydrant-date-badge.swasta{border-color:rgba(250,204,21,.35);color:#fef08a;box-shadow:0 4px 14px rgba(0,0,0,.55),0 0 0 1px rgba(250,204,21,.12) inset,0 0 10px rgba(250,204,21,.22)}
+  /* a card on this device that has not reached the server yet — visible on the
+     map so an officer does not have to open every pili to find it */
+  .hydrant-pending{position:absolute;left:50%;top:-4px;transform:translateX(9px);z-index:2;
+    width:16px;height:16px;border-radius:9999px;display:grid;place-items:center;
+    background:#f59e0b;color:#1a1200;border:1.5px solid rgba(0,0,0,.5);
+    font-family:var(--mono);font-size:11px;font-weight:800;line-height:1;
+    box-shadow:0 0 10px rgba(245,158,11,.75)}
   /* clustered pin bubbles — on-brand dark styling */
   .marker-cluster{background:transparent}
   .marker-cluster div{background:rgba(15,16,20,.94);color:#fff;border:1px solid rgba(239,68,68,.55);
@@ -566,6 +573,13 @@
 
   /* ---------- signatures ---------- */
   .sigimg{max-width:100%;max-height:34px;object-fit:contain;display:block;margin:0 auto}
+  .fpending{margin:0 0 12px;padding:12px 14px;border-radius:10px;
+    background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.42);
+    color:#fde68a;font-size:13px;line-height:1.5}
+  .fpending ul{margin:8px 0 10px;padding-left:20px}
+  .fpending li{margin:3px 0}
+  .fpending b{color:#fff}
+  @media print{ .fpending{display:none} }
   tr.rowsigned td{background:rgba(22,163,74,.06)}
   tr.rowsigned .fin{color:#111;font-weight:600}
   .sigmodal{position:fixed;inset:0;z-index:120000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(4,5,7,.7)}
@@ -1255,14 +1269,14 @@
       jadualLoad();                        // a visit planned on another device
     }
   }
-  document.addEventListener("visibilitychange", function(){ if(!document.hidden) pullFresh(false); });
-  window.addEventListener("focus",  function(){ pullFresh(false); });
-  window.addEventListener("online", function(){ pullFresh(true); });
+  document.addEventListener("visibilitychange", function(){ if(!document.hidden){ flushAllPending(); pullFresh(false); } });
+  window.addEventListener("focus",  function(){ flushAllPending(); pullFresh(false); });
+  window.addEventListener("online", function(){ flushAllPending(); pullFresh(true); });
   /* A device left open on the counter never comes back to the foreground, so
      coming-back-to-focus alone is not enough — poll while the app is actually
      being looked at. Nothing runs while the tab is hidden or the screen is
      off, so this costs nothing in a pocket. */
-  setInterval(function(){ if(!document.hidden) pullFresh(false); }, PULL_EVERY);
+  setInterval(function(){ if(!document.hidden){ flushAllPending(); pullFresh(false); } }, PULL_EVERY);
   // Insert-or-update one hydrant in the cloud.
   function cloudSave(h){
     if(!sb || !h) return;
@@ -1358,9 +1372,11 @@
     setTimeout(fix,0); setTimeout(fix,200); setTimeout(fix,600);
     window.addEventListener("resize",fix);
   }
-  function makeIcon(status,last){
+  function makeIcon(status,last,pending){
     var color=STATUS[status].hex;
     var badge=last?'<div class="hydrant-date-badge '+status+'">'+fmtBadge(last)+'</div>':"";
+    // a card on this device that has not reached the server yet
+    var pend=pending?'<div class="hydrant-pending" title="Belum dihantar ke pelayan">!</div>':"";
     var svg='<svg xmlns="http://www.w3.org/2000/svg" width="42" height="52" viewBox="0 0 42 52" style="position:absolute;left:0;top:0">'
       +'<ellipse cx="21" cy="50" rx="10" ry="3" fill="rgba(0,0,0,0.35)"/>'
       +'<rect x="14" y="34" width="14" height="10" rx="3" fill="'+color+'" stroke="white" stroke-width="1.5"/>'
@@ -1371,7 +1387,7 @@
       +'<circle cx="21" cy="10" r="4" fill="'+color+'" stroke="white" stroke-width="1.5"/>'
       +'<rect x="17" y="20" width="8" height="14" rx="3" fill="rgba(255,255,255,0.18)"/>'
       +'<ellipse cx="16" cy="22" rx="2" ry="4" fill="rgba(255,255,255,0.25)"/></svg>';
-    return L.divIcon({html:'<div class="hydrant-marker" style="--c:'+color+'">'+svg+'<span class="hydrant-beacon"></span>'+badge+'</div>',
+    return L.divIcon({html:'<div class="hydrant-marker" style="--c:'+color+'">'+svg+'<span class="hydrant-beacon"></span>'+badge+pend+'</div>',
       className:"",iconSize:[42,74],iconAnchor:[21,52],popupAnchor:[0,-62]});
   }
   function tip(h){var c=STATUS[h.status];
@@ -1379,7 +1395,8 @@
       +'<span style="width:8px;height:8px;border-radius:9999px;background:'+c.hex+';box-shadow:0 0 8px '+c.hex+'"></span>'
       +'<span style="font-weight:800;letter-spacing:.02em">'+esc(h.label)+'</span>'
       +'<span style="font-family:\'JetBrains Mono\',monospace;font-size:10px;opacity:.6;margin-left:4px">'+c.short+'</span></div>'
-      +'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;opacity:.7">'+(h.lastInspected?"Inspected: "+esc(h.lastInspected):"No inspection date")+'</div></div>';
+      +'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;opacity:.7">'+(h.lastInspected?"Inspected: "+esc(h.lastInspected):"No inspection date")+'</div>'
+      +(hasPending(h.id)?'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#fbbf24">! Belum dihantar ke pelayan</div>':"")+'</div>';
   }
   function renderMarkers(){
     if(!map||!markerLayer)return;
@@ -1387,7 +1404,7 @@
     markerLayer.clearLayers();
     markers.clear();
     vis.forEach(function(h){
-      var m=L.marker([h.lat,h.lng],{icon:makeIcon(h.status,h.lastInspected)});
+      var m=L.marker([h.lat,h.lng],{icon:makeIcon(h.status,h.lastInspected,hasPending(h.id))});
       m.bindTooltip(tip(h),{direction:"top",offset:[0,-56]});
       m.on("click",function(){ openDetail(h); });
       markerLayer.addLayer(m);
@@ -1739,14 +1756,122 @@
     }, function(){ cb(null); });
   }
   function cleanRow(r){ var o={}; Object.keys(r).forEach(function(k){ if(k.charAt(0)!=="_") o[k]=r[k]; }); return o; }
+  /* ================= offline safety net =================================
+     An officer fills a card where there is no signal. The save fails, the
+     card is kept in localStorage, and it used to be destroyed the next time
+     the card was opened with a working connection: openForm rebuilt the
+     form from the cloud and wrote that back over the cache. The typing was
+     gone from the screen AND from the device, and had never reached the
+     server. Reproduced end to end before this fix.
+
+     So a failed save is now parked in its own store, together with the
+     cloud values it was based on. When the connection returns the parked
+     rows push themselves up — but only the ones nobody else has touched
+     meanwhile. Where the office edited the same row, the cloud wins and the
+     officer is shown what they typed so they can re-enter it. Nothing is
+     ever thrown away without being seen.                                  */
+  function pendKey(id){ return "bbpkunak_pending_"+id; }
+  function loadPending(id){
+    try{ var r=window.localStorage.getItem(pendKey(id)); var p=r?JSON.parse(r):null;
+         return (p && Array.isArray(p.rows) && p.rows.length) ? p : null; }catch(e){ return null; }
+  }
+  function savePending(id,p){
+    try{
+      if(p && p.rows && p.rows.length) window.localStorage.setItem(pendKey(id), JSON.stringify(p));
+      else window.localStorage.removeItem(pendKey(id));
+    }catch(e){}
+    renderMarkers();          // the pin carries the "not sent yet" mark
+  }
+  function pendingIds(){
+    var out=[];
+    try{
+      for(var i=0;i<window.localStorage.length;i++){
+        var k=window.localStorage.key(i);
+        if(k && k.indexOf("bbpkunak_pending_")===0) out.push(+k.slice(17));
+      }
+    }catch(e){}
+    return out;
+  }
+  function hasPending(id){ return !!loadPending(id); }
+  function sameData(a,b){
+    try{ return JSON.stringify(a||{})===JSON.stringify(b||{}); }catch(e){ return false; }
+  }
+  /* What the cloud held when this card was opened. Used as the base for the
+     three-way comparison on flush — without it we cannot tell "nobody else
+     touched this" from "someone changed it after I went offline". */
+  var CLOUD_BASE={};
+  function snapCloudBase(id, rows){
+    var m={};
+    (rows||[]).forEach(function(r){ m[r.section+"|"+r.row_index]=r.data||{}; });
+    CLOUD_BASE[id]=m;
+  }
+  function baseFor(id,sec,ri){
+    var m=CLOUD_BASE[id];
+    if(!m) return undefined;                 // never saw the cloud this session
+    return m[sec+"|"+ri] || null;            // null = row did not exist yet
+  }
+  /* Push what is safe to push. cb(result) with counts, so the caller can
+     tell the officer what happened rather than guessing. */
+  function flushPending(id, cb){
+    cb = cb || function(){};
+    var p=loadPending(id);
+    if(!p){ cb({nothing:true}); return; }
+    if(!sb){ cb({offline:true}); return; }
+    sb.from("hydrant_records").select("section,row_index,data,signed").eq("hydrant_id",id)
+      .then(function(res){
+        if(!res || res.error || !Array.isArray(res.data)){ cb({offline:true}); return; }
+        var now={}; res.data.forEach(function(r){ now[r.section+"|"+r.row_index]={data:r.data||{},signed:!!r.signed}; });
+        var push=[], keep=[];
+        p.rows.forEach(function(row){
+          var k=row.section+"|"+row.row_index, cur=now[k];
+          if(cur && cur.signed){ keep.push(row); return; }          // signed is permanent, never overwrite
+          if(!cur){ push.push(row); return; }                        // nothing there to lose
+          if(row.base!==undefined && sameData(cur.data,row.base)){ push.push(row); return; }
+          if(sameData(cur.data,row.data)){ return; }                 // already identical — done
+          keep.push(row);                                            // someone else changed it: cloud wins, warn
+        });
+        function finish(okPushed){
+          var left = keep.slice();
+          savePending(id, left.length ? {t:p.t, rows:left} : null);
+          cb({pushed:okPushed?push.length:0, conflicts:left.length, failed:!okPushed});
+        }
+        if(!push.length){ finish(true); return; }
+        sb.from("hydrant_records")
+          .upsert(push.map(function(r){ return {hydrant_id:id, section:r.section, row_index:r.row_index, data:r.data}; }),
+                  {onConflict:"hydrant_id,section,row_index"})
+          .then(function(r2){ finish(!(r2 && r2.error)); }, function(){ finish(false); });
+      }, function(){ cb({offline:true}); });
+  }
+  /* Reconnect: try every parked card, not just the one on screen. The
+     officer may have put the phone away long ago. */
+  function flushAllPending(){
+    if(!sb) return;
+    pendingIds().forEach(function(id){ flushPending(id, function(){}); });
+  }
   function cloudFormSave(id,f){
-    if(!sb) return Promise.resolve({ok:false, reason:(sbReason||"cloud not configured")});
+    if(!sb){
+      var off=[{hydrant_id:id, section:"header", row_index:0, data:f.header}];
+      SEC_ORDER.forEach(function(s){ f[s].forEach(function(r,idx){ if(r._signed) return; if(rowHasData(s,r)||r.tt) off.push({hydrant_id:id, section:s, row_index:idx, data:cleanRow(r)}); }); });
+      savePending(id, {t:new Date().toISOString(), rows:off.map(function(r){
+        return {section:r.section, row_index:r.row_index, data:r.data, base:baseFor(id,r.section,r.row_index)};
+      })});
+      return Promise.resolve({ok:false, reason:(sbReason||"cloud not configured")});
+    }
     var rows=[{hydrant_id:id, section:"header", row_index:0, data:f.header}];
     SEC_ORDER.forEach(function(s){ f[s].forEach(function(r,idx){ if(r._signed) return; if(rowHasData(s,r)||r.tt) rows.push({hydrant_id:id, section:s, row_index:idx, data:cleanRow(r)}); }); });
+    // Park the rows before the request goes out, so a save that never comes
+    // back (tab closed, phone sleeps mid-request) is still recoverable.
+    function park(){
+      savePending(id, {t:new Date().toISOString(), rows:rows.map(function(r){
+        return {section:r.section, row_index:r.row_index, data:r.data, base:baseFor(id,r.section,r.row_index)};
+      })});
+    }
     return sb.from("hydrant_records").upsert(rows,{onConflict:"hydrant_id,section,row_index"}).then(function(res){
-      if(res && res.error){ cloudStatus("Cloud ERROR · "+(res.error.message||"save failed")); return {ok:false, reason:(res.error.message||"save failed")}; }
+      if(res && res.error){ park(); cloudStatus("Cloud ERROR · "+(res.error.message||"save failed")); return {ok:false, reason:(res.error.message||"save failed")}; }
+      savePending(id,null);                       // it landed — nothing outstanding
+      snapCloudBase(id, rows.map(function(r){ return {section:r.section,row_index:r.row_index,data:r.data}; }));
       cloudStatus("Cloud connected ✓"); return {ok:true};
-    }, function(err){ var m=(err&&err.message)||"network error"; cloudStatus("Cloud ERROR · "+m); return {ok:false, reason:m}; });
+    }, function(err){ park(); var m=(err&&err.message)||"network error"; cloudStatus("Cloud ERROR · "+m); return {ok:false, reason:m}; });
   }
   function applyCloudRows(f, rows){
     if(!rows) return f;
@@ -1853,6 +1978,37 @@
   }
   function fflash(btn,msg){ if(!btn)return; var o=btn.textContent; btn.textContent=msg; setTimeout(function(){ btn.textContent=o; },1400); }
 
+  var SEC_TITLE={header:"Maklumat pili", kerosakan:"Kerosakan", pemantauan:"Pemantauan", pengujian:"Pengujian", kompaun:"Kompaun"};
+  /* Cloud wins on a contested row, but the officer is shown exactly what they
+     typed while offline so they can put it back. Silently choosing a winner
+     is what caused the data loss in the first place. */
+  function renderPendingNotice(h, el){
+    var old=el.querySelector("#fPending"); if(old) old.parentNode.removeChild(old);
+    var p=loadPending(h.id); if(!p) return;
+    var items=p.rows.map(function(r){
+      var vals=Object.keys(r.data||{}).filter(function(k){
+        return k!=="tt" && String(r.data[k]||"").trim()!=="";
+      }).map(function(k){ return esc(k)+": <b>"+esc(r.data[k])+"</b>"; });
+      if(!vals.length) return "";
+      return "<li>"+esc(SEC_TITLE[r.section]||r.section)
+           + (r.section==="header" ? "" : " · baris "+(r.row_index+1))
+           + " — "+vals.join(" · ")+"</li>";
+    }).filter(Boolean);
+    if(!items.length) return;
+    var box=document.createElement("div");
+    box.id="fPending"; box.className="fpending";
+    box.innerHTML='<b>Belum dihantar ke pelayan.</b> Baris di bawah telah diubah oleh peranti lain, '
+      + 'jadi salinan pelayan yang dipaparkan. Ini yang anda taip semasa di luar talian — '
+      + 'sila masukkan semula jika masih perlu:<ul>'+items.join("")+'</ul>'
+      + '<button class="fbtn ghost" id="fPendDrop" type="button">Buang salinan ini</button>';
+    var sheet=el.querySelector(".fsheet");
+    if(sheet && sheet.parentNode) sheet.parentNode.insertBefore(box, sheet);
+    var drop=box.querySelector("#fPendDrop");
+    if(drop) drop.onclick=function(){
+      if(!window.confirm("Buang taipan luar talian ini? Tindakan ini tidak boleh dibatalkan.")) return;
+      savePending(h.id,null); renderPendingNotice(h,el);
+    };
+  }
   function openForm(h){
     var el=document.getElementById("formOverlay");
     var f=loadForm(h.id);
@@ -1860,15 +2016,23 @@
     if(f && f.header && !f.header.lokasi && h.location) f.header.lokasi = h.location;
     el.innerHTML=buildFormHtml(h,f); el.classList.remove("hide"); document.body.classList.add("form-open");
     wireForm(h,f,el);
-    cloudFormLoad(h.id, function(rows){
-      if(!rows) return;   // offline or error -> keep showing the local copy
-      // The database is the record. Rebuild the card from what the cloud actually
-      // holds, so rows cleared by an admin cannot linger in this browser's cache
-      // (and cannot be pushed back up on the next save).
-      f = applyCloudRows(blankForm(), rows);
-      if(f && f.header && !f.header.lokasi && h.location) f.header.lokasi = h.location;
-      try{ window.localStorage.setItem(formKey(h.id), JSON.stringify(f)); }catch(e){}
-      el.innerHTML=buildFormHtml(h,f); wireForm(h,f,el);
+    renderPendingNotice(h,el);
+    // Anything parked from an earlier offline session goes up FIRST, so the
+    // cloud copy we then read already contains it and there is nothing to warn
+    // about. Only genuinely contested rows survive the flush.
+    flushPending(h.id, function(){
+      cloudFormLoad(h.id, function(rows){
+        if(!rows){ renderPendingNotice(h,el); return; }   // still offline -> keep the local copy
+        // The database is the record. Rebuild the card from what the cloud actually
+        // holds, so rows cleared by an admin cannot linger in this browser's cache
+        // (and cannot be pushed back up on the next save).
+        snapCloudBase(h.id, rows);
+        f = applyCloudRows(blankForm(), rows);
+        if(f && f.header && !f.header.lokasi && h.location) f.header.lokasi = h.location;
+        try{ window.localStorage.setItem(formKey(h.id), JSON.stringify(f)); }catch(e){}
+        el.innerHTML=buildFormHtml(h,f); wireForm(h,f,el);
+        renderPendingNotice(h,el);
+      });
     });
   }
   function closeForm(){ var el=document.getElementById("formOverlay"); if(el){ el.classList.add("hide"); el.innerHTML=""; } document.body.classList.remove("form-open"); }

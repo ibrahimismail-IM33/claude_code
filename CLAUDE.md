@@ -124,6 +124,9 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Jadual "done" tick | **No** | The signed Pengujian row already proves it. A second flag would drift |
 | Jadual order | **Latest Tarikh first** (descending date) | Supersedes both earlier orders (upcoming-first, then newest-entry-first). Dates are ISO strings, so a string compare *is* a date compare — no parsing, no timezone. Rows sharing a date keep the newest entry on top. Past dates still carry the `lepas` tag wherever they sit |
 | Lokasi master | The **Kad Rekod** wins — saving the card writes `hydrant.location` | User's call. The popup, registry, search and every dashboard Lokasi link read that one field, so they all follow. A blank card field never overwrites, so clearing it cannot wipe a registered address |
+| Offline saves | **Parked in `bbpkunak_pending_<id>`**, pushed automatically on reconnect | A failed save used to live only in the form cache, which `openForm` then overwrote with the cloud copy — losing the typing from screen and device without ever reaching the server. See §4.10 |
+| Offline conflict | **Cloud wins, officer is warned** and shown what they typed | User's call. Silently picking a winner is what caused the loss. A row nobody else touched is pushed without any warning at all |
+| Unsent work | Banner on the card **and** an amber `!` on the map pin | An officer should not have to open every pili to find what has not synced |
 | Cross-device refresh | Re-read on foreground/focus/online, **plus a 60s poll while visible** | The app read the cloud once at startup and then showed its cache, so a second device only caught up when you opened each hydrant by hand. Foreground alone is not enough — a device left open on the counter never fires one. Throttled to one pull per 10s; nothing runs while the tab is hidden |
 | Background pull and the map | **Never re-fits the view** (`cloudLoad(quiet)` + `noFitOnce`) | A pull that brings a hydrant someone else added changes the fit key, and a re-fit would jump the map away from what the officer is reading |
 | Dashboard scope | Follows the Awam/Swasta pills, incl. cleared = Semua | Must match the map exactly |
@@ -183,6 +186,18 @@ Draw order: caps → walls → top faces (painter's algorithm).
 
 ---
 
+10. **Offline field data was destroyed silently.** An officer fills a card
+    with no signal; the save fails and says "⚠ Local only"; the card sits in
+    localStorage looking safe. The next time that card is opened with a
+    working connection, `openForm` rebuilds it from the cloud and writes that
+    back over the cache — the typing is gone from the screen *and* the
+    device, and never reached the server. Reproduced end to end. The
+    overwrite itself was deliberate (so rows an admin deleted cannot linger);
+    the offline case had simply not been considered. Now a failed save is
+    parked with the cloud values it was based on, pushed automatically when
+    the connection returns, and only genuinely contested rows are held back
+    and shown to the officer. Guarded by `tests/p0-offline-sync.js`.
+
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"
@@ -228,6 +243,9 @@ Watch items:
   public so images still download, but the setup script creates both. Put it
   back with:
   `create policy "signatures read" on storage.objects for select using (bucket_id = 'signatures');`
+- **P1 and below from the audit are still open** — no SRI on the CDN tags and
+  `@supabase/supabase-js@2` floats unpinned; the signatures bucket is public;
+  7 of 8 accounts are admin; `hydrant_records` has no `updated_by`.
 - **An open record card does not refresh** while it is open. It re-reads on
   open, which is enough, and refreshing under someone would throw away what
   they are typing. Left deliberately.
@@ -268,6 +286,13 @@ Watch items:
 - Dashboard header reads **"Data awan ✓"** — the real Supabase round trip works
 - Dashboard → Peta Pili returns a full map, no grey sliver
 - Zoom buttons at 34px are fine in the field
+
+**Committed regression tests** (`tests/`, see `tests/README.md`):
+- `p0-offline-sync.js` — 20 assertions over 5 scenarios: offline edit
+  survives and reaches the server, contested row warns instead of
+  overwriting, signed rows are never touched, reconnect pushes without the
+  card being opened, ordinary online saves unchanged. Verified to **fail on
+  the pre-fix code** — a test that passes on the bug guards nothing.
 
 **Still only tested against a stand-in client:**
 - The jadual table's own round trip (`gte`/`lte` period filter, insert, delete).
