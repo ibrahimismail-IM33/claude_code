@@ -283,13 +283,14 @@ init, so it can't compete with 187 markers loading.
 Nothing blocking. Everything raised so far has been decided — see §3.
 
 Watch items:
-- **`sql/` no longer matches production — the bucket.** The signatures bucket
-  was made **private** in production, with `signatures read` narrowed to
-  `authenticated`. `sql/supabase-records-setup.sql:114-116` still sets
-  `public = true` and grants read to everyone including anon. Because
-  `RESTORE.md` makes re-running `sql/` a mandatory recovery step, a restore
-  today would silently re-expose every signature image to the public internet.
-  Backport it. The DR scripts have to match what is running.
+- **Keep `sql/` in step with production.** The signatures bucket was made
+  private live, and the script was left creating it as `public = true` with an
+  anon-readable policy — which would have silently re-exposed every signature
+  during a recovery, because `RESTORE.md` makes re-running `sql/` mandatory.
+  Backported 2026-08-04, and the verification query now reports
+  `bucket_is_private` and `read_is_authenticated_only` so the same drift shows
+  up next time. **The DR scripts are not documentation — they are what a
+  recovery actually applies. Change production, change the script.**
 - **Still open from the audit** — 7 of 8 accounts are admin (user chose to
   keep roles and add the audit trail instead); `SECURITY DEFINER` functions are
   exposed as RPC (search_path is pinned, so no escalation path);

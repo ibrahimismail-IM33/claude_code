@@ -4,9 +4,9 @@ Fire-hydrant map and inspection-record system for **BBP Kunak, Sabah** (JBPM).
 Live at **epilibomba.com**.
 
 This document describes the system **as it actually is** on 2026-08-04, not as
-it was designed or intended. Every claim here was checked against the source.
-Where the running system and the committed source disagree, that is stated as a
-defect rather than glossed over — see §9.
+it was designed or intended. Every claim here was checked against the source,
+and the SQL was verified by running all four scripts against a real Postgres.
+Known defects are listed in §9 rather than glossed over.
 
 Companion documents: `PRD.md` (what it is for and where it is going),
 `CLAUDE.md` (working notes and decision log), `tests/README.md`,
@@ -203,7 +203,9 @@ location that may hold several pili.
 One PNG per signed row, background stripped client-side by `stripSignatureBg`.
 Currently 8 images, 1.1 MB. **The signature is the evidence** — this bucket is
 as important as the database, and was for a long time the least protected part
-of the system (§9, and `CLAUDE.md` §4.11).
+of it — public to anyone holding a URL, and missing from the backup entirely
+(`CLAUDE.md` §4.11). Both are now fixed: the bucket is private, reads require a
+signed-in user, and every image is in the nightly backup.
 
 ---
 
@@ -361,8 +363,12 @@ escalation route.
 | | `admin delete unsigned records` | delete: admin **and `signed = false`** |
 | `jadual_pemeriksaan` | `auth read jadual` | select: any authenticated |
 | | `admin insert/update/delete jadual` | write: admin only |
-| `storage.objects` | `signatures read` | select on the bucket |
+| `storage.objects` | `signatures read` | select: **authenticated only** on the bucket |
 | | `signatures write` | insert: authenticated **and** admin |
+
+The bucket is **private**. `to authenticated` on the read policy is the load-
+bearing part: without it the rule applies to `{public}`, which includes `anon`,
+and a private bucket with an anon-readable policy is not private at all.
 
 There is deliberately **no update or delete policy on `storage.objects`** for
 this bucket, so an uploaded signature image can never be replaced or removed.
@@ -504,33 +510,22 @@ validation, map filters and search. All verified by hand, none guarded.
 
 Stated plainly. None is secret and none is currently causing harm.
 
-**1. `sql/` no longer matches production.**
-`sql/supabase-records-setup.sql:114-116` still creates the signatures bucket as
-**public** and grants `signatures read` to everyone including anonymous callers.
-Production was changed to a private bucket with an `authenticated`-only read
-policy, and that change was never backported to the script.
-
-This is not cosmetic. `RESTORE.md` makes re-running `sql/` a **mandatory**
-recovery step — so a recovery today would **silently re-expose every officer's
-signature image to the public internet.** The scripts are the disaster-recovery
-source of truth and must match what is running.
-
-**2. Two unbounded queries.** `cloudLoad` and `cloudFormLoad` have no
+**1. Two unbounded queries.** `cloudLoad` and `cloudFormLoad` have no
 `.range()`. PostgREST caps a response at 1,000 rows and reports no error. At
 187 hydrants this is latent; it becomes real around five districts.
 
-**3. `SECURITY DEFINER` functions are exposed as RPC** to `anon` and
+**2. `SECURITY DEFINER` functions are exposed as RPC** to `anon` and
 `authenticated`. `search_path` is pinned, so there is no escalation path — this
 is an unnecessary surface, not a vulnerability.
 
-**4. Seven of eight accounts are admin.** Every one can write any hydrant and
+**3. Seven of eight accounts are admin.** Every one can write any hydrant and
 any record. Accepted deliberately, with the audit trail added in compensation.
 
-**5. Leaked-password protection is off** in Supabase Auth.
+**4. Leaked-password protection is off** in Supabase Auth.
 
-**6. No CI.** See §8.
+**5. No CI.** See §8.
 
-**7. Backup retention is 90 days** and lives inside the GitHub account it
+**6. Backup retention is 90 days** and lives inside the GitHub account it
 protects.
 
 ---

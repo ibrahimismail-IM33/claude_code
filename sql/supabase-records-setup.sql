@@ -106,14 +106,28 @@ create trigger trg_protect_signed
 
 -- ---------------------------------------------------------------------------
 -- 4. Signature image storage
---    Images are readable by anyone holding the link (they appear inside the
---    card and on printouts), but only an admin may upload.
---    There is deliberately NO update or delete rule, so an uploaded
---    signature image can never be replaced or removed.
+--    The bucket is PRIVATE. An officer's signature is personal data and the
+--    evidence that an inspection happened; a public bucket meant anyone
+--    holding a URL could fetch one without ever logging in.
+--
+--    The app therefore asks for a 1-hour signed link when a card opens
+--    (createSignedUrls, SIG_TTL = 3600) and falls back to whatever is stored
+--    on the row if signing is unavailable, so a signature never fails to
+--    display. New rows store the storage PATH; rows signed before this change
+--    hold a full public URL and the path is extracted from it.
+--
+--    Reading requires a signed-in user. Only an admin may upload. There is
+--    deliberately NO update or delete rule, so an uploaded signature image
+--    can never be replaced or removed.
+--
+--    Keep this in step with production. These scripts are the disaster
+--    recovery source of truth — RESTORE.md makes re-running everything in
+--    sql/ a mandatory step, so a script that still said `public = true`
+--    would silently re-expose every signature during a recovery.
 -- ---------------------------------------------------------------------------
 insert into storage.buckets (id, name, public)
-values ('signatures','signatures', true)
-on conflict (id) do update set public = true;
+values ('signatures','signatures', false)
+on conflict (id) do update set public = false;
 
 drop policy if exists "signatures read"   on storage.objects;
 drop policy if exists "signatures write"  on storage.objects;
@@ -121,8 +135,12 @@ drop policy if exists "signatures upload" on storage.objects;
 drop policy if exists "sig read"          on storage.objects;
 drop policy if exists "sig upload"        on storage.objects;
 
+-- `to authenticated` is the point of this policy. Without it the rule applies
+-- to {public}, which includes anon — and a private bucket with an anon-readable
+-- policy is not private at all.
 create policy "signatures read" on storage.objects
-  for select using (bucket_id = 'signatures');
+  for select to authenticated
+  using (bucket_id = 'signatures');
 
 create policy "signatures write" on storage.objects
   for insert to authenticated
@@ -131,7 +149,11 @@ create policy "signatures write" on storage.objects
 
 -- ---------------------------------------------------------------------------
 -- 5. Check it worked
---    Expect: records_table 1, lock_trigger 1, bucket 1, storage_policies 2
+--    Expect: records_table 1, lock_trigger 1, bucket 1, storage_policies 2,
+--            bucket_is_private t, read_is_authenticated_only t
+--
+--    The last two are the ones to actually look at. Everything else here can
+--    be right while the signatures sit open to the whole internet.
 -- ---------------------------------------------------------------------------
 select
   (select count(*) from information_schema.tables
@@ -141,6 +163,10 @@ select
   (select count(*) from pg_policies
      where schemaname='storage' and tablename='objects'
        and policyname like 'signatures%')                              as storage_policies,
+  (select not public from storage.buckets where id='signatures')        as bucket_is_private,
+  (select roles = '{authenticated}' from pg_policies
+     where schemaname='storage' and tablename='objects'
+       and policyname='signatures read')                        as read_is_authenticated_only,
   (select count(*) from public.hydrant_records)                         as rows_saved_so_far;
 
 

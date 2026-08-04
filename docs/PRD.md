@@ -165,39 +165,31 @@ the client.
 
 ### P1 — Should be fixed before the product grows
 
-**6.1 `sql/` no longer matches production.**
-`supabase-records-setup.sql` still creates the signatures bucket as **public**
-with a read policy open to anonymous callers. Production was changed to a
-private bucket with authenticated-only reads; the script was never updated.
-Because `RESTORE.md` makes re-running `sql/` **mandatory** during recovery, a
-restore today would **silently re-expose every officer's signature image to the
-public internet**. The disaster-recovery scripts must match what is running.
-
-**6.2 No CI.** Three good test suites, 54 assertions, and nothing runs them.
+**6.1 No CI.** Three good test suites, 54 assertions, and nothing runs them.
 The guarantee is currently *"these bugs will not come back if someone
 remembers"*, which is not a guarantee. Roughly one hour of work: a
 `package.json`, a workflow, and a block on `publish-to-site` if any suite fails.
 
 ### P2 — Hardening. Real, but nothing is on fire
 
-**6.3 Unbounded queries.** `cloudLoad` and `cloudFormLoad` have no `.range()`.
+**6.2 Unbounded queries.** `cloudLoad` and `cloudFormLoad` have no `.range()`.
 PostgREST caps a response at 1,000 rows and reports no error. Latent at 187
 hydrants; certain at ~5 districts. Silent wrong numbers are the worst class of
 bug — the same failure mode would have reported 120 Kunak hydrants as never
 inspected.
 
-**6.4 `SECURITY DEFINER` functions exposed as RPC** to `anon` and
+**6.3 `SECURITY DEFINER` functions exposed as RPC** to `anon` and
 `authenticated`. `search_path` is pinned, so there is no escalation path.
 Unnecessary surface, not a vulnerability. Revoke the grants.
 
-**6.5 Leaked-password protection is off.** One switch in Supabase Auth.
+**6.4 Leaked-password protection is off.** One switch in Supabase Auth.
 
-**6.6 Seven of eight accounts are admin.** Accepted deliberately, with the
+**6.5 Seven of eight accounts are admin.** Accepted deliberately, with the
 audit trail added instead. Revisit if headcount grows.
 
 ### P3 — Needs a decision, not just code
 
-**6.7 Backup retention is 90 days** in GitHub artifacts, which vanish with the
+**6.6 Backup retention is 90 days** in GitHub artifacts, which vanish with the
 account they are protecting. A second location costs money and needs a decision
 about where.
 
@@ -355,14 +347,21 @@ No browser can report that a signature feels slow on 3G at Madai, or that the
 app does not recover the way an officer expects when signal drops mid-inspection.
 Costs nothing and outranks every item below.
 
-### Phase 1 — Make current quality permanent (~1 day)
-- Backport the private-bucket change into `sql/` (6.1)
-- Wire the three test suites into CI and block publishing on failure (6.2)
+### Phase 1 — Make current quality permanent (~1 hour)
+- Wire the three test suites into CI and block publishing on failure (6.1)
+
+*Done 2026-08-04:* the private-bucket change was backported into
+`sql/supabase-records-setup.sql`, which had still been creating the signatures
+bucket as public with an anon-readable policy. Since `RESTORE.md` makes
+re-running `sql/` mandatory during recovery, a restore would have silently
+re-exposed every signature image. The script's verification query now reports
+`bucket_is_private` and `read_is_authenticated_only`, so the same drift is
+visible the next time anyone runs it.
 
 ### Phase 2 — Hardening (~2 hours, no user-visible change)
-- Bound `cloudLoad` and `cloudFormLoad` (6.3)
-- Revoke the RPC grants (6.4)
-- Enable leaked-password protection (6.5)
+- Bound `cloudLoad` and `cloudFormLoad` (6.2)
+- Revoke the RPC grants (6.3)
+- Enable leaked-password protection (6.4)
 
 ### Phase 3 — District #2 (~2 days) — only when a real second station is willing
 - `district` column, scoped permissions, district selector (7.3)
