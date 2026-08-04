@@ -49,6 +49,8 @@ Live at **epilibomba.com**. UI language is Bahasa Malaysia.
 | `sql/supabase-audit-setup.sql` | **4th** — `updated_by` + a trigger that stamps it from the login token |
 | `.github/workflows/publish-to-site.yml` | Copies `index.html`, `_headers`, `vendor/` to the **site repo** on every push to main |
 | `drafts/dashboard-draft-glass.html` | Standalone dashboard design draft (superseded by the real thing, kept for reference) |
+| `docs/FULL-ARCHITECTURE.md` | How the system is built — layers, data model, every RLS policy, the key flows, deploy pipeline, and §9 known defects |
+| `docs/PRD.md` | What it is for and where it goes — requirements, open issues, district-expansion analysis, non-technical risks, roadmap |
 | `docs/epilibomba-spec.md` | Earlier design spec |
 
 ### Data
@@ -281,10 +283,13 @@ init, so it can't compete with 187 markers loading.
 Nothing blocking. Everything raised so far has been decided — see §3.
 
 Watch items:
-- **Signatures bucket is still public.** Anyone with a URL can fetch an
-  officer's signature image without logging in. Fixing it means a private
-  bucket plus signed URLs generated at render time, which breaks the public
-  URLs already stored in `hydrant_records.signature`. User chose to defer.
+- **`sql/` no longer matches production — the bucket.** The signatures bucket
+  was made **private** in production, with `signatures read` narrowed to
+  `authenticated`. `sql/supabase-records-setup.sql:114-116` still sets
+  `public = true` and grants read to everyone including anon. Because
+  `RESTORE.md` makes re-running `sql/` a mandatory recovery step, a restore
+  today would silently re-expose every signature image to the public internet.
+  Backport it. The DR scripts have to match what is running.
 - **Still open from the audit** — 7 of 8 accounts are admin (user chose to
   keep roles and add the audit trail instead); `SECURITY DEFINER` functions are
   exposed as RPC (search_path is pinned, so no escalation path);
