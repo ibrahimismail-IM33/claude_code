@@ -1,0 +1,8 @@
+# Dev tooling only. Nothing in here is ever published — publish-to-site.yml
+# copies index.html, _headers and vendor/ and nothing else, and the app's
+# runtime libraries are self-hosted in vendor/ by deliberate decision.
+node_modules/
+
+# Playwright leftovers
+test-results/
+playwright-report/

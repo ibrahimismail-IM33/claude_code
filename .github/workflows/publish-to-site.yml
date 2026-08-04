@@ -42,7 +42,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The gate. Publishing waits on the regression suites, so a change that
+  # breaks offline sync, brings a CDN script back, or stops signatures
+  # displaying never reaches an officer's phone. tests.yml carries
+  # `workflow_call` for this; if that trigger is ever removed the gate
+  # detaches silently and this workflow stops running the tests at all.
+  test:
+    uses: ./.github/workflows/tests.yml
+
   publish:
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

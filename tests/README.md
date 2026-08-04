@@ -8,14 +8,40 @@ assert on what reaches the "server".
 ## Running
 
 ```sh
-npm i -D playwright          # once
-node tests/p0-offline-sync.js
+npm ci                       # once
+npm test                     # all three suites
+npm run test:offline         # or one at a time
+npm run test:csp
+npm run test:signatures
 ```
 
 Chromium is found at `/opt/pw-browsers/chromium` by default; override with
 `CHROMIUM_PATH=/path/to/chromium`.
 
 Exit code is 0 when everything passes, 1 otherwise.
+
+## CI
+
+`.github/workflows/tests.yml` runs all three suites on **every push and pull
+request**, and `publish-to-site.yml` calls the same workflow and will not
+publish until it passes:
+
+```yaml
+jobs:
+  test:
+    uses: ./.github/workflows/tests.yml
+  publish:
+    needs: test
+```
+
+**That gate is the point.** A red suite stops the change reaching officers.
+A CI workflow that reports a failure while the broken build ships anyway is
+decoration — if you ever change these workflows, keep `workflow_call` in
+`tests.yml` and `needs: test` in the publish job, or the gate detaches without
+anything appearing to break.
+
+CI asks Playwright for its own Chromium path rather than hardcoding one, so
+bumping the `playwright` version in `package.json` needs no change here.
 
 ## What is here
 

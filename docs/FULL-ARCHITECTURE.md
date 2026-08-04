@@ -496,9 +496,33 @@ real Chromium.
 The standard, from `tests/README.md`: **a test earns its place by failing on the
 broken code.**
 
-**Gap: nothing runs them.** There is no `package.json` and no CI job, so all 54
-assertions execute only when a human remembers to type the command. This is the
-highest-value outstanding item in the whole system.
+### CI, and the gate
+
+`.github/workflows/tests.yml` runs all three suites on **every push and pull
+request**. `publish-to-site.yml` calls that same workflow and depends on it:
+
+```yaml
+jobs:
+  test:
+    uses: ./.github/workflows/tests.yml
+  publish:
+    needs: test
+```
+
+**The dependency is the deliverable, not the workflow.** A CI job that reports
+red while the broken build ships anyway is decoration; `needs: test` is what
+stops a regression reaching an officer's phone. If either `workflow_call` in
+`tests.yml` or `needs: test` here is ever removed, the gate detaches and
+nothing appears to break.
+
+`package.json` exists only for this — `playwright` as a dev dependency and the
+three `npm run test:*` scripts. **The app itself still has no build step and no
+runtime dependency on npm**; runtime libraries stay self-hosted in `vendor/`,
+and `publish-to-site.yml` copies only `index.html`, `_headers` and `vendor/`,
+so nothing from `node_modules` can reach the site.
+
+CI asks Playwright for its own Chromium path rather than hardcoding the dev
+container's `/opt/pw-browsers/chromium`, so a version bump needs no CI change.
 
 Not covered by committed tests: dashboard figures and donut geometry, the
 jadual round trip against a real table, the login gate and roles, record-card
@@ -523,9 +547,7 @@ any record. Accepted deliberately, with the audit trail added in compensation.
 
 **4. Leaked-password protection is off** in Supabase Auth.
 
-**5. No CI.** See §8.
-
-**6. Backup retention is 90 days** and lives inside the GitHub account it
+**5. Backup retention is 90 days** and lives inside the GitHub account it
 protects.
 
 ---

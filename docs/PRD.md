@@ -158,38 +158,37 @@ the client.
 | Accounts | 8, of which 7 admin |
 | Districts | 1 |
 | Codebase | `index.html`, 3,267 lines, 238 KB, no build step |
-| Tests | 3 suites, 54 assertions — **not run by CI** |
+| Tests | 3 suites, 54 assertions — run by CI on every push |
 | Backups | Nightly, verified weekly by automated restore |
 
 ## 6. Open issues
 
-### P1 — Should be fixed before the product grows
+### P1 — none outstanding
 
-**6.1 No CI.** Three good test suites, 54 assertions, and nothing runs them.
-The guarantee is currently *"these bugs will not come back if someone
-remembers"*, which is not a guarantee. Roughly one hour of work: a
-`package.json`, a workflow, and a block on `publish-to-site` if any suite fails.
+*Both closed 2026-08-04.* `sql/` was brought back in step with production, and
+the three test suites now run in CI on every push with publishing blocked on
+them (`tests.yml` + `needs: test`). See §9 Phase 1.
 
 ### P2 — Hardening. Real, but nothing is on fire
 
-**6.2 Unbounded queries.** `cloudLoad` and `cloudFormLoad` have no `.range()`.
+**6.1 Unbounded queries.** `cloudLoad` and `cloudFormLoad` have no `.range()`.
 PostgREST caps a response at 1,000 rows and reports no error. Latent at 187
 hydrants; certain at ~5 districts. Silent wrong numbers are the worst class of
 bug — the same failure mode would have reported 120 Kunak hydrants as never
 inspected.
 
-**6.3 `SECURITY DEFINER` functions exposed as RPC** to `anon` and
+**6.2 `SECURITY DEFINER` functions exposed as RPC** to `anon` and
 `authenticated`. `search_path` is pinned, so there is no escalation path.
 Unnecessary surface, not a vulnerability. Revoke the grants.
 
-**6.4 Leaked-password protection is off.** One switch in Supabase Auth.
+**6.3 Leaked-password protection is off.** One switch in Supabase Auth.
 
-**6.5 Seven of eight accounts are admin.** Accepted deliberately, with the
+**6.4 Seven of eight accounts are admin.** Accepted deliberately, with the
 audit trail added instead. Revisit if headcount grows.
 
 ### P3 — Needs a decision, not just code
 
-**6.6 Backup retention is 90 days** in GitHub artifacts, which vanish with the
+**6.5 Backup retention is 90 days** in GitHub artifacts, which vanish with the
 account they are protecting. A second location costs money and needs a decision
 about where.
 
@@ -359,9 +358,9 @@ re-exposed every signature image. The script's verification query now reports
 visible the next time anyone runs it.
 
 ### Phase 2 — Hardening (~2 hours, no user-visible change)
-- Bound `cloudLoad` and `cloudFormLoad` (6.2)
-- Revoke the RPC grants (6.3)
-- Enable leaked-password protection (6.4)
+- Bound `cloudLoad` and `cloudFormLoad` (6.1)
+- Revoke the RPC grants (6.2)
+- Enable leaked-password protection (6.3)
 
 ### Phase 3 — District #2 (~2 days) — only when a real second station is willing
 - `district` column, scoped permissions, district selector (7.3)

@@ -47,7 +47,9 @@ Live at **epilibomba.com**. UI language is Bahasa Malaysia.
 | `sql/supabase-records-setup.sql` | **2nd** — hydrant_records, signatures bucket, permanent row lock |
 | `sql/supabase-jadual-setup.sql` | **3rd, optional** — shared inspection schedule |
 | `sql/supabase-audit-setup.sql` | **4th** — `updated_by` + a trigger that stamps it from the login token |
-| `.github/workflows/publish-to-site.yml` | Copies `index.html`, `_headers`, `vendor/` to the **site repo** on every push to main |
+| `package.json` | Dev tooling only — `playwright` and the `npm test` scripts. The app still has no build step and nothing from `node_modules` is ever published |
+| `.github/workflows/tests.yml` | Runs all three suites on every push/PR. Also `workflow_call`, so the publish gate can reuse it |
+| `.github/workflows/publish-to-site.yml` | Copies `index.html`, `_headers`, `vendor/` to the **site repo** on every push to main — **but only after `tests.yml` passes** (`needs: test`) |
 | `drafts/dashboard-draft-glass.html` | Standalone dashboard design draft (superseded by the real thing, kept for reference) |
 | `docs/FULL-ARCHITECTURE.md` | How the system is built — layers, data model, every RLS policy, the key flows, deploy pipeline, and §9 known defects |
 | `docs/PRD.md` | What it is for and where it goes — requirements, open issues, district-expansion analysis, non-technical risks, roadmap |
@@ -116,6 +118,7 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Decision | Choice | Why |
 |---|---|---|
 | Two repos | `claude_code` builds, **`ibrahimismail-IM33/e-pili-bomba` is what Cloudflare publishes** | They drifted 7 commits apart once and officers used a live app missing fixes. A workflow now copies the three published paths on every push to main, and refuses to publish if a CDN tag reappears or `sql/`/`tests/` would go public |
+| CI | `tests.yml` runs all three suites on every push, and `publish-to-site.yml` **calls it and depends on it** (`needs: test`) rather than duplicating the steps | The suites existed for months and nothing ran them, while publishing was automatic — so the guarantee was "these bugs won't come back if someone remembers". The gate, not the workflow, is the deliverable: a CI job that reports red while the broken build ships anyway is decoration. Reusing the workflow via `workflow_call` means there is one definition of how tests run, so the gate cannot drift from the thing it is gating |
 | Audit identity | Taken from the **JWT inside the database**, never from the request body, no fallback | A first version had `coalesce(jwt_email, new.updated_by)`, which let a modified page write any name it liked. Caught in testing. An audit column the client can set is decorative |
 | Third-party libraries | **Self-hosted in `vendor/`**, no CDN, no SRI needed | A script from unpkg/jsdelivr runs with full access to the signed-in session and every record card, and `@supabase/supabase-js@2` floated — whatever the CDN called "latest 2.x" reached every officer with no review. Self-hosting removes the path entirely and lets CSP `script-src` drop to `'self'`. Versions pinned in `vendor/README.md` |
 | Signature links | Card requests a **1-hour signed link** when it opens; falls back to the stored value if signing is unavailable | Lets the bucket be locked down without a moment where signatures fail to display — which matters because the change was made while officers were using the app. New signatures store the **path**; rows signed earlier hold a full public URL and the path is extracted from it |

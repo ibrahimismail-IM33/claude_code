@@ -1,0 +1,76 @@
+# ============================================================================
+#  Run the regression suites
+#
+#  WHY THIS EXISTS
+#    The suites in tests/ guard the three things that have actually gone
+#    wrong on this app: offline field data being destroyed, a CDN script
+#    regaining access to signed-in sessions, and signatures failing to
+#    display. Until this workflow existed, all 54 assertions only ran when
+#    somebody remembered to type `node tests/...` — while publish-to-site.yml
+#    pushed to the live site on every commit to main.
+#
+#    A test nobody runs guards nothing.
+#
+#  WHERE IT RUNS
+#    On every push and pull request, and it is CALLED BY publish-to-site.yml,
+#    which cannot publish until this passes. That gate is the point; a
+#    workflow that goes red while the broken build ships anyway is
+#    decoration. Keep `workflow_call` below or the gate silently detaches.
+#
+#  CHROMIUM
+#    The suites default to /opt/pw-browsers/chromium, which is the dev
+#    container's path and does not exist on a GitHub runner. The path is
+#    asked of Playwright itself rather than hardcoded a second time, so a
+#    version bump in package.json cannot leave a stale path behind.
+# ============================================================================
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the app
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Find Chromium
+        run: |
+          set -euo pipefail
+          CHROMIUM_PATH="$(node -e "console.log(require('playwright').chromium.executablePath())")"
+          [ -x "$CHROMIUM_PATH" ] || { echo "::error::chromium not executable at $CHROMIUM_PATH"; exit 1; }
+          echo "CHROMIUM_PATH=$CHROMIUM_PATH" >> "$GITHUB_ENV"
+          echo "using $CHROMIUM_PATH"
+
+      # Each suite is its own step so a failure names itself in the Actions
+      # list instead of hiding inside one combined run. Every suite exits 1
+      # on any failed assertion, so no extra reporting is needed.
+      - name: Offline sync (P0 — field data must survive with no signal)
+        run: npm run test:offline
+
+      - name: CSP and vendored libraries (no CDN may come back)
+        run: npm run test:csp
+
+      - name: Signature links (short-lived, and must fall back)
+        run: npm run test:signatures
