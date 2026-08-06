@@ -5,7 +5,7 @@
 | **Product** | e-Pili Bomba Kunak |
 | **Owner** | Ibrahim Ismail, BBP Kunak (JBPM Sabah) |
 | **Status** | Live in production at epilibomba.com |
-| **Scope today** | One district — BBP Kunak. 187 hydrants, 8 accounts |
+| **Scope today** | One district — BBP Kunak |
 | **Document date** | 2026-08-04 |
 
 This document states what the product is, what it does, what is wrong with it,
@@ -29,7 +29,7 @@ Paper has three failures that matter operationally:
 2. **The record lives in one building.** An officer in the field cannot check
    whether a hydrant was inspected, or what was found last time.
 3. **Nothing aggregates.** "How many hydrants are outstanding this half?"
-   requires reading 187 cards by hand, so in practice it is not asked.
+   requires reading every card by hand, so in practice it is not asked.
 
 A fourth failure is worse and less visible: **a paper record has one copy.**
 Water, fire and misfiling are all real, and the record of an inspection is the
@@ -52,8 +52,8 @@ Interface language is **Bahasa Malaysia**.
 ## 3. What it does today
 
 ### 3.1 Map (Peta Pili)
-- 187 hydrants on OpenStreetMap, clustered.
-- Pin colour by ownership: **Awam** (`kerajaan`, 170) / **Swasta** (17).
+- Every hydrant in the register on OpenStreetMap, clustered.
+- Pin colour by ownership: **Awam** (`kerajaan`) / **Swasta**.
 - Amber `!` badge on any pin with unsent offline work.
 - Filter pills, place-name search, "Guna Lokasi Saya" (needs
   `geolocation=(self)` in `_headers`).
@@ -129,7 +129,7 @@ Dashboard entry animation, profiled under CPU throttling. 60 fps budget is
 
 Zero ongoing cost — 0 rAF callbacks in the 2 s after it settles. The animation
 fires only when the Dashboard tab is opened, never during map init, so it
-cannot compete with 187 markers loading.
+cannot compete with the markers loading.
 
 ### 4.2 Network discipline
 Background pulls throttled to one per 10 s; nothing runs while the tab is
@@ -154,16 +154,31 @@ the client.
 
 ## 5. Current state
 
+Live counts are deliberately **not** written down here. They change every time
+an officer adds a hydrant or signs a card, and a number copied into a document
+goes stale without anyone noticing — this section already claimed 187 hydrants
+on the day the register held 188. A confidently wrong figure is worse than no
+figure, so this points at the source of truth instead.
+
+| What | Where to read it |
+|---|---|
+| Hydrants, and the Awam / Swasta split | The pills in the app header, or `select status, count(*) from public.hydrants group by status;` |
+| Records, and how many are signed | `select count(*) filter (where signed) as signed, count(*) from public.hydrant_records;` |
+| Signature images | Supabase → Storage → `signatures` |
+| Accounts and roles | `select role, count(*) from public.profiles group by role;` |
+
+Fixed facts, which do not drift:
+
 | | |
 |---|---|
-| Hydrants | 187 (170 Awam, 17 Swasta) |
-| Records | 31, of which 8 signed |
-| Signature images | 8, 1.1 MB |
-| Accounts | 8, of which 7 admin |
-| Districts | 1 |
-| Codebase | `index.html`, 3,267 lines, 238 KB, no build step |
-| Tests | 4 suites, 81 assertions — run by CI on every push |
+| Districts | 1 — BBP Kunak |
+| Codebase | `index.html`, one file, no build step |
+| Tests | 5 suites — run by CI on every push, publishing blocked on them |
 | Backups | Nightly, verified weekly by automated restore |
+
+The seed in `sql/supabase-setup.sql` inserts **187** hydrants (170 Awam,
+17 Swasta). That is a fact about the file and stays true; it is not a claim
+about what the register holds today.
 
 ## 6. Open issues
 
@@ -175,24 +190,16 @@ the test suites now run in CI on every push with publishing blocked on them
 
 ### P2 — Hardening. Real, but nothing is on fire
 
-**6.1 Unbounded queries.** `cloudLoad` and `cloudFormLoad` have no `.range()`.
-PostgREST caps a response at 1,000 rows and reports no error. Latent at 187
-hydrants; certain at ~5 districts. Silent wrong numbers are the worst class of
-bug — the same failure mode would have reported 120 Kunak hydrants as never
-inspected.
+**6.1 Leaked-password protection is off.** One switch in Supabase Auth
+(Authentication → Providers → Password). Cannot be set from the repo, so it
+stays open here until someone flips it in the dashboard.
 
-**6.2 `SECURITY DEFINER` functions exposed as RPC** to `anon` and
-`authenticated`. `search_path` is pinned, so there is no escalation path.
-Unnecessary surface, not a vulnerability. Revoke the grants.
-
-**6.3 Leaked-password protection is off.** One switch in Supabase Auth.
-
-**6.4 Seven of eight accounts are admin.** Accepted deliberately, with the
+**6.2 Seven of eight accounts are admin.** Accepted deliberately, with the
 audit trail added instead. Revisit if headcount grows.
 
 ### P3 — Needs a decision, not just code
 
-**6.5 Backup retention is 90 days** in GitHub artifacts, which vanish with the
+**6.3 Backup retention is 90 days** in GitHub artifacts, which vanish with the
 account they are protecting. A second location costs money and needs a decision
 about where.
 
@@ -228,10 +235,10 @@ can say which district runs which.
 | 4 | **The 1,000-row wall** | ~5 districts crosses it. Rows stop arriving, nothing errors |
 | 5 | **Wasted load** | Without the column the database cannot filter, so every phone downloads every district |
 
-On (5): a Kunak officer still inspects the same 187 hydrants no matter how many
+On (5): a Kunak officer still inspects the same set of hydrants no matter how many
 districts exist. Without a `district` column their phone would download ~1,870
 at ten districts and discard 90%. **The column is what keeps each officer's
-load flat** — 187 rows whether there are 2 districts or 30. Caching does not
+load flat** — Kunak-sized whether there are 2 districts or 30. Caching does not
 help here: it makes a correct answer cheaper, but it cannot make a truncated
 answer correct.
 

@@ -105,7 +105,7 @@ Line numbers are indicative and will drift; the function names are stable.
 | **Local persistence** | `persist`, `loadHydrants`, `storageOK`, `loadForm`, `saveForm`, `formKey` | localStorage is the primary read source. The app is usable with no network at all |
 | **Cloud sync** | `cloudProbe`, `cloudLoad`, `cloudSave`, `cloudInsertNew`, `cloudFormLoad`, `cloudFormSave`, `pullFresh` | All Supabase traffic. `cloudStatus` drives the visible "Data awan ✓ / Data tempatan" indicator |
 | **Offline queue** | `pendKey`, `savePending`, `loadPending`, `pendingIds`, `hasPending`, `snapCloudBase`, `baseFor`, `flushPending`, `flushAllPending`, `sameData` | The P0 safety net. See §5.2 |
-| **Map** | `initMap`, `renderMarkers`, `makeIcon`, `tip`, `renderPills`, `visible`, `searchMatches` | Leaflet + markercluster. 187 markers in 7 clusters |
+| **Map** | `initMap`, `renderMarkers`, `makeIcon`, `tip`, `renderPills`, `visible`, `searchMatches` | Leaflet + markercluster, one marker per hydrant |
 | **Registry & detail** | `renderRegistry`, `openDetail`, `detailSig`, `reopenDetailIfOpen`, `openAdd`, `closeAdd` | The hydrant list and its popup |
 | **Record card** | `openForm`, `buildFormHtml`, `headerBlock`, `renderTable`, `wireForm`, `wireCells`, `collectForm`, `normalizeForm`, `blankForm`, `emptyRow`, `rowHasData`, `formFingerprint`, `lockSignedUI` | The Kad Rekod Pili Bomba |
 | **Signatures** | `sigPath`, `resolveSigs`, `paintSigs`, `fallbackRest`, `dataUrlToBlob`, `stripSignatureBg` | Capture, upload, and short-lived link resolution |
@@ -159,9 +159,13 @@ updated_at timestamptz default now()
 updated_by text                     -- added by supabase-audit-setup.sql
 ```
 
-187 rows: **170 Awam** + **17 Swasta** (`A26` and `A92`–`A107`, all at Kilang
-T.S.H Wilmar). Labels are zoned — `A**` Kunak town, `B**`/`C**`/`D**` Madai,
-`E**` Pangi.
+`sql/supabase-setup.sql` **seeds 187 rows** — 170 Awam + 17 Swasta (`A26` and
+`A92`–`A107`, all at Kilang T.S.H Wilmar). That is a fact about the seed file
+and stays true; the live register has grown since and is not recorded here. Read
+the current split from the app's pills, or
+`select status, count(*) from public.hydrants group by status;`
+
+Labels are zoned — `A**` Kunak town, `B**`/`C**`/`D**` Madai, `E**` Pangi.
 
 **There is no `district` column.** Labels are therefore unique only within
 Kunak. This is the central obstacle to expansion; see `PRD.md` §7.
@@ -519,7 +523,7 @@ Retention is 90 days in GitHub artifacts, which vanish with the repository.
 
 ## 8. Testing
 
-Four Node + Playwright suites, **81 assertions**, driving the real page in
+Five Node + Playwright suites, **89 assertions**, driving the real page in
 real Chromium.
 
 | Suite | Guards | Assertions |
@@ -527,6 +531,7 @@ real Chromium.
 | `p0-offline-sync.js` | Offline field data survives and reaches the server; conflicts warn instead of overwriting; signed rows untouched; reconnect pushes without the card being opened | 20 |
 | `csp-and-vendor.js` | No CDN tag or origin anywhere; every vendor file present; the app boots under the real CSP with real Leaflet — 187 pins, 7 clusters, zero violations | 21 |
 | `clear-row.js` | An officer can withdraw a wrong entry; signed rows stay untouchable; clearing works offline and survives a contested sync; the pin's date badge follows the rows that remain; a failed flush changes nothing | 27 |
+| `hydrant-paging.js` | The hydrant read is paged, so a register past PostgREST's 1000-row cap cannot silently lose pins; a failed read leaves the local copy alone | 8 |
 | `signature-links.js` | Signatures resolve to short-lived links and **fall back** when signing is unavailable; covers legacy URLs and paths | 13 |
 
 The standard, from `tests/README.md`: **a test earns its place by failing on the
@@ -534,7 +539,7 @@ broken code.**
 
 ### CI, and the gate
 
-`.github/workflows/tests.yml` runs all four suites on **every push and pull
+`.github/workflows/tests.yml` runs all five suites on **every push and pull
 request**. `publish-to-site.yml` calls that same workflow and depends on it:
 
 ```yaml
@@ -570,20 +575,13 @@ validation, map filters and search. All verified by hand, none guarded.
 
 Stated plainly. None is secret and none is currently causing harm.
 
-**1. Two unbounded queries.** `cloudLoad` and `cloudFormLoad` have no
-`.range()`. PostgREST caps a response at 1,000 rows and reports no error. At
-187 hydrants this is latent; it becomes real around five districts.
-
-**2. `SECURITY DEFINER` functions are exposed as RPC** to `anon` and
-`authenticated`. `search_path` is pinned, so there is no escalation path — this
-is an unnecessary surface, not a vulnerability.
-
-**3. Seven of eight accounts are admin.** Every one can write any hydrant and
+**1. Seven of eight accounts are admin.** Every one can write any hydrant and
 any record. Accepted deliberately, with the audit trail added in compensation.
 
-**4. Leaked-password protection is off** in Supabase Auth.
+**2. Leaked-password protection is off** in Supabase Auth. One switch in the
+dashboard; it cannot be set from the repo.
 
-**5. Backup retention is 90 days** and lives inside the GitHub account it
+**3. Backup retention is 90 days** and lives inside the GitHub account it
 protects.
 
 ---

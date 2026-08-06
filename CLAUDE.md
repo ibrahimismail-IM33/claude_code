@@ -47,6 +47,7 @@ Live at **epilibomba.com**. UI language is Bahasa Malaysia.
 | `sql/supabase-records-setup.sql` | **2nd** — hydrant_records, signatures bucket, permanent row lock |
 | `sql/supabase-jadual-setup.sql` | **3rd, optional** — shared inspection schedule |
 | `sql/supabase-audit-setup.sql` | **4th** — `updated_by` + a trigger that stamps it from the login token |
+| `sql/supabase-hardening.sql` | **5th, optional** — closes the PostgREST RPC endpoints on the two `SECURITY DEFINER` functions. `authenticated` **must keep** `EXECUTE` on `is_admin()`; see §5 |
 | `package.json` | Dev tooling only — `playwright` and the `npm test` scripts. The app still has no build step and nothing from `node_modules` is ever published |
 | `.github/workflows/tests.yml` | Runs all three suites on every push/PR. Also `workflow_call`, so the publish gate can reuse it |
 | `.github/workflows/publish-to-site.yml` | Copies `index.html`, `_headers`, `vendor/` to the **site repo** on every push to main — **but only after `tests.yml` passes** (`needs: test`) |
@@ -275,6 +276,18 @@ Draw order: caps → walls → top faces (painter's algorithm).
   unparseable workflow.** Validate with `yaml.safe_load` before pushing, and
   never interpolate `github.event.*` text into a shell script — pass it as an
   env var, or a commit message containing backticks executes as code.
+- **Nearly locked every officer out, on a "harmless" tidy-up.** The plan for
+  the RPC hardening said to `revoke execute on function public.is_admin() from
+  anon, authenticated`, reasoning that a `SECURITY DEFINER` function runs as its
+  owner so the RLS policies would be unaffected. **Wrong.** An RLS policy
+  expression is evaluated as the *calling* role, so without that grant every
+  policy calling `is_admin()` fails with `permission denied for function
+  is_admin` and no admin can write anything. Caught only because the change was
+  run against a real Postgres and an admin insert was attempted — the
+  verification query alone said `callable_by_api = f` and looked like success.
+  `authenticated` **must keep EXECUTE**; revoke from `public, anon` only.
+  `handle_new_user()` is different and can be closed to everyone, because it is
+  only ever invoked by the trigger, as the trigger's owner.
 - **Recommended work I could not finish.** I proposed creating a scratch
   Supabase project for a restore test "then deleting it" without first checking
   that I had a way to delete it, or a token to download the backup artifact. I

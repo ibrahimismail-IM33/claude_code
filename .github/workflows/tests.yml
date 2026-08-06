@@ -72,6 +72,9 @@ jobs:
       - name: Clearing a row (a wrong entry must be withdrawable)
         run: npm run test:clear
 
+      - name: Hydrant paging (no silent truncation past 1000 rows)
+        run: npm run test:paging
+
       - name: CSP and vendored libraries (no CDN may come back)
         run: npm run test:csp
 

@@ -4,9 +4,10 @@
   "private": true,
   "description": "Build and test tooling for e-Pili Bomba Kunak. The app itself is one static index.html with no build step — nothing here is shipped to officers.",
   "scripts": {
-    "test": "npm run test:offline && npm run test:clear && npm run test:csp && npm run test:signatures",
+    "test": "npm run test:offline && npm run test:clear && npm run test:paging && npm run test:csp && npm run test:signatures",
     "test:offline": "node tests/p0-offline-sync.js",
     "test:clear": "node tests/clear-row.js",
+    "test:paging": "node tests/hydrant-paging.js",
     "test:csp": "node tests/csp-and-vendor.js",
     "test:signatures": "node tests/signature-links.js"
   },

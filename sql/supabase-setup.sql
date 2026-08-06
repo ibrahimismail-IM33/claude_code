@@ -49,6 +49,17 @@ as $$
   );
 $$;
 
+-- Every function in `public` is published by PostgREST as an RPC endpoint, and
+-- is created with EXECUTE granted to PUBLIC — so without this revoke anyone who
+-- can reach the API can call it, signed in or not.
+--
+-- `authenticated` KEEPS the grant, and must. An RLS policy expression runs as
+-- the calling role, so every policy below that calls is_admin() would fail with
+-- "permission denied for function is_admin" and no officer could save anything.
+-- Verified against a real Postgres; do not tighten this without doing the same.
+revoke execute on function public.is_admin() from public, anon;
+grant  execute on function public.is_admin() to authenticated;
+
 drop policy if exists "read own profile"       on public.profiles;
 drop policy if exists "admins manage profiles" on public.profiles;
 
@@ -75,6 +86,11 @@ begin
   return new;
 end;
 $$;
+
+-- Same reasoning as is_admin() above. This one returns trigger, so Postgres
+-- would refuse to run it over RPC anyway — but the endpoint should not exist.
+-- The trigger below still fires: it runs as the function's owner.
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created

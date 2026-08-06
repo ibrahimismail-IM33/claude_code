@@ -1234,19 +1234,38 @@
   // Pull every hydrant from the cloud and replace local state (keeps a local cache too).
   // quiet=true leaves the map where the officer put it — a background refresh
   // must never re-fit the view out from under someone reading a marker.
+  /* PostgREST caps a response at 1000 rows and reports no error when it does,
+     so an unbounded read of a register past that size would quietly drop
+     hydrants off the map with nothing to show for it. Page it, ordered by id
+     so range() cannot repeat or skip a row — the same shape as the dashboard
+     scan. At 188 hydrants this is still a single request. */
+  var LOAD_PAGE=1000, LOAD_MAX=50;   // hard stop so a bad response can't loop forever
   function cloudLoad(quiet){
     if(!sb) return;
-    sb.from("hydrants").select("id,label,lat,lng,status,location,last_inspected").order("id").then(function(res){
-      if(res && !res.error && Array.isArray(res.data) && res.data.length){
-        var prev={}; hydrants.forEach(function(h){ if(h.lastInspected) prev[h.id]=h.lastInspected; });
-        hydrants = res.data.map(function(r){ return {id:r.id,label:r.label,lat:+r.lat,lng:+r.lng,status:r.status,location:r.location||"",lastInspected:r.last_inspected||prev[r.id]||""}; });
-        // A background pull must not move the map, even when the pull brings a
-        // hydrant someone else just added — that changes the fit key, and a
-        // re-fit would jump the view away from what the officer is reading.
-        persist(); if(quiet) noFitOnce=true; else fittedKey=""; refresh();
-        if(quiet) reopenDetailIfOpen();
-      }
-    }, function(){ /* offline / blocked -> keep local copy */ });
+    var acc=[], from=0, pages=0;
+    // Only replace local state once every page is in. A partial read is worse
+    // than no read: it looks like hydrants were deleted.
+    function apply(rows){
+      if(!rows.length) return;
+      var prev={}; hydrants.forEach(function(h){ if(h.lastInspected) prev[h.id]=h.lastInspected; });
+      hydrants = rows.map(function(r){ return {id:r.id,label:r.label,lat:+r.lat,lng:+r.lng,status:r.status,location:r.location||"",lastInspected:r.last_inspected||prev[r.id]||""}; });
+      // A background pull must not move the map, even when the pull brings a
+      // hydrant someone else just added — that changes the fit key, and a
+      // re-fit would jump the view away from what the officer is reading.
+      persist(); if(quiet) noFitOnce=true; else fittedKey=""; refresh();
+      if(quiet) reopenDetailIfOpen();
+    }
+    function step(){
+      sb.from("hydrants").select("id,label,lat,lng,status,location,last_inspected")
+        .order("id",{ascending:true}).range(from, from+LOAD_PAGE-1)
+        .then(function(res){
+          if(!res || res.error || !Array.isArray(res.data)) return;   // keep the local copy
+          acc = acc.concat(res.data); pages++;
+          if(res.data.length===LOAD_PAGE && pages<LOAD_MAX){ from += LOAD_PAGE; step(); return; }
+          apply(acc);
+        }, function(){ /* offline / blocked -> keep local copy */ });
+    }
+    step();
   }
 
   /* ---------- keeping two devices in step ----------
