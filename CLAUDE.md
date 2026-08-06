@@ -335,11 +335,19 @@ Watch items:
   `bucket_is_private` and `read_is_authenticated_only` so the same drift shows
   up next time. **The DR scripts are not documentation — they are what a
   recovery actually applies. Change production, change the script.**
-- **Still open from the audit** — 7 of 8 accounts are admin (user chose to
-  keep roles and add the audit trail instead); `SECURITY DEFINER` functions are
-  exposed as RPC (search_path is pinned, so no escalation path);
-  leaked-password protection is off; `cloudLoad` and `cloudFormLoad` are still
-  unbounded (latent at 1000 rows).
+- **From the audit — only one item left.** Still open: **leaked-password
+  protection is off** (Authentication → Providers → Password, a dashboard
+  toggle, no code). Accepted rather than fixed: 7 of 8 accounts are admin — the
+  user chose to keep the roles and add the audit trail instead.
+  **Closed:** the unbounded hydrant read is paged (`cloudLoad`; `cloudFormLoad`
+  was never at risk, it filters by `hydrant_id`), and the `SECURITY DEFINER`
+  RPC endpoints are shut — `sql/supabase-hardening.sql` run on production and
+  **verified 2026-08-06 by an admin saving a Kad Rekod row from the app.**
+  That save is the check that counts: it proves the write reached the database
+  through RLS, so the policy called `is_admin()` and it evaluated. The script's
+  own verification query passes even when every write is blocked, which is how
+  the first version of this change nearly took the app down — see §5.
+  **`authenticated` must keep `EXECUTE` on `is_admin()`.**
 - **Restore is verified and now automatic.** `restore-test.yml` in the site
   repo runs every Monday: downloads the newest backup, restores it into a
   throwaway Postgres, checks the counts and the signature images, and opens

@@ -37,6 +37,15 @@
 --    everyone. Verified — a new user still gets a 'viewer' profile.
 --
 --  Safe to re-run.
+--
+--  APPLIED TO PRODUCTION 2026-08-06, and confirmed by an admin saving a Kad
+--  Rekod row from the live app. That save is the verification — it proves the
+--  write reached the database through RLS, so the policy called is_admin() and
+--  it evaluated as `authenticated`. The verification query at the foot of this
+--  file reports callable_by_api = f and looks like success EVEN WHEN EVERY
+--  WRITE IS BLOCKED, so it is not sufficient on its own. After running this
+--  script anywhere — including during a disaster recovery — sign in and save a
+--  record before believing it worked.
 -- ============================================================================
 
 -- Close the RPC endpoint to the anonymous role and to the implicit PUBLIC

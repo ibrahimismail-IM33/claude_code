@@ -586,6 +586,24 @@ dashboard; it cannot be set from the repo.
 **3. Backup retention is 90 days** and lives inside the GitHub account it
 protects.
 
+**Recently closed** — kept here rather than deleted, because how they were
+verified matters more than that they are gone:
+
+- **The unbounded hydrant read** (2026-08-06). `cloudLoad` pages now, so a
+  register past PostgREST's 1000-row cap cannot silently lose pins. Latent at
+  Kunak's 188, certain at roughly five districts. Guarded by
+  `tests/hydrant-paging.js`. `cloudFormLoad` was never at risk — it filters by
+  `hydrant_id`, and one hydrant's card cannot approach 1000 rows.
+- **The `SECURITY DEFINER` RPC endpoints** (2026-08-06). `sql/supabase-hardening.sql`
+  applied to production and verified by an **admin saving a Kad Rekod row from
+  the app** — the write reaching the database through RLS is what proves the
+  policy called `is_admin()` and it evaluated. The script's own verification
+  query reports success even when every write is blocked, which is exactly how
+  the first version of this change nearly locked out every officer.
+  **`authenticated` must keep `EXECUTE` on `is_admin()`**; revoke from
+  `public, anon` only. `handle_new_user()` can be closed to all three, because
+  it is only ever invoked by its trigger, as the trigger's owner.
+
 ---
 
 ## 10. Conventions for anyone changing this

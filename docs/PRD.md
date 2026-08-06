@@ -368,10 +368,18 @@ re-exposed every signature image. The script's verification query now reports
 `bucket_is_private` and `read_is_authenticated_only`, so the same drift is
 visible the next time anyone runs it.
 
-### Phase 2 — Hardening (~2 hours, no user-visible change)
-- Bound `cloudLoad` and `cloudFormLoad` (6.1)
-- Revoke the RPC grants (6.2)
-- Enable leaked-password protection (6.3)
+### Phase 2 — Hardening (**done except one dashboard toggle**)
+- ~~Bound the unbounded hydrant read~~ — done 2026-08-06. `cloudLoad` now pages;
+  `cloudFormLoad` was never at risk, it filters by `hydrant_id`. Guarded by
+  `tests/hydrant-paging.js`.
+- ~~Revoke the RPC grants~~ — done 2026-08-06. `sql/supabase-hardening.sql`
+  applied to production and **verified by an admin saving a Kad Rekod row from
+  the app**, which is the only check that proves anything: the script's own
+  verification query reports success even when every write policy is broken.
+  `authenticated` **must keep** `EXECUTE` on `is_admin()` — revoking it blocks
+  every admin write.
+- **Still open:** enable leaked-password protection (6.1). Dashboard switch,
+  no code.
 
 ### Phase 3 — District #2 (~2 days) — only when a real second station is willing
 - `district` column, scoped permissions, district selector (7.3)
