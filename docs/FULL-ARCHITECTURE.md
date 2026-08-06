@@ -259,6 +259,41 @@ flushPending(id) — re-reads the cloud, then per row:
 The rule is deliberate: **silently picking a winner is what caused the original
 loss.** A row nobody else touched syncs with no warning at all.
 
+A flush that fails pushes nothing back into the void: anything not confirmed
+stays parked. Dropping a failed push from the queue would put the officer's
+typing back in exactly the position this whole mechanism exists to prevent —
+still in the form cache, no longer flagged as unsent, and overwritten by the
+cloud on the next open.
+
+### 5.2a Clearing a row
+
+An upsert only writes the rows it is sent, so a cleared row has to be sent as a
+**delete** or it never happens at all:
+
+```
+Officer empties a row, saves
+    │
+    ▼
+deadRows(id, f)   rows now empty that the cloud snapshot says it still holds
+    │             · never a signed row — the client does not even ask
+    │             · admin only — a viewer's delete is refused by RLS
+    │             · no cloud snapshot this session => delete nothing
+    ▼
+upsert the rows with content  →  delete the dead ones  →  snapCloudBase
+```
+
+Offline, a removal is parked as an explicit `{section, row_index, removed:true,
+base}` marker — there is no data to carry, so without the marker the clear
+would simply evaporate. On reconnect it follows the same conflict rules as any
+other row: signed → never touched, absent → already done, matches base →
+deleted, differs → held back and shown to the officer.
+
+The row keeps its place on the card as an empty row; only the database row
+goes. The dashboard needs no special handling — `scanCloud` reads the Pengujian
+rows directly, so a deleted row drops that hydrant to "Belum diperiksa" by
+itself. `syncLastInspected` clears the pin's date badge once no dated Pengujian
+row remains, so the map and the dashboard cannot disagree.
+
 Guarded by `tests/p0-offline-sync.js`, which was verified to **fail** on the
 pre-fix code.
 
@@ -484,13 +519,14 @@ Retention is 90 days in GitHub artifacts, which vanish with the repository.
 
 ## 8. Testing
 
-Three Node + Playwright suites, **54 assertions**, driving the real page in
+Four Node + Playwright suites, **76 assertions**, driving the real page in
 real Chromium.
 
 | Suite | Guards | Assertions |
 |---|---|---|
 | `p0-offline-sync.js` | Offline field data survives and reaches the server; conflicts warn instead of overwriting; signed rows untouched; reconnect pushes without the card being opened | 20 |
 | `csp-and-vendor.js` | No CDN tag or origin anywhere; every vendor file present; the app boots under the real CSP with real Leaflet — 187 pins, 7 clusters, zero violations | 21 |
+| `clear-row.js` | An officer can withdraw a wrong entry; signed rows stay untouchable; clearing works offline and survives a contested sync; the pin's date badge follows the rows that remain; a failed flush changes nothing | 22 |
 | `signature-links.js` | Signatures resolve to short-lived links and **fall back** when signing is unavailable; covers legacy URLs and paths | 13 |
 
 The standard, from `tests/README.md`: **a test earns its place by failing on the
@@ -498,7 +534,7 @@ broken code.**
 
 ### CI, and the gate
 
-`.github/workflows/tests.yml` runs all three suites on **every push and pull
+`.github/workflows/tests.yml` runs all four suites on **every push and pull
 request**. `publish-to-site.yml` calls that same workflow and depends on it:
 
 ```yaml

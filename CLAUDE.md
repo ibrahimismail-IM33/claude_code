@@ -140,6 +140,8 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Jadual order | **Latest Tarikh first** (descending date) | Supersedes both earlier orders (upcoming-first, then newest-entry-first). Dates are ISO strings, so a string compare *is* a date compare — no parsing, no timezone. Rows sharing a date keep the newest entry on top. Past dates still carry the `lepas` tag wherever they sit |
 | Lokasi master | The **Kad Rekod** wins — saving the card writes `hydrant.location` | User's call. The popup, registry, search and every dashboard Lokasi link read that one field, so they all follow. A blank card field never overwrites, so clearing it cannot wipe a registered address |
 | Offline saves | **Parked in `bbpkunak_pending_<id>`**, pushed automatically on reconnect | A failed save used to live only in the form cache, which `openForm` then overwrote with the cloud copy — losing the typing from screen and device without ever reaching the server. See §4.10 |
+| Clearing a row | Sent as a **DELETE**, not an empty row. Admin only, no confirmation prompt, and the row stays drawn as an empty row in its position | An empty row is still a row, and the dashboard counts Pengujian rows — writing blanks would have needed the scan re-examined. Deleting keeps the table sparse and the dashboard corrects itself for free. Signed rows are never touched, by policy, by trigger, and now by the client refusing to ask |
+| Pin date badge after a clear | Follows the Pengujian rows that remain; blank once none are left | `syncLastInspected` used to return early on a blank date, so the map advertised an inspection the record no longer held while the dashboard — reading those same rows — said "Belum diperiksa". Forcing it blank while dated rows still exist would recreate that same split |
 | Offline conflict | **Cloud wins, officer is warned** and shown what they typed | User's call. Silently picking a winner is what caused the loss. A row nobody else touched is pushed without any warning at all |
 | Unsent work | Banner on the card **and** an amber `!` on the map pin | An officer should not have to open every pili to find what has not synced |
 | Cross-device refresh | Re-read on foreground/focus/online, **plus a 60s poll while visible** | The app read the cloud once at startup and then showed its cache, so a second device only caught up when you opened each hydrant by hand. Foreground alone is not enough — a device left open on the counter never fires one. Throttled to one pull per 10s; nothing runs while the tab is hidden |
@@ -226,6 +228,27 @@ Draw order: caps → walls → top faces (painter's algorithm).
 12. **A failed backup told nobody.** It now opens or comments on an issue
     labelled `backup-failure`, which needs `permissions: issues: write` on the
     job — without that the alert itself fails silently.
+
+13. **A row could never be cleared.** Found in the field 2026-08-04: clear a
+    row on the Kad Rekod, save, reopen — the data is back. `cloudFormSave`
+    only ever sent rows that still had content, and **an upsert does not
+    delete what it is not sent**, so the row survived untouched. `openForm`
+    then rebuilt the card from the cloud — working exactly as designed, and
+    the comment there even says it exists so cleared rows cannot linger — and
+    restored it to the screen *and* to localStorage. There was **no
+    `.delete()` on `hydrant_records` anywhere in the app**; the only delete in
+    the file was for the jadual. Clearing was not broken, it had never been
+    implemented. On a legal inspection record an entry that cannot be
+    withdrawn is worse than one that is missing. Guarded by
+    `tests/clear-row.js`.
+
+14. **A failed flush threw away the parked work.** Found while fixing 13.
+    `flushPending`'s `finish()` saved only `keep`, so if the upsert failed the
+    pushed rows were dropped from the pending queue — leaving the typing in
+    the form cache, no longer flagged as unsent, and overwritten by the cloud
+    on the next open. That is precisely the P0 (§4.10) reappearing on any
+    flaky connection, as opposed to a clean outage. **A flush that fails must
+    now change nothing.**
 
 ## 5. Things I got wrong (so they aren't repeated)
 
@@ -356,11 +379,28 @@ Watch items:
 - Dashboard → Peta Pili returns a full map, no grey sliver
 - Zoom buttons at 34px are fine in the field
 
+**Confirmed on a real phone in the field (2026-08-04)** — the first time any of
+this was checked outside a headless browser:
+- **The offline round trip.** Aeroplane mode: the app opens and is fully usable
+  with no network, an edit parks, the pin shows the amber `!` and the tooltip
+  says *Belum dihantar ke pelayan*. Reconnect: the badge clears and the data is
+  on the server, confirmed from a second device
+- Stale `bbpkunak_pending_*` entries left by an earlier admin session on the
+  same browser clear themselves on the next flush — `!` shows for a second or
+  two on first paint, then goes. The flush only needs a SELECT, which is why a
+  viewer account clears them fine
+- **Clearing a row did nothing** — see §4.13. Found by trying it
+
 **Committed regression tests** (`tests/`, see `tests/README.md`):
 - `csp-and-vendor.js` — 21 assertions: no CDN tag or CDN origin left anywhere,
   every vendor file present, and the app booted under the **real CSP read from
   `_headers`** with the real Leaflet — 187 pins in 7 clusters, zoom control,
   Supabase client, zero CSP violations, zero page errors
+- `clear-row.js` — 22 assertions over 6 scenarios: a cleared row is actually
+  deleted, signed rows are never touched, clearing works offline and warns on
+  a contested removal, the pin's date badge follows the rows that remain, and
+  a failed flush changes nothing. **Verified to fail on the pre-fix code —
+  10 red.**
 - `p0-offline-sync.js` — 20 assertions over 5 scenarios: offline edit
   survives and reaches the server, contested row warns instead of
   overwriting, signed rows are never touched, reconnect pushes without the

@@ -1744,10 +1744,15 @@
       t.location=loc; persist(); cloudSave(t); refresh(); reopenDetailIfOpen();
     }
   }
+  /* The pin's date badge follows the Pengujian rows that actually exist.
+     This used to return early on a blank date, so clearing the last dated row
+     left the badge advertising an inspection the record no longer held — the
+     map claiming 02/08/26 while the dashboard, reading those same rows, said
+     "Belum diperiksa". An empty date now clears the badge. */
   function syncLastInspected(id,f){
-    var d=latestPengujianDate(f); if(!d) return;
+    var d=latestPengujianDate(f);                       // "" once no dated row remains
     var t=hydrants.find(function(x){return x.id===id;});
-    if(t && t.lastInspected!==d){ t.lastInspected=d; persist(); cloudSave(t); refresh(); }
+    if(t && (t.lastInspected||"")!==d){ t.lastInspected=d; persist(); cloudSave(t); refresh(); }
   }
   function cloudFormLoad(id, cb){
     if(!sb){ cb(null); return; }
@@ -1902,25 +1907,43 @@
       .then(function(res){
         if(!res || res.error || !Array.isArray(res.data)){ cb({offline:true}); return; }
         var now={}; res.data.forEach(function(r){ now[r.section+"|"+r.row_index]={data:r.data||{},signed:!!r.signed}; });
-        var push=[], keep=[];
+        var push=[], drop=[], keep=[];
         p.rows.forEach(function(row){
           var k=row.section+"|"+row.row_index, cur=now[k];
           if(cur && cur.signed){ keep.push(row); return; }          // signed is permanent, never overwrite
+          if(row.removed){
+            if(!cur) return;                                         // already gone — nothing to do
+            if(row.base!==undefined && sameData(cur.data,row.base)){ drop.push(row); return; }
+            keep.push(row);                                          // someone else changed it: cloud wins, warn
+            return;
+          }
           if(!cur){ push.push(row); return; }                        // nothing there to lose
           if(row.base!==undefined && sameData(cur.data,row.base)){ push.push(row); return; }
           if(sameData(cur.data,row.data)){ return; }                 // already identical — done
           keep.push(row);                                            // someone else changed it: cloud wins, warn
         });
-        function finish(okPushed){
+        /* Anything that did NOT make it stays parked. Dropping a failed push
+           from the queue would put the officer's typing back in exactly the
+           position the P0 fix exists to prevent: still in the form cache, no
+           longer flagged as unsent, and overwritten by the cloud on the next
+           open. A flush that fails must change nothing. */
+        function finish(okPushed, okDropped){
           var left = keep.slice();
+          if(!okPushed)  left = left.concat(push);
+          if(!okDropped) left = left.concat(drop);
           savePending(id, left.length ? {t:p.t, rows:left} : null);
-          cb({pushed:okPushed?push.length:0, conflicts:left.length, failed:!okPushed});
+          cb({pushed:okPushed?push.length:0, removed:okDropped?drop.length:0,
+              conflicts:keep.length, failed:!(okPushed&&okDropped)});
         }
-        if(!push.length){ finish(true); return; }
+        function doDrops(okPushed){
+          if(!drop.length){ finish(okPushed, true); return; }
+          deleteRows(id, drop).then(function(ok){ finish(okPushed, ok); });
+        }
+        if(!push.length){ doDrops(true); return; }
         sb.from("hydrant_records")
           .upsert(push.map(function(r){ return {hydrant_id:id, section:r.section, row_index:r.row_index, data:r.data}; }),
                   {onConflict:"hydrant_id,section,row_index"})
-          .then(function(r2){ finish(!(r2 && r2.error)); }, function(){ finish(false); });
+          .then(function(r2){ doDrops(!(r2 && r2.error)); }, function(){ doDrops(false); });
       }, function(){ cb({offline:true}); });
   }
   /* Reconnect: try every parked card, not just the one on screen. The
@@ -1929,13 +1952,55 @@
     if(!sb) return;
     pendingIds().forEach(function(id){ flushPending(id, function(){}); });
   }
+  /* Rows the officer has emptied that the server still holds.
+     An upsert only writes the rows it is sent, so an omitted row survives
+     untouched — which is why a cleared row used to reappear the moment the
+     card was reopened. A clear has to be sent as a DELETE or it never happens.
+
+     Never a signed row: those are permanent by policy and by trigger, and the
+     client must not even ask.
+
+     baseFor() returns undefined when the cloud has not been read this session.
+     That has to mean "delete nothing" — deleting on the strength of a snapshot
+     we never took would remove rows this device has simply not seen yet. */
+  function deadRows(id,f){
+    var out=[];
+    if(!isAdmin()) return out;          // a viewer's delete is refused by RLS; never park one
+    SEC_ORDER.forEach(function(s){
+      (f[s]||[]).forEach(function(r,idx){
+        if(r._signed) return;
+        if(rowHasData(s,r)||r.tt) return;                 // still has content
+        var had=baseFor(id,s,idx);
+        if(had===undefined || had===null) return;         // cloud never held this row
+        if(!Object.keys(had).length) return;              // it was already empty there
+        out.push({section:s, row_index:idx, base:had});
+      });
+    });
+    return out;
+  }
+  function deleteRows(id, dead){
+    if(!dead.length) return Promise.resolve(true);
+    return Promise.all(dead.map(function(d){
+      return sb.from("hydrant_records").delete()
+        .eq("hydrant_id",id).eq("section",d.section).eq("row_index",d.row_index)
+        .then(function(r){ return !(r && r.error); }, function(){ return false; });
+    })).then(function(oks){ return oks.every(Boolean); });
+  }
   function cloudFormSave(id,f){
+    var dead=deadRows(id,f);
+    // A removal has no data to carry, so it is parked as an explicit marker.
+    // Without this a clear made with no signal would simply evaporate.
+    function pendRows(rows){
+      return rows.map(function(r){
+        return {section:r.section, row_index:r.row_index, data:r.data, base:baseFor(id,r.section,r.row_index)};
+      }).concat(dead.map(function(d){
+        return {section:d.section, row_index:d.row_index, removed:true, base:d.base};
+      }));
+    }
     if(!sb){
       var off=[{hydrant_id:id, section:"header", row_index:0, data:f.header}];
       SEC_ORDER.forEach(function(s){ f[s].forEach(function(r,idx){ if(r._signed) return; if(rowHasData(s,r)||r.tt) off.push({hydrant_id:id, section:s, row_index:idx, data:cleanRow(r)}); }); });
-      savePending(id, {t:new Date().toISOString(), rows:off.map(function(r){
-        return {section:r.section, row_index:r.row_index, data:r.data, base:baseFor(id,r.section,r.row_index)};
-      })});
+      savePending(id, {t:new Date().toISOString(), rows:pendRows(off)});
       return Promise.resolve({ok:false, reason:(sbReason||"cloud not configured")});
     }
     var rows=[{hydrant_id:id, section:"header", row_index:0, data:f.header}];
@@ -1943,15 +2008,16 @@
     // Park the rows before the request goes out, so a save that never comes
     // back (tab closed, phone sleeps mid-request) is still recoverable.
     function park(){
-      savePending(id, {t:new Date().toISOString(), rows:rows.map(function(r){
-        return {section:r.section, row_index:r.row_index, data:r.data, base:baseFor(id,r.section,r.row_index)};
-      })});
+      savePending(id, {t:new Date().toISOString(), rows:pendRows(rows)});
     }
     return sb.from("hydrant_records").upsert(rows,{onConflict:"hydrant_id,section,row_index"}).then(function(res){
       if(res && res.error){ park(); cloudStatus("Cloud ERROR · "+(res.error.message||"save failed")); return {ok:false, reason:(res.error.message||"save failed")}; }
-      savePending(id,null);                       // it landed — nothing outstanding
-      snapCloudBase(id, rows.map(function(r){ return {section:r.section,row_index:r.row_index,data:r.data}; }));
-      cloudStatus("Cloud connected ✓"); return {ok:true};
+      return deleteRows(id, dead).then(function(delOk){
+        if(!delOk){ park(); cloudStatus("Cloud ERROR · baris tidak dapat dibuang"); return {ok:false, reason:"baris tidak dapat dibuang"}; }
+        savePending(id,null);                     // it landed — nothing outstanding
+        snapCloudBase(id, rows.map(function(r){ return {section:r.section,row_index:r.row_index,data:r.data}; }));
+        cloudStatus("Cloud connected ✓"); return {ok:true};
+      });
     }, function(err){ park(); var m=(err&&err.message)||"network error"; cloudStatus("Cloud ERROR · "+m); return {ok:false, reason:m}; });
   }
   var LAST_EDIT=null;
@@ -2089,13 +2155,22 @@
     var old=el.querySelector("#fPending"); if(old) old.parentNode.removeChild(old);
     var p=loadPending(h.id); if(!p) return;
     var items=p.rows.map(function(r){
+      var where=esc(SEC_TITLE[r.section]||r.section)
+              + (r.section==="header" ? "" : " · baris "+(r.row_index+1));
+      // A removal carries no data, so say what it was rather than showing a
+      // blank line the officer cannot interpret.
+      if(r.removed){
+        var was=Object.keys(r.base||{}).filter(function(k){
+          return k!=="tt" && String(r.base[k]||"").trim()!=="";
+        }).map(function(k){ return esc(k)+": <b>"+esc(r.base[k])+"</b>"; });
+        return "<li>"+where+" — <b>anda kosongkan baris ini</b>"
+             + (was.length ? " (asal — "+was.join(" · ")+")" : "")+"</li>";
+      }
       var vals=Object.keys(r.data||{}).filter(function(k){
         return k!=="tt" && String(r.data[k]||"").trim()!=="";
       }).map(function(k){ return esc(k)+": <b>"+esc(r.data[k])+"</b>"; });
       if(!vals.length) return "";
-      return "<li>"+esc(SEC_TITLE[r.section]||r.section)
-           + (r.section==="header" ? "" : " · baris "+(r.row_index+1))
-           + " — "+vals.join(" · ")+"</li>";
+      return "<li>"+where+" — "+vals.join(" · ")+"</li>";
     }).filter(Boolean);
     if(!items.length) return;
     var box=document.createElement("div");

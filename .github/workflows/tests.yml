@@ -69,6 +69,9 @@ jobs:
       - name: Offline sync (P0 — field data must survive with no signal)
         run: npm run test:offline
 
+      - name: Clearing a row (a wrong entry must be withdrawable)
+        run: npm run test:clear
+
       - name: CSP and vendored libraries (no CDN may come back)
         run: npm run test:csp
 

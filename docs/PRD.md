@@ -67,6 +67,10 @@ Interface language is **Bahasa Malaysia**.
   uploads it, and stamps `signed_by` / `signed_at`.
 - **A signed row is permanent.** Enforced twice, independently — by RLS policy
   and by a database trigger. Signature images can never be replaced or deleted.
+- **An unsigned row can be withdrawn.** Clearing it and saving removes it from
+  the record — admin only, works offline, and the row keeps its place on the
+  card as an empty row. An inspection recorded against the wrong hydrant has to
+  be correctable; a signed one never is.
 - **The card is master for Lokasi.** Saving writes `hydrant.location`, and the
   popup, registry, search and dashboard all follow. A blank field never
   overwrites, so clearing it cannot wipe a registered address.
@@ -158,7 +162,7 @@ the client.
 | Accounts | 8, of which 7 admin |
 | Districts | 1 |
 | Codebase | `index.html`, 3,267 lines, 238 KB, no build step |
-| Tests | 3 suites, 54 assertions — run by CI on every push |
+| Tests | 4 suites, 76 assertions — run by CI on every push |
 | Backups | Nightly, verified weekly by automated restore |
 
 ## 6. Open issues
@@ -166,8 +170,8 @@ the client.
 ### P1 — none outstanding
 
 *Both closed 2026-08-04.* `sql/` was brought back in step with production, and
-the three test suites now run in CI on every push with publishing blocked on
-them (`tests.yml` + `needs: test`). See §9 Phase 1.
+the test suites now run in CI on every push with publishing blocked on them
+(`tests.yml` + `needs: test`). See §9 Phase 1.
 
 ### P2 — Hardening. Real, but nothing is on fire
 

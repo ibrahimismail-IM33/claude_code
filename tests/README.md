@@ -48,6 +48,7 @@ bumping the `playwright` version in `package.json` needs no change here.
 | File | Guards |
 |---|---|
 | `p0-offline-sync.js` | Inspection data typed with no signal must survive and reach the server. This was a real, reproduced data-loss bug (2026-08-03) — a failed save was silently overwritten by the cloud copy the next time the card was opened. Also covers the conflict path, signed rows, auto-push on reconnect, and that ordinary online saves are unchanged. |
+| `clear-row.js` | An officer must be able to withdraw a wrong entry. Found in the field 2026-08-04: clearing a row and saving did nothing, because an upsert never deletes the rows it is not sent — and the app had no `.delete()` on `hydrant_records` at all. Covers the online clear, signed rows staying untouchable, clearing offline, a contested removal, the map pin's date badge following the rows that remain, and that a **failed flush changes nothing** (it used to drop the parked work). |
 
 | `csp-and-vendor.js` | The libraries stay self-hosted and the app still works under the tightened CSP. Serves the real files with the CSP parsed out of `_headers` and boots the app with the genuine Leaflet. Fails if a CDN tag is ever added back. |
 | `signature-links.js` | Signature images resolve to short-lived signed links, and — critically — fall back to the stored value when signing is unavailable, so a signature never fails to display. Covers rows stored as legacy public URLs and as paths. |
