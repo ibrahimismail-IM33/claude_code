@@ -56,6 +56,13 @@ async function boot(b, seedRecs){
     window.__clickMarker=i=>window.__markers[i]._click();
   });
   await p.addInitScript(seed => {
+    // Seed the hydrant cache directly. Without this the app falls back to its
+    // built-in INITIAL_HYDRANTS, whose A01 carries no inspection date — so
+    // syncLastInspected would see "" already and skip the write, and the pin
+    // badge assertions would silently test nothing.
+    localStorage.setItem('bbpkunak_hydrants_v2', JSON.stringify([{id:1,label:'A01',
+      lat:4.6853,lng:118.2457,status:'kerajaan',location:'Balai Bomba Kunak',
+      lastInspected:'2026-08-02'}]));
     window.__hyd=[{id:1,label:'A01',lat:4.6853,lng:118.2457,status:'kerajaan',location:'Balai Bomba Kunak',last_inspected:'2026-08-02'}];
     window.__recs=seed;
     window.__deletes=[];        // every delete the app asked for
@@ -218,6 +225,26 @@ const pending = p => p.evaluate(()=>{ const v=localStorage.getItem('bbpkunak_pen
   check('still parked after a failed flush',
         await p.evaluate(()=>{ const v=JSON.parse(localStorage.getItem('bbpkunak_pending_1')||'null');
                                return !!(v&&v.rows.some(r=>r.data&&r.data.penguji==='TAIP DI LAPANGAN')); }), true);
+  await p.close();
+
+  // ---------- T7: clearing ONLY the date, with the rest of the row intact ----------
+  // The row still has content, so it is not a removal — it is an ordinary
+  // update that happens to blank one cell. Worth its own scenario because a
+  // date input is not a text input and is easy to miss when collecting.
+  console.log('T7  clearing just the date leaves the row but drops the date');
+  p = await boot(b, [row(0,{tarikh:'2026-08-02',penguji:'PEGAWAI A'})]);
+  await openCard(p);
+  await p.fill(cell('tarikh'),'');
+  await save(p);
+  check('date cleared on the server', await p.evaluate(()=>{
+    const r=window.__recs.find(x=>x.section==='pengujian'&&x.row_index===0); return r? r.data.tarikh : '(row gone)'; }), '');
+  check('rest of the row kept',       await cloudRow(p), 'PEGAWAI A');
+  check('no delete sent',             await deletes(p), []);
+  await closeCard(p);
+  await openCard(p);
+  check('date still empty after reopen', await p.evaluate(s=>document.querySelector(s).value, cell('tarikh')), '');
+  check('pin badge cleared',          await p.evaluate(()=>{ const w=window.__hydWrites;
+                                        return w.length?w[w.length-1].last_inspected:'(none)'; }), null);
   await p.close();
 
   await b.close();

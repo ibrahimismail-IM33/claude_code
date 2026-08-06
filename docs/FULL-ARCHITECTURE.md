@@ -129,7 +129,7 @@ Line numbers are indicative and will drift; the function names are stable.
 
 | Key | Holds |
 |---|---|
-| `bbpkunak_hydrants` | The hydrant list |
+| `bbpkunak_hydrants_v2` | The hydrant list (`STORE_KEY`) |
 | `bbpkunak_form_<id>` | One hydrant's record card |
 | `bbpkunak_pending_<id>` | Unsent edits for that hydrant, plus the cloud values they were based on |
 
@@ -519,14 +519,14 @@ Retention is 90 days in GitHub artifacts, which vanish with the repository.
 
 ## 8. Testing
 
-Four Node + Playwright suites, **76 assertions**, driving the real page in
+Four Node + Playwright suites, **81 assertions**, driving the real page in
 real Chromium.
 
 | Suite | Guards | Assertions |
 |---|---|---|
 | `p0-offline-sync.js` | Offline field data survives and reaches the server; conflicts warn instead of overwriting; signed rows untouched; reconnect pushes without the card being opened | 20 |
 | `csp-and-vendor.js` | No CDN tag or origin anywhere; every vendor file present; the app boots under the real CSP with real Leaflet — 187 pins, 7 clusters, zero violations | 21 |
-| `clear-row.js` | An officer can withdraw a wrong entry; signed rows stay untouchable; clearing works offline and survives a contested sync; the pin's date badge follows the rows that remain; a failed flush changes nothing | 22 |
+| `clear-row.js` | An officer can withdraw a wrong entry; signed rows stay untouchable; clearing works offline and survives a contested sync; the pin's date badge follows the rows that remain; a failed flush changes nothing | 27 |
 | `signature-links.js` | Signatures resolve to short-lived links and **fall back** when signing is unavailable; covers legacy URLs and paths | 13 |
 
 The standard, from `tests/README.md`: **a test earns its place by failing on the

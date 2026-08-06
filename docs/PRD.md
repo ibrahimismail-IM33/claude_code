@@ -162,7 +162,7 @@ the client.
 | Accounts | 8, of which 7 admin |
 | Districts | 1 |
 | Codebase | `index.html`, 3,267 lines, 238 KB, no build step |
-| Tests | 4 suites, 76 assertions — run by CI on every push |
+| Tests | 4 suites, 81 assertions — run by CI on every push |
 | Backups | Nightly, verified weekly by automated restore |
 
 ## 6. Open issues

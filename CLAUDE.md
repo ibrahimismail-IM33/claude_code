@@ -396,7 +396,7 @@ this was checked outside a headless browser:
   every vendor file present, and the app booted under the **real CSP read from
   `_headers`** with the real Leaflet — 187 pins in 7 clusters, zoom control,
   Supabase client, zero CSP violations, zero page errors
-- `clear-row.js` — 22 assertions over 6 scenarios: a cleared row is actually
+- `clear-row.js` — 27 assertions over 7 scenarios: a cleared row is actually
   deleted, signed rows are never touched, clearing works offline and warns on
   a contested removal, the pin's date badge follows the rows that remain, and
   a failed flush changes nothing. **Verified to fail on the pre-fix code —
