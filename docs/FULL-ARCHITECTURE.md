@@ -9,7 +9,8 @@ and the SQL was verified by running all four scripts against a real Postgres.
 Known defects are listed in §9 rather than glossed over.
 
 Companion documents: `PRD.md` (what it is for and where it is going),
-`CLAUDE.md` (working notes and decision log), `tests/README.md`,
+`CLAUDE.md` (working notes and decision log), `docs/KAD-REKOD.md` (the
+binding spec for the record card), `tests/README.md`,
 `vendor/README.md`, `RESTORE.md` (in the site repo).
 
 ---
@@ -107,7 +108,7 @@ Line numbers are indicative and will drift; the function names are stable.
 | **Offline queue** | `pendKey`, `savePending`, `loadPending`, `pendingIds`, `hasPending`, `snapCloudBase`, `baseFor`, `flushPending`, `flushAllPending`, `sameData` | The P0 safety net. See §5.2 |
 | **Map** | `initMap`, `renderMarkers`, `makeIcon`, `tip`, `renderPills`, `visible`, `searchMatches` | Leaflet + markercluster, one marker per hydrant |
 | **Registry & detail** | `renderRegistry`, `openDetail`, `detailSig`, `reopenDetailIfOpen`, `openAdd`, `closeAdd` | The hydrant list and its popup |
-| **Record card** | `openForm`, `buildFormHtml`, `headerBlock`, `renderTable`, `wireForm`, `wireCells`, `collectForm`, `normalizeForm`, `blankForm`, `emptyRow`, `rowHasData`, `formFingerprint`, `lockSignedUI` | The Kad Rekod Pili Bomba |
+| **Record card** | `openForm`, `buildFormHtml`, `headerBlock`, `renderTable`, `wireForm`, `wireCells`, `collectForm`, `normalizeForm`, `blankForm`, `emptyRow`, `rowHasData`, `rowIsComplete`, `cardCount`, `padToCards`, `maybeAddPage`, `formFingerprint`, `lockSignedUI` | The Kad Rekod Pili Bomba. **Its rules are binding — see `docs/KAD-REKOD.md` before changing the card or the print CSS** |
 | **Signatures** | `sigPath`, `resolveSigs`, `paintSigs`, `fallbackRest`, `dataUrlToBlob`, `stripSignatureBg` | Capture, upload, and short-lived link resolution |
 | **Derived sync** | `syncLocation`, `syncLastInspected`, `latestPengujianDate` | Fields the record card owns and pushes back onto the hydrant |
 | **Dashboard** | period helpers (`halfList`, `halfRange`, `periodRange`), `refreshInspIndex`, donut geometry | Derives every figure from Pengujian rows |
@@ -523,7 +524,7 @@ Retention is 90 days in GitHub artifacts, which vanish with the repository.
 
 ## 8. Testing
 
-Five Node + Playwright suites, **89 assertions**, driving the real page in
+Six Node + Playwright suites, **116 assertions**, driving the real page in
 real Chromium.
 
 | Suite | Guards | Assertions |
@@ -531,6 +532,7 @@ real Chromium.
 | `p0-offline-sync.js` | Offline field data survives and reaches the server; conflicts warn instead of overwriting; signed rows untouched; reconnect pushes without the card being opened | 20 |
 | `csp-and-vendor.js` | No CDN tag or origin anywhere; every vendor file present; the app boots under the real CSP with real Leaflet — 187 pins, 7 clusters, zero violations | 21 |
 | `clear-row.js` | An officer can withdraw a wrong entry; signed rows stay untouchable; clearing works offline and survives a contested sync; the pin's date badge follows the rows that remain; a failed flush changes nothing | 27 |
+| `kad-rekod.js` | The Kad Rekod is 2 pages with its pages together and in order; screen shows the newest card first while **print stays oldest-first**; card numbers are permanent and chronological; a new card needs the last row complete **and saved**, offline included | 27 |
 | `hydrant-paging.js` | The hydrant read is paged, so a register past PostgREST's 1000-row cap cannot silently lose pins; a failed read leaves the local copy alone | 8 |
 | `signature-links.js` | Signatures resolve to short-lived links and **fall back** when signing is unavailable; covers legacy URLs and paths | 13 |
 
@@ -539,7 +541,7 @@ broken code.**
 
 ### CI, and the gate
 
-`.github/workflows/tests.yml` runs all five suites on **every push and pull
+`.github/workflows/tests.yml` runs all six suites on **every push and pull
 request**. `publish-to-site.yml` calls that same workflow and depends on it:
 
 ```yaml

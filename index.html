@@ -503,10 +503,16 @@
   .fbtn{padding:7px 14px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;background:#fff;color:#000}
   .fbtn.ghost{background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.8)}
   .fbtn:hover{opacity:.92}
-  .fsheet{margin:18px auto 44px;width:860px;max-width:97vw}
+  /* Cards are rendered oldest-first so the DOM order matches the printed record,
+     and flipped here so the newest — the only one anyone writes on — is on top.
+     column-reverse reorders .fcard, never the two .fpage inside one, and print
+     sets it back to column. Reversing the render loop instead would have
+     reversed the paper too. */
+  .fsheet{margin:18px auto 44px;width:860px;max-width:97vw;display:flex;flex-direction:column-reverse}
   .fpage{background:#fff;color:#111;border-radius:4px;box-shadow:0 12px 40px rgba(0,0,0,.5);padding:22px 22px 30px;margin-bottom:22px;font-family:Arial,Helvetica,sans-serif}
   .fpage-top{display:flex;justify-content:flex-end;gap:10px;font-size:11px;color:#333;font-weight:700}
   .kadno{color:#b91c1c}
+  .terkini{color:#0a7d3f;letter-spacing:.06em}
   .krpb{color:#c00}
   .fcardtitle{text-align:center;font-size:15px;font-weight:700;text-decoration:underline;margin:2px 0 12px}
   .fhdr{display:flex;gap:14px;margin-bottom:12px;align-items:flex-start}
@@ -554,9 +560,11 @@
     #formOverlay{position:static;background:#fff;backdrop-filter:none;overflow:visible;display:block;height:auto;margin:0;padding:0}
     #formOverlay, #formOverlay *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
     .ftoolbar,.ftoast{display:none!important}
-    .fsheet{margin:0;width:auto;max-width:none}
+    /* Paper reads forward in time: Kad 1, then Kad 2. Only the screen is flipped. */
+    .fsheet{margin:0;width:auto;max-width:none;flex-direction:column}
     .fpage{box-shadow:none;border-radius:0;margin:0;padding:0}
     .fpage.pb{page-break-before:always}
+    .terkini{display:none !important}
     .fsec-title{background:#ffe600 !important;color:#000 !important}
     .ftab th{background:#f2f2f2 !important;color:#000 !important}
     .fin,.fin-h{color:#000}
@@ -1730,6 +1738,18 @@
   var SEC_ORDER=["kerosakan","pemantauan","pengujian","kompaun"];
   function emptyRow(sec){ var o={}; SECTIONS[sec].cols.forEach(function(c){o[c.k]="";}); return o; }
   function rowHasData(sec,row){ return SECTIONS[sec].cols.some(function(c){ return c.t!=="sign" && row[c.k] && String(row[c.k]).trim()!==""; }); }
+  function cellFilled(row,c){ return !!(row[c.k] && String(row[c.k]).trim()!==""); }
+  /* "Complete" decides when a filled column earns the officer a fresh Kad Rekod.
+     Deliberately NOT "every column": Catatan is often left blank, and a Kompaun
+     row may legitimately use only the first of its two blocks — demanding all of
+     them would leave an officer with a full card and nowhere to write. The first
+     column of every section is the Tarikh, and a record without a date is not a
+     record, so that one is required and one more field must back it up. */
+  function rowIsComplete(sec,row){
+    var cols=SECTIONS[sec].cols;
+    if(!cellFilled(row,cols[0])) return false;
+    return cols.some(function(c,i){ return i>0 && c.t!=="sign" && cellFilled(row,c); });
+  }
   function blankForm(){ var f={header:{lokasi:"",tarikh_pasang:"",no_keahlian:"",tarikh_daftar:""}};
     SEC_ORDER.forEach(function(s){ f[s]=[]; for(var i=0;i<SECTIONS[s].perPage;i++) f[s].push(emptyRow(s)); }); return f; }
   function normalizeForm(f){
@@ -2144,8 +2164,12 @@
       var mF=c*SECTIONS.pemantauan.perPage, mT=mF+SECTIONS.pemantauan.perPage;
       var gF=c*SECTIONS.pengujian.perPage,  gT=gF+SECTIONS.pengujian.perPage;
       var pF=c*SECTIONS.kompaun.perPage,    pT=pF+SECTIONS.kompaun.perPage;
-      var kadNo = cards>1 ? ' <span class="kadno">Kad '+(c+1)+'/'+cards+'</span>' : '';
-      out+='<div class="fpage'+(c>0?' pb':'')+'">'
+      /* The number is permanent and chronological — the oldest card is always
+         Kad 1, so a card that has been signed and filed keeps the identifier it
+         was filed under. TERKINI, not the number, marks the one to write on. */
+      var kadNo = ' <span class="kadno">Kad '+(c+1)+'/'+cards+'</span>'
+                + (c===cards-1 ? ' <span class="terkini">TERKINI</span>' : '');
+      out+='<div class="fcard"><div class="fpage'+(c>0?' pb':'')+'">'
         +'<div class="fpage-top">Lampiran 5 <span class="krpb">KRPB</span>'+kadNo+'</div>'
         +'<div class="fcardtitle">KAD REKOD PILI BOMBA</div>'
         + headerBlock(h,f)
@@ -2154,7 +2178,7 @@
         +'</div><div class="fpage pb">'
         +'<div class="fsec-title">'+SECTIONS.pengujian.title+'</div>'+renderTable("pengujian",f.pengujian,gF,gT)
         +'<div class="fsec-title">'+SECTIONS.kompaun.title+'</div>'+renderTable("kompaun",f.kompaun,pF,pT)
-        +'</div>';
+        +'</div></div>';
     }
     return out+'</div>';
   }
@@ -2251,6 +2275,9 @@
           f = fresh;
           el.innerHTML=buildFormHtml(h,f); wireForm(h,f,el);
         }
+        // A last row completed on another device arrives here, not through a
+        // keystroke, so the next card has to be offered on open too.
+        maybeAddPage(el,f,h);
         renderPendingNotice(h,el);
         // the signature links are a separate round trip; the officer should
         // not wait on them to see the card
@@ -2267,7 +2294,7 @@
     el.querySelectorAll(".fin").forEach(function(inp){
       inp.oninput=function(){ if(inp.type==="date"&&inp.value&&inp.value>today()) inp.value=today();
         var s=inp.getAttribute("data-sec"),ri=+inp.getAttribute("data-row"),k=inp.getAttribute("data-k");
-        if(f[s]&&f[s][ri]) f[s][ri][k]=inp.value; maybeAddPage(s,el,f,h); };
+        if(f[s]&&f[s][ri]) f[s][ri][k]=inp.value; };
     });
     el.querySelectorAll(".sigbtn").forEach(function(b){ b.onclick=function(){
       if(!isAdmin()){ ftoast("Hanya admin boleh menandatangani."); return; }
@@ -2404,11 +2431,19 @@
       }, function(){ okb.disabled=false; okb.textContent="Sahkan & Kunci"; ftoast("Muat naik gagal (rangkaian)."); });
     };
   }
-  // When the LAST row of any table gets data, append a whole new 2-page Kad Rekod
-  // below the current one — matching how a filled paper card is followed by a new card.
-  function maybeAddPage(sec,el,f,h){
-    var arr=f[sec];
-    if(!arr.length || !rowHasData(sec,arr[arr.length-1])) return;
+  /* When the LAST row of ANY table is complete, append a whole new 2-page Kad
+     Rekod — matching how a filled paper card is followed by a new card. The new
+     card renders last in the DOM but sits on top on screen (see .fsheet).
+
+     Runs on save, not on every keystroke: a half-typed final row is not a
+     record, and a card created by one stray character is a card the officer
+     then has to explain. saveForm always writes localStorage before it tries
+     the network, so this still works with no signal. */
+  function maybeAddPage(el,f,h){
+    var full=SEC_ORDER.some(function(s){
+      var arr=f[s]||[]; return arr.length && rowIsComplete(s,arr[arr.length-1]);
+    });
+    if(!full) return;
     // remember the focused cell so typing isn't interrupted by the re-render
     var sel=null;
     try{
@@ -2431,6 +2466,9 @@
     el.querySelector("#fClose").onclick=function(){ collectForm(el,f); saveForm(h.id,f); closeForm(); };
     el.querySelector("#fSave").onclick=function(){
       collectForm(el,f);
+      // Grow first: maybeAddPage re-renders, which would detach a button we had
+      // already grabbed and leave the officer looking at "Saving…" forever.
+      maybeAddPage(el,f,h);
       var btn=el.querySelector("#fSave"); btn.textContent="Saving…";
       saveForm(h.id,f).then(function(r){
         btn.textContent = (r&&r.ok) ? "Saved to cloud \u2713" : "\u26A0 Local only";

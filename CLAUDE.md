@@ -54,6 +54,7 @@ Live at **epilibomba.com**. UI language is Bahasa Malaysia.
 | `drafts/dashboard-draft-glass.html` | Standalone dashboard design draft (superseded by the real thing, kept for reference) |
 | `docs/FULL-ARCHITECTURE.md` | How the system is built — layers, data model, every RLS policy, the key flows, deploy pipeline, and §9 known defects |
 | `docs/PRD.md` | What it is for and where it goes — requirements, open issues, district-expansion analysis, non-technical risks, roadmap |
+| `docs/KAD-REKOD.md` | **Binding spec for the record card.** MANDATORY under MS ISO — 2 pages, row capacities, how a new card is created, numbering, screen-vs-print order, signature permanence. **Read this before touching the card or the print CSS** |
 | `docs/epilibomba-spec.md` | Earlier design spec |
 
 ### Data
@@ -160,6 +161,10 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Delete confirm | Added `confirm()` | Delete now sits one button away from edit and cannot be undone. Gap raised 2px → 6px for the same reason |
 | Jadual date filter | **Removed** | Built, then the user asked for it gone — the period selector plus a date-sorted list is enough. Don't re-add it without being asked |
 | Open edit on period change | **Dropped** | An edit belongs to the period it started in |
+| Kad Rekod card order | **Newest first on screen, oldest first in print** | The newest card is the only one anyone writes on, so an officer should land on it rather than scroll past years of filled cards on a phone. Paper is the opposite: a filed record reads forward in time. Done with `flex-direction:column-reverse` on `.fsheet` while the **DOM stays chronological** — reversing the render loop would reverse the paper too and break the `page-break-before` rules, and that failure is invisible on screen |
+| Kad Rekod card numbers | **Permanent and chronological** — oldest is always Kad 1 | The card is auditable. A card signed and filed as *Kad 2* must still be Kad 2 next year. Numbering by screen position was rejected: it renumbers signed cards, and with print staying oldest-first it would make the printed stack count **down** (3/3, 2/3, 1/3). `TERKINI` marks the newest instead, and is hidden in print |
+| New card trigger | **Last row of any section complete, on save** | Was: any character in the last row. A half-typed row is not a record, and a card created by one stray keypress is a card the officer has to explain. "Complete" is Tarikh **plus one other field** — demanding every column would strand an officer who leaves `Catatan` blank with nowhere to write. Fires on the **local** save, so it still works with no signal |
+| Kad Rekod spec | Written down in `docs/KAD-REKOD.md`, marked **MANDATORY** | The rules — 2 pages, the mm-tuned row heights, capacities, numbering — lived only in the user's head and two code comments. It is the part of the app most likely to be "tidied" by someone who does not know it is a legal record, and the only part where a mistake is invisible until it reaches paper |
 
 ---
 
