@@ -370,6 +370,16 @@ Watch items:
   and the revokes added to the base scripts too so a recovery that skips the
   optional 5th cannot reopen them. **Run `get_advisors` after any schema
   change; it is free and it found what a year of reading the scripts did not.**
+  Applied and **verified on production 2026-08-07**: `anon` closed on all five,
+  `authenticated` retained on `is_admin()` alone, `stamp_row_audit`'s
+  `search_path` back to two elements, and an officer save confirmed from the
+  app. The advisor is down to two notices — `is_admin`/`authenticated`, which is
+  correct and must never be "fixed", and leaked-password, which needs a paid
+  plan. A fourth lesson from this: the fix shipped in script 4 while the
+  hardening people re-run is script 5, so it silently did not get applied.
+  **A script must be able to deliver every fix it tells you it delivers**, and
+  its verification query must select the column it is verifying — the old one
+  did not print `search_path`, so it reported success on a broken pin.
 - **Restore is verified and now automatic.** `restore-test.yml` in the site
   repo runs every Monday: downloads the newest backup, restores it into a
   throwaway Postgres, checks the counts and the signature images, and opens

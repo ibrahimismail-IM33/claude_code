@@ -46,8 +46,10 @@
 --
 --  Safe to re-run.
 --
---  APPLIED TO PRODUCTION 2026-08-06, and confirmed by an admin saving a Kad
---  Rekod row from the live app. That save is the verification — it proves the
+--  APPLIED TO PRODUCTION 2026-08-06 (is_admin, handle_new_user) and again
+--  2026-08-07 (the three trigger functions, and the search_path correction
+--  below). Both times confirmed by an admin saving a Kad Rekod row from the
+--  live app. That save is the verification — it proves the
 --  write reached the database through RLS, so the policy called is_admin() and
 --  it evaluated as `authenticated`. The verification query at the foot of this
 --  file reports callable_by_api = f and looks like success EVEN WHEN EVERY
