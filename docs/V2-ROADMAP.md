@@ -6,10 +6,12 @@
 > what it was before this work began. Nothing here has reached an officer, and
 > nothing can until a deliberate merge to `main`.
 >
-> Branches: `claude/epb-v2-p0-seams`, `-p1-stores`, `-p2-dash`. The integration
-> branch `claude/epb-v2` currently holds only this document — merging the phase
-> branches into it is a separate, deliberate step. **`main` stays V1 until
-> cutover.**
+> Phases 0, 1 and 2 are **merged into `claude/epb-v2`**, each as its own merge
+> commit so any one phase can still be reverted on its own. Eighteen suites pass
+> on the merged branch — a clean merge proves nothing about behaviour, so it was
+> run afterwards, not assumed.
+>
+> **`main` stays V1 until cutover**, which is a single deliberate merge.
 
 ## Context
 
