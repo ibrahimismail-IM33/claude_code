@@ -156,8 +156,38 @@ Two rules, both load-bearing:
 - **`pending` is ported line by line, not re-designed.** §4.10 and §4.14 are both
   in this code. A failed flush must still change *nothing*.
 
-**Gate:** `p0-offline-sync.js` and `clear-row.js` green against the Pinia
-implementation, still driving the V1 UI.
+**Gate — as written, this was wrong too.** It said the suites must pass "against
+the Pinia implementation, still driving the V1 UI". They cannot: V1's UI does not
+use Pinia, and it will not until Phases 2–5 move the views. Taken literally the
+gate is either impossible or satisfied by a test that proves nothing.
+
+**The gate that replaces it: differential parity.** Run V1's real logic and the
+port over the same inputs and require identical decisions.
+
+- `tests/v2-pending-parity.js` drives V1's **real `flushPending`** in a browser,
+  triggered by an `online` event exactly as a reconnect does, beside the ported
+  `planFlush()` — over all 32 combinations of (edit vs removal) × (cloud
+  absent/unchanged/changed/signed) × (base unseen/never-existed/matching/
+  differing), **twice**: once with the writes landing, once with them failing.
+  Both halves are needed. "A failed flush changes nothing" (§4.14) is invisible
+  on the success path, and the first version of this test had exactly that hole.
+- `tests/v2-filters-parity.js` lifts V1's **real source text** for `visible`,
+  `zoneSummary`, `counts` and `searchMatches` out of `index.html` and runs it
+  against the port over five registers × 144 scope combinations.
+
+Both were verified to go red on a deliberately broken port — the signed-row
+guard removed, failed pushes dropped from the queue, and a search made to obey
+the Awam/Swasta pills.
+
+### Phase 1 status: partly done
+
+Done and proved: **`pending`** (`v2/src/stores/pending.js` +
+`pending-logic.js`) and **`filters`** (`filters-logic.js`).
+
+Still to do: **`hydrants`** (paging, `pullFresh`, the 60s poll), **`records`**
+(form cache, `formFingerprint`, card growth) and **`auth`**. `records` owns card
+growth on a mandatory record and deserves its own sitting rather than the end of
+a long one.
 
 ---
 
