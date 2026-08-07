@@ -553,7 +553,32 @@
     .ftab.pengujian td{height:8.3mm}
     .ftab.pengujian .fin{height:8.3mm}
     .ftab.kompaun .fin{font-size:8.5px}
-    .sigimg{max-height:6.6mm}
+    /* Signatures printed faded — found on the first real printout, 2026-08-07.
+       They are PHOTOGRAPHED, so stripSignatureBg never yields black ink: it
+       keeps the pen's own colour at *0.72 and ramps stroke mid-tones to partial
+       alpha. Measured, the darkest pixel in a typical signature is luminance
+       137 and NOT ONE pixel falls below 128, against ~0 for the table rules
+       beside it. A backlit screen flatters that; paper does not.
+
+       Fixed at render time, not at capture: signed rows are permanent and the
+       image can never be re-uploaded, so a capture-side change would help no
+       already-filed record. Print-only, because the screen rendering is correct
+       and officers look at it all day.
+
+       brightness(0) flattens the ink to black while keeping alpha as the
+       stroke shape. The drop-shadows do the real work — CSS filters cannot
+       touch the alpha channel, so contrast() cannot rescue a semi-transparent
+       stroke; each shadow paints an opaque black copy behind it, compounding
+       effective alpha toward 1 while leaving faint edges graded. Measured
+       darkest/mean: none 137/187, 2x 5/85, 3x 0/54, 4x 0/41. Three passes reach
+       solid black on a badly-lit photo too (4/74); a fourth only thickens.
+       Height was 6.6mm here and 30px in a later @media print block — same
+       specificity, so the later one silently won. Consolidated to the value
+       that was actually in effect, so the printed layout does not move. */
+    /* .sigimg is set in the later @media print block — it HAS to come after the
+       screen rule (.sigimg{max-height:34px}), which sits below this one at the
+       same specificity and would otherwise win even in print. That is why the
+       6.6mm once declared here was silently dead. */
     html,body{height:auto !important;overflow:visible !important}
     .app{height:auto !important;overflow:visible !important;display:block !important;position:static !important}
     body.form-open>*:not(#formOverlay){display:none!important}
@@ -603,7 +628,8 @@
     background-size:14px 14px;background-position:0 0,0 7px,7px -7px,-7px 0}
   .sigacts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
   @media print{
-    .sigimg{max-height:30px}
+    .sigimg{max-height:30px;
+      filter:brightness(0) drop-shadow(0 0 0 #000) drop-shadow(0 0 0 #000) drop-shadow(0 0 0 #000)}
     .sigmodal{display:none!important}
   }
 

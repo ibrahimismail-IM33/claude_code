@@ -40,7 +40,11 @@ const row = (i, data, signed) => ({hydrant_id:1, section:'pengujian', row_index:
   data:Object.assign({tarikh:'',penguji:'',statik:'',semasa:'',gpm:'',catatan:'',tt:''}, data),
   signed:!!signed});
 // A complete row: Tarikh plus at least one other field.
-const done = (i, signed) => row(i, {tarikh:'2026-08-0'+((i%9)+1), penguji:'P'+i}, signed);
+const done = (i, signed) => {
+  const r = row(i, {tarikh:'2026-08-0'+((i%9)+1), penguji:'P'+i}, signed);
+  if (signed) r.signature = '1/pengujian_'+i+'_1.png';
+  return r;
+};
 
 async function boot(b, seedRecs){
   const p = await b.newPage({ viewport:{width:1280,height:950} });
@@ -73,7 +77,9 @@ async function boot(b, seedRecs){
       auth:{getUser:()=>Promise.resolve({data:{user:null}}),getSession:()=>Promise.resolve({data:{session:null}}),
             onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},
       storage:{from:()=>({upload:()=>Promise.resolve({error:null}),getPublicUrl:()=>({data:{publicUrl:''}}),
-                          createSignedUrls:()=>Promise.resolve({data:[],error:null})})},
+                          createSignedUrls:(paths)=>Promise.resolve({
+                            data:(paths||[]).map(pp=>({path:pp, signedUrl:window.__sigUrl||''})),
+                            error:null})})},
       from:(t)=>({
         select:()=> window.__offline ? qerr()
           : q(t==='hydrants'?window.__hyd.slice():t==='hydrant_records'?JSON.parse(JSON.stringify(window.__recs)):[]),
@@ -214,6 +220,81 @@ const tops = p => p.evaluate(()=>[...document.querySelectorAll('.fcard')]
   check('the signed row is in Kad 1, not the new one', await p.evaluate(()=>{
     const c=[...document.querySelectorAll('.fcard')];
     return !!c[0].querySelector('tr.rowsigned') && !c[1].querySelector('tr.rowsigned'); }), true);
+  await p.close();
+
+  // ---------- T7: a signature must print BLACK, not grey ----------
+  // Found on the first real printout (2026-08-07): signatures came out pale
+  // against solid-black table rules. They are photographed, and
+  // stripSignatureBg never produces black ink — measured, the darkest pixel of
+  // a typical signature was luminance 137 and NOT ONE pixel fell below 128.
+  // A backlit screen flatters that; paper does not.
+  //
+  // The fix is print-only and render-side, because signed rows are permanent:
+  // the image can never be re-uploaded, so a capture-side change would not
+  // help a single already-filed record. These assertions guard the OUTCOME
+  // (ink actually goes black on paper) and that the screen is left alone.
+  console.log('T7  the signature prints black, and the screen is untouched');
+  p = await boot(b, [done(0, true)]);
+  // a photographed signature as stripSignatureBg leaves it: grey-brown ink,
+  // never black, with stroke mid-tones ramped to partial alpha
+  await p.evaluate(() => {
+    const W=600,H=180,c=document.createElement('canvas'); c.width=W; c.height=H;
+    const x=c.getContext('2d'); x.lineCap='round'; x.lineJoin='round';
+    x.strokeStyle='rgb(70,64,58)'; x.lineWidth=9;
+    x.beginPath(); x.moveTo(40,140);
+    x.bezierCurveTo(140,20,200,170,270,90);
+    x.bezierCurveTo(330,20,360,160,430,80);
+    x.bezierCurveTo(470,40,520,120,560,70); x.stroke();
+    const im=x.getImageData(0,0,W,H), d=im.data;
+    for(let i=0;i<d.length;i+=4) if(d[i+3]>0) d[i+3]=Math.round(d[i+3]*0.62);
+    x.putImageData(im,0,0);
+    window.__sigUrl = c.toDataURL('image/png');
+  });
+  await openCard(p);
+  check('the signature image rendered',
+    await p.evaluate(()=>!!document.querySelector('img.sigimg')), true);
+
+  const inkOf = async (media) => {
+    await p.emulateMedia({ media });
+    await p.waitForTimeout(250);
+    const buf = await p.locator('img.sigimg').first().screenshot();
+    return await p.evaluate(async b64 => {
+      const img=new Image();
+      await new Promise(r=>{ img.onload=r; img.src='data:image/png;base64,'+b64; });
+      const c=document.createElement('canvas'); c.width=img.width; c.height=img.height;
+      const x=c.getContext('2d'); x.drawImage(img,0,0);
+      const d=x.getImageData(0,0,c.width,c.height).data;
+      let darkest=255, darkPx=0;
+      for(let i=0;i<d.length;i+=4){
+        const L=(d[i]*299+d[i+1]*587+d[i+2]*114)/1000;
+        if(L<250){ if(L<darkest) darkest=L; if(L<128) darkPx++; }
+      }
+      return { darkest:Math.round(darkest), darkPx };
+    }, buf.toString('base64'));
+  };
+
+  const scr = await inkOf('screen');
+  const prn = await inkOf('print');
+  // Pre-fix this was darkest=134, darkPx=0 — not one pixel below mid-grey.
+  // Absolute pixel counts depend on the device scale factor, so assert the
+  // shape of the result rather than a number tuned to this viewport.
+  console.log('        screen', JSON.stringify(scr), ' print', JSON.stringify(prn));
+  check('in print the ink reaches black',   prn.darkest < 40, true);
+  check('in print there is solid dark ink', prn.darkPx > 0, true);
+  check('print carries far more dark ink than screen',
+        prn.darkPx >= scr.darkPx * 2, true);
+
+  await p.emulateMedia({ media:'screen' }); await p.waitForTimeout(150);
+  check('no filter on screen \u2014 the officers\' view is unchanged',
+    await p.evaluate(()=>getComputedStyle(document.querySelector('img.sigimg')).filter), 'none');
+  await p.emulateMedia({ media:'print' }); await p.waitForTimeout(150);
+  check('print filter is applied', await p.evaluate(()=>
+    /brightness\(0\)/.test(getComputedStyle(document.querySelector('img.sigimg')).filter)), true);
+  // .sigimg max-height was set in TWO @media print blocks at the same
+  // specificity, so the later silently won and the mm-tuned value was dead.
+  check('exactly one print height applies', await p.evaluate(()=>
+    getComputedStyle(document.querySelector('img.sigimg')).maxHeight), '30px');
+  await p.emulateMedia({ media:'screen' });
   await p.close();
 
   await b.close();

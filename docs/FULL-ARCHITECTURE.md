@@ -524,7 +524,7 @@ Retention is 90 days in GitHub artifacts, which vanish with the repository.
 
 ## 8. Testing
 
-Seven Node + Playwright suites, **145 assertions**, driving the real page in
+Seven Node + Playwright suites, **152 assertions**, driving the real page in
 real Chromium.
 
 | Suite | Guards | Assertions |

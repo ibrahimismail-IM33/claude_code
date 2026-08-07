@@ -6,7 +6,7 @@ convenience, tidiness or a framework migration. If a change to the app would
 alter what comes out of the printer, it needs the officer's approval first —
 not a code review.
 
-Guarded by `tests/kad-rekod.js` (27 assertions). Implemented in `index.html`.
+Guarded by `tests/kad-rekod.js` (34 assertions). Implemented in `index.html`.
 
 > ## MS ISO 9001:2015 — procedure **PS-8 PILI BOMBA**
 >
@@ -162,6 +162,39 @@ private `signatures` bucket and display through 1-hour signed links.
 writable, or a signature image unreachable, is a correctness failure of the
 same severity as losing the record itself.
 
+### Signatures are darkened for print, and it must stay that way
+
+Signatures are **photographed**, so `stripSignatureBg` never produces black
+ink — it keeps the pen's own colour at `*0.72` and ramps stroke mid-tones to
+partial alpha. Measured on a typical signature the darkest pixel is luminance
+**137**, and **not one pixel falls below 128**, against ~0 for the table rules
+beside it. A backlit screen flatters that. Paper does not, and the first real
+printout came out visibly faded.
+
+The print CSS therefore applies
+`filter: brightness(0)` plus **three** `drop-shadow(0 0 0 #000)` passes.
+`brightness(0)` flattens the ink to black while keeping alpha as the stroke
+shape; the shadows do the real work, because **CSS filters cannot touch the
+alpha channel** — `contrast()` cannot rescue a semi-transparent stroke, while
+each shadow paints an opaque black copy behind it and compounds effective
+alpha toward 1. Measured darkest/mean: none 137/187, 2× 5/85, **3× 0/54**,
+4× 0/41. Three reaches solid black even on a badly-lit photo; a fourth only
+thickens the stroke.
+
+Two things about this are load-bearing:
+
+- **It is print-only.** The screen rendering is already correct and officers
+  look at it all day. The fix must not change it.
+- **It is render-side, not capture-side.** A signed row is permanent and the
+  image can never be re-uploaded, so correcting the capture pipeline would not
+  help a single already-filed record. That is why `stripSignatureBg` is left
+  alone.
+
+The rule must also stay **after** the screen `.sigimg` rule in source order.
+Both are the same specificity, so an earlier `@media print` block loses — a
+`6.6mm` height declared higher up was silently dead for exactly this reason.
+Guarded by `tests/kad-rekod.js` T7.
+
 ---
 
 ## 6. Before you change anything here
@@ -177,6 +210,9 @@ happened.
 - [ ] Does a full column still produce a new card — **offline as well as online**?
 - [ ] Are signed rows still untouchable on screen, in RLS, and in the trigger?
 - [ ] No horizontal overflow at 360px.
+- [ ] Does a signature still print **black**? Measure it — `darkest < 40` with
+      real dark pixels present. It looked fine on screen when it was printing
+      grey.
 
 Then run `npm run test:kad`, and the rest of `npm test`.
 
