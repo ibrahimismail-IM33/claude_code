@@ -69,18 +69,40 @@ revoke execute on function public.lock_signed_records()  from public, anon, auth
 revoke execute on function public.protect_signed_rows()  from public, anon, authenticated;
 revoke execute on function public.stamp_row_audit()      from public, anon, authenticated;
 
+-- Correct a pin that never worked. 'public, pg_temp' as a SINGLE quoted string
+-- names one schema that does not exist, so the pin silently did nothing while
+-- reading like hardening; the working form is TWO quoted identifiers. Inert in
+-- practice — that function only calls now(), current_setting() and jsonb
+-- operators, all resolved from pg_catalog whatever search_path says — but the
+-- first unqualified reference to a public table added there would break it.
+--
+-- Deliberately duplicated from supabase-audit-setup.sql, which holds the
+-- canonical definition. THIS is the script people re-run when hardening, and a
+-- fix it cannot deliver is a fix that does not get applied: the correction was
+-- shipped in script 4, production was hardened by re-running script 5, and the
+-- pin stayed broken. ALTER rather than a second CREATE OR REPLACE, so the two
+-- files cannot drift on the body.
+alter function public.stamp_row_audit() set search_path to 'public', 'pg_temp';
+
 
 -- ---------------------------------------------------------------------------
 --  Check it worked
 --    Expect exactly:
---      handle_new_user       anon_can_call f   auth_can_call f
---      is_admin              anon_can_call f   auth_can_call t   ← t is CORRECT
---      lock_signed_records   anon_can_call f   auth_can_call f
---      protect_signed_rows   anon_can_call f   auth_can_call f
---      stamp_row_audit       anon_can_call f   auth_can_call f
+--      function_name         anon   auth   search_path
+--      handle_new_user       f      f      search_path=public
+--      is_admin              f      t      search_path=public   ← t is CORRECT
+--      lock_signed_records   f      f      search_path=public, pg_temp
+--      protect_signed_rows   f      f      search_path=public, pg_temp
+--      stamp_row_audit       f      f      search_path=public, pg_temp
 --
 --    auth_can_call = f on is_admin means the write policies are broken. That is
 --    a failure, not a stricter result.
+--
+--    search_path must read  public, pg_temp  — TWO elements. If it comes back
+--    quoted as a single "public, pg_temp" the pin is naming a schema that does
+--    not exist and is doing nothing. The earlier version of this query did not
+--    select it, which is exactly why that stayed broken on production while
+--    every other column said success.
 --
 --    has_function_privilege() answers the question that matters — "could this
 --    role run it" — including anything inherited through PUBLIC, which is the
@@ -89,7 +111,8 @@ revoke execute on function public.stamp_row_audit()      from public, anon, auth
 select
   p.proname                                                 as function_name,
   has_function_privilege('anon',          p.oid, 'EXECUTE') as anon_can_call,
-  has_function_privilege('authenticated', p.oid, 'EXECUTE') as auth_can_call
+  has_function_privilege('authenticated', p.oid, 'EXECUTE') as auth_can_call,
+  coalesce(array_to_string(p.proconfig, ', '), '(none)')    as search_path
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public'
