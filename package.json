@@ -2,21 +2,32 @@
   "name": "e-pili-bomba-kunak",
   "version": "1.0.0",
   "private": true,
-  "description": "Build and test tooling for e-Pili Bomba Kunak. The app itself is one static index.html with no build step — nothing here is shipped to officers.",
+  "description": "Build and test tooling for e-Pili Bomba Kunak. V1 — what officers run today — is still one static index.html with no build step. The Vite/Vue/Pinia dependencies belong to the V2 migration (docs/V2-ROADMAP.md) and reach nobody until cutover.",
   "scripts": {
-    "test": "npm run test:offline && npm run test:clear && npm run test:kad && npm run test:zones && npm run test:paging && npm run test:csp && npm run test:signatures",
+    "test": "npm run test:offline && npm run test:clear && npm run test:kad && npm run test:zones && npm run test:paging && npm run test:csp && npm run test:signatures && npm run test:v2csp",
     "test:offline": "node tests/p0-offline-sync.js",
     "test:clear": "node tests/clear-row.js",
     "test:kad": "node tests/kad-rekod.js",
     "test:zones": "node tests/zone-panel.js",
     "test:paging": "node tests/hydrant-paging.js",
     "test:csp": "node tests/csp-and-vendor.js",
-    "test:signatures": "node tests/signature-links.js"
+    "test:signatures": "node tests/signature-links.js",
+    "test:v2csp": "node tests/v2-csp.js",
+    "build:v2": "vite build"
   },
   "devDependencies": {
-    "playwright": "1.56.1"
+    "@vitejs/plugin-vue": "6.0.8",
+    "playwright": "1.56.1",
+    "vite": "8.2.1"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.112.0",
+    "leaflet": "1.9.4",
+    "leaflet.markercluster": "1.5.3",
+    "pinia": "3.0.3",
+    "vue": "3.5.41"
   }
 }

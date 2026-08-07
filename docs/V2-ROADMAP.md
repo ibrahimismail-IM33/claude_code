@@ -98,8 +98,41 @@ Nothing migrates until the safety net is portable.
 5. **`vendor/` → npm**, with versions pinned exactly (no `^`) and
    `vendor/README.md` rewritten to point at the lockfile.
 
-**Gate:** all seven suites green against unmodified V1, running through the new
-adapters, with the app served from `dist/`.
+**Gate:** all seven V1 suites green and unmodified, plus `tests/v2-csp.js` green.
+
+### What Phase 0 actually found
+
+Measured, not assumed. Several of these contradict what step 1–5 above expected.
+
+- **The CSP holds, and can be tightened.** The Vite bundle runs under
+  `script-src 'self'` with **`'unsafe-inline'` removed**. V1 needs
+  `'unsafe-inline'` only because its JavaScript is inline in `index.html`, so
+  cutover is an opportunity to harden the deployed policy, not a compromise.
+  `_headers` is **not** changed yet — V1 still needs it.
+- **The `_headers` comment was wrong.** It claims "script-src is `'self'` only";
+  the deployed value is `script-src 'self' 'unsafe-inline'`. Left as-is because
+  V1 depends on it; correct it at cutover, when it becomes true.
+- **`modulePreload.polyfill` is not a CSP concern** on Vite 8 — verified with a
+  real code split, the polyfill stays inside the bundle and no inline script is
+  emitted. It is off for weight, not for security. The config comment claiming
+  otherwise was corrected rather than left as plausible-sounding folklore.
+- **Real Leaflet and real supabase-js from npm need no `eval`.** Bundled and
+  scanned (415 KB), zero `eval` and zero dynamic `Function`. Phase 3 will not
+  hit a CSP wall.
+- **Step 1 was wrong as written.** It said to extract the network boundaries
+  into modules "consumed by both V1 and V2". Doing that literally would make the
+  live single-file app fetch ES modules — changing what officers run, adding
+  requests to the critical path on a phone, and breaking the publish contract
+  that copies exactly `index.html`, `_headers`, `vendor/`. All for no user
+  benefit. **The seam already exists**: the suites stub `window.supabase` and
+  `window.L`, and V2's adapters (`v2/src/lib/`) honour the same globals. V1 is
+  untouched and the suites need no edit.
+- **The eval assertion was weaker than advertised.** Vue's runtime template
+  compiler calls `Function(...)` *without* `new` after minification, so a
+  `/new Function/` check passed happily on a bundle the browser then refused to
+  run. Found by aliasing Vue to the `esm-bundler` build and watching the suite;
+  the browser-level "did it mount" assertion is the authority, and the static
+  checks only name the failure.
 
 ---
 

@@ -17,6 +17,11 @@ Last updated: 2026-08-02 · branch `claude/epilibomba-build-compile-3hhuqp`
   in a screenshot and only showed up when measured.
 - Ask before changing anything in §7 (open questions) — those are the user's
   calls, not yours.
+- **A V2 migration is under way on `claude/epb-v2`** (Vue 3 + Vite + Pinia,
+  `docs/V2-ROADMAP.md`). It changes nothing an officer sees and it is held back
+  from `main` until cutover. If you are fixing V1, keep working in `index.html`
+  as before — but merge that fix **down** into `claude/epb-v2` afterwards, never
+  the other way, or the cutover will quietly revert it.
 
 ---
 
@@ -52,6 +57,9 @@ Live at **epilibomba.com**. UI language is Bahasa Malaysia.
 | `.github/workflows/tests.yml` | Runs all seven suites on every push/PR. Also `workflow_call`, so the publish gate can reuse it |
 | `.github/workflows/publish-to-site.yml` | Copies `index.html`, `_headers`, `vendor/` to the **site repo** on every push to main — **but only after `tests.yml` passes** (`needs: test`) |
 | `drafts/dashboard-draft-glass.html` | Standalone dashboard design draft (superseded by the real thing, kept for reference) |
+| `v2/`, `vite.config.mjs` | **V2 migration only** (Vue 3 + Vite + Pinia). Reaches no officer until cutover — `main` publishes V1 throughout. See `docs/V2-ROADMAP.md` |
+| `docs/V2-ROADMAP.md` | The V2 plan: why, the phase order and what it is ordered by, the branching model, and what is explicitly out of scope |
+| `docs/DOM-CONTRACT.md` | **The selectors the test suites depend on.** V2 must emit them exactly — they are an interface, not implementation detail |
 | `docs/FULL-ARCHITECTURE.md` | How the system is built — layers, data model, every RLS policy, the key flows, deploy pipeline, and §9 known defects |
 | `docs/PRD.md` | What it is for and where it goes — requirements, open issues, district-expansion analysis, non-technical risks, roadmap |
 | `docs/KAD-REKOD.md` | **Binding spec for the record card.** MANDATORY under MS ISO — 2 pages, row capacities, how a new card is created, numbering, screen-vs-print order, signature permanence. **Read this before touching the card or the print CSS** |
