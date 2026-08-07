@@ -86,3 +86,10 @@ jobs:
 
       - name: Signature links (short-lived, and must fall back)
         run: npm run test:signatures
+
+      # The only step here that tests V2 rather than V1. It builds the Vite
+      # bundle and runs it under the deployed CSP with 'unsafe-inline' stripped
+      # from script-src. If a bundler change ever needs an inline script or an
+      # eval, this is where the migration stops — see docs/V2-ROADMAP.md.
+      - name: V2 CSP (the build must survive script-src 'self')
+        run: npm run test:v2csp
