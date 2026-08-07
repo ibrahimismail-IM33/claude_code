@@ -1,6 +1,8 @@
 import { createApp, reactive, h } from 'vue';
 import { createPinia } from 'pinia';
 import DashView from './components/DashView.vue';
+import './styles/tokens.css';
+import './styles/dashboard.css';
 
 /* Component test harness. NOT shipped — built only under V2_HARNESS=1.
  *
@@ -21,6 +23,10 @@ const fixture = reactive(Object.assign({
   periodIx: 0,
   source: '',
   sweep: 1,
+  jadual: [],
+  jadualSource: '',
+  isAdmin: false,
+  cloudNote: '',
 }, window.__fixture || {}));
 
 window.__events = [];
@@ -33,6 +39,9 @@ createApp({
       onPickStatus: (k) => window.__events.push(['status', k]),
       onPickZone: (z) => window.__events.push(['zone', z]),
       onPickPeriod: (i) => { window.__events.push(['period', i]); fixture.periodIx = i; },
+      onJadualAdd: (r) => window.__events.push(['jadual-add', r]),
+      onJadualUpdate: (r) => window.__events.push(['jadual-update', r]),
+      onJadualDelete: (id) => window.__events.push(['jadual-delete', id]),
     });
   },
 }).use(createPinia()).mount('#app');

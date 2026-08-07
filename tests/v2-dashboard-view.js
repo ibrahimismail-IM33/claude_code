@@ -124,9 +124,9 @@ function register() {
   console.log('T5  figures are derived from the Pengujian rows');
   p = await mount({ hydrants: HYD, index: IDX });
   check('Diperiksa / Belum di-sign / Belum diperiksa',
-    await p.$$eval('.dstat .dstat-n', (n) => n.map((x) => +x.textContent)), [2, 1, 185]);
+    await p.$$eval('.dstat .num', (n) => n.map((x) => +x.textContent)), [2, 1, 185]);
   check('they reconcile to the register',
-    await p.$$eval('.dstat .dstat-n', (n) => n.reduce((s, x) => s + +x.textContent, 0)), HYD.length);
+    await p.$$eval('.dstat .num', (n) => n.reduce((s, x) => s + +x.textContent, 0)), HYD.length);
   check('the donut centre carries the same total',
     await p.$eval('#dashDonut .center-n', (n) => +n.textContent), HYD.length);
   check('scope with no pill selected is Semua, not Awam (§4.3)',
@@ -146,7 +146,7 @@ function register() {
     p = await mount({ hydrants: HYD, index: IDX, statusFilter: filter });
     check(label + ' · scope label', await p.$eval('#dashScope', (n) => n.textContent.trim()), label);
     check(label + ' · figures reconcile to that scope',
-      await p.$$eval('.dstat .dstat-n', (n) => n.reduce((s, x) => s + +x.textContent, 0)), total);
+      await p.$$eval('.dstat .num', (n) => n.reduce((s, x) => s + +x.textContent, 0)), total);
     await p.close();
   }
 
@@ -161,12 +161,18 @@ function register() {
   /* Donut clicks are delegated, because the paths are replaced on every
    * animation frame — per-element listeners would bind only the first render.
    *
-   * Dispatched rather than really clicked: with the dashboard CSS not yet
-   * ported, a leader line sits over the ring and intercepts the pointer. That
-   * is a genuine gap and it is recorded in docs/V2-ROADMAP.md — V1 keeps
-   * `.leadline { pointer-events: none }`. What is under test HERE is the
-   * delegation, so the event is sent to the path directly and still has to
-   * bubble to the container handler to be seen. */
+   * Dispatched rather than really clicked, and the reason is geometry, not CSS.
+   * A donut arc's BOUNDING BOX centre lies outside the arc — in the hole, or on
+   * a neighbouring slice — so Playwright's click point never lands on the path
+   * it was aimed at. That is inherent to a ring and no styling fixes it.
+   *
+   * An earlier version of this comment blamed the missing dashboard CSS. That
+   * WAS true then and is not now: `.leadline{pointer-events:none}` is ported,
+   * and it is asserted directly in tests/v2-dashboard-css.js against V1's
+   * computed value. So the guarantee is not lost by dispatching here — it is
+   * simply checked in the suite that can check it properly, while this one
+   * checks what it is actually for: that the click is DELEGATED, because the
+   * paths are replaced on every animation frame. */
   await p.$eval('#dashDonut .seg3d[data-key="none"]',
     (n) => n.dispatchEvent(new MouseEvent('click', { bubbles: true })));
   check('a donut segment reports its status (delegated)',

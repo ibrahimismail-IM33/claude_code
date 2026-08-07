@@ -26,7 +26,7 @@ const gapped = computed(() => props.summary.zones.filter((e) => e.gap).map((e) =
 </script>
 
 <template>
-  <div id="dashZones">
+  <div class="zlist" id="dashZones">
     <div v-if="!summary.zones.length" class="znote">Tiada pili berdaftar.</div>
     <button
       v-for="e in summary.zones"
@@ -48,8 +48,8 @@ const gapped = computed(() => props.summary.zones.filter((e) => e.gap).map((e) =
        rows silently sum to less than the register is misinformation, so an
        unparseable label is reported rather than given a "Lain-lain" row; and a
        range implies contiguity, so a gap is called out. -->
-  <div id="dashZoneNote" v-if="summary.zones.length">
+  <div class="znote" id="dashZoneNote" v-if="summary.zones.length">
     Semua pili · tidak mengikut penapis Awam/Swasta<span v-if="gapped.length" class="zbad">Nombor tidak berturutan dalam {{ gapped.join(', ') }} — julat lebih besar daripada bilangan sebenar.</span><span v-if="summary.odd" class="zbad">{{ summary.odd }} pili tidak mengikut format zon (cth A01) dan tidak disenaraikan di atas.</span>
   </div>
-  <div id="dashZoneNote" v-else></div>
+  <div class="znote" id="dashZoneNote" v-else></div>
 </template>

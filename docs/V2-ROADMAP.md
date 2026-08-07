@@ -1,10 +1,15 @@
 # e-Pili Bomba V2 — Vue 3 + Vite + Pinia
 
-> **Status: approved plan, nothing built.** V1 (`index.html`) is what runs at
-> epilibomba.com and is unaffected by anything in this document. No phase below
-> has started. Agreed 2026-08-07.
+> **Status: Phases 0, 1 and 2 built. Phases 3, 4 and 5 not started.**
 >
-> Integration branch: `claude/epb-v2`. **`main` stays V1 until cutover.**
+> V1 (`index.html`) is what runs at epilibomba.com and is **byte-identical** to
+> what it was before this work began. Nothing here has reached an officer, and
+> nothing can until a deliberate merge to `main`.
+>
+> Branches: `claude/epb-v2-p0-seams`, `-p1-stores`, `-p2-dash`. The integration
+> branch `claude/epb-v2` currently holds only this document — merging the phase
+> branches into it is a separate, deliberate step. **`main` stays V1 until
+> cutover.**
 
 ## Context
 
@@ -33,6 +38,40 @@ Features wait for V2.1. PWA is explicitly out of scope.
 | Driver | Maintainability |
 | Branching | **A branch per phase**, landing on a long-lived `claude/epb-v2` |
 | Release | **V2 is held back until complete** — `main` keeps publishing V1 throughout |
+| Charting | **Keep the hand-built 3D donut.** Chart.js reconsidered for V2.1 |
+
+### Charting — Chart.js considered and declined for V2 (2026-08-07)
+
+Raised on the reasonable instinct that a charting library is the right idiom now
+the app is on Vue. Declined **for this chart**, on one decisive fact and three
+supporting ones.
+
+**Chart.js cannot draw this chart.** There is no 3D doughnut in Chart.js v4 and
+no maintained plugin that adds one. The chart is an oblique projection with real
+extruded geometry, and `CLAUDE.md` §3 records the form as locked: *"Flat-shaded
+3D donut, upright, depth right, 50% depth — matches supplied reference."*
+Substituting a flat 2D doughnut is a **redesign**, which is the one thing this
+migration excludes. That makes it a product decision for the officers, not a
+side effect of choosing a library.
+
+Supporting, in case the question returns:
+
+| | Now | With Chart.js |
+|---|---|---|
+| Size | `v2/src/lib/donut.js`, **8.4 KB**, no dependencies | ~70 KB gzip + `vue-chartjs` |
+| Churn | Frozen — it never needs to change again | Tracks a third-party release cycle |
+| Proof | 29 assertions, character-for-character identity with V1 | Nothing comparable is possible |
+| Screen reader | `role="img"`, per-segment `aria-label`, `tabindex` | Canvas is opaque without extra work |
+
+Worth being clear about one thing the objection got right and one it got wrong.
+Right: hand-written chart code *is* normally a liability. Wrong: `donut.js` is
+not un-Vue — it is a plain ES module imported by a component, which is exactly
+how a Vue app consumes a rendering function.
+
+**Where Chart.js does earn its place: new charts in V2.1.** Inspection trends
+over time, per-zone bars, monthly throughput. There is no existing design to
+preserve and no parity to lose, and hand-writing a second and third generator
+would be daft. Revisit after cutover.
 
 ---
 
@@ -249,19 +288,41 @@ passing), plus three new suites that test V2:
   through the DOM, asserting the frozen selectors from `docs/DOM-CONTRACT.md`
   and mirroring what `zone-panel.js` claims about V1.
 
-### Phase 2 status: partly done
+### Phase 2 status: complete
 
-Done: `Donut`, `StatCards`, `ZonePanel`, `DashView`, and the whole data layer.
+`Donut`, `StatCards`, `ZonePanel`, `DashView`, `Jadual`, the whole data layer,
+and the stylesheet.
 
-**Not done, and both are real work:**
+- **CSS ported verbatim** into `v2/src/styles/dashboard.css` (V1's `#dashView`
+  block) plus `tokens.css` for the custom properties it references. Kept as a
+  plain global stylesheet with the `#dashView` prefix intact — Vue `scoped`
+  rewrites selectors, and those class names are an interface
+  (`docs/DOM-CONTRACT.md`). Guarded by `tests/v2-dashboard-css.js`, which
+  compares **computed styles against V1 in the same browser** rather than
+  diffing CSS text.
+- **Jadual built** with every decision from §3 carried over: admin-only writes,
+  latest Tarikh first with its two tie-breaks, one folder per period, 100 rows
+  plus "Lihat semua", edit reusing the add form, `confirm()` before delete, no
+  "done" tick and **no date filter**.
 
-- **The dashboard CSS has not been ported.** All of it is currently scoped under
-  `#dashView` in V1's global stylesheet. The gap is already visible: with no
-  CSS, a donut leader line sits over the ring and intercepts the pointer,
-  because V1 carries `.leadline { pointer-events: none }`. The component test
-  dispatches the event directly and says so at the call site, but a real click
-  will not work until the styles move.
-- **`Jadual`** — the shared inspection schedule — is not started.
+
+### What finishing Phase 2 found
+
+- **The components had been emitting invented class names.** `DashView` used
+  `.dashhead` / `.dashgrid` / `.zonebox` and `StatCards` used `.dstat-n` — none
+  of which exist in V1 — so the verbatim stylesheet targeted nothing at all.
+  They now emit V1's structure exactly. This is the strongest argument for the
+  computed-style gate: everything looked fine and every earlier assertion still
+  passed, because the earlier test asserted the invented names too.
+- **`cssCodeSplit: false` means both entries share ONE stylesheet.** Removing
+  `tokens.css` from the harness alone changed nothing, because it still arrived
+  via `main.js`. It had to go from both before the test went red. Worth knowing
+  before anyone trusts an entry-scoped CSS assertion.
+- **The donut click stays dispatched, but for a different reason than before.**
+  The old comment blamed the missing CSS; that is fixed and now asserted
+  directly. The real reason is geometry — a donut arc's bounding-box centre lies
+  outside the arc, so a real click lands on a neighbouring path, and no styling
+  changes that.
 
 ### What Phase 2 found
 

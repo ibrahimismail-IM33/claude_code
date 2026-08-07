@@ -40,5 +40,5 @@ function onClick(e) {
 </script>
 
 <template>
-  <div id="dashDonut" @click="onClick" v-html="svg"></div>
+  <div class="donutwrap" id="dashDonut" @click="onClick" v-html="svg"></div>
 </template>

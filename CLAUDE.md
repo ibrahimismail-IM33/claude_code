@@ -142,6 +142,7 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Figure ink | Green `#4ADE80` / blue `#60A5FA` / red `#F87171` on the **card numbers and the chart percentages only** | Status reads at a glance: pass / pending / outstanding. Measured on the card base `#121419` — 10.6 : 7.3 : 6.7, all above 4.5:1. The donut fill and the word under each percentage keep the cream/steel/`#9CAAB6` ink, so a label still matches the slice its leader line points at |
 | Figure glow | Subtle. `text-shadow` on the cards, `filter:drop-shadow` on the SVG | SVG text does not take `text-shadow` reliably across engines; `drop-shadow` does. Kept low so digits stay crisp on a phone in sun |
 | Chart form | Flat-shaded 3D donut, upright, depth right, 50% depth | Matches supplied reference |
+| Charting library | **None — the donut stays hand-built.** Chart.js considered and declined 2026-08-07 | Chart.js has no 3D doughnut in v4 and no maintained plugin for one, so adopting it means shipping a flat 2D chart — a **redesign**, which V2 excludes. The generator is 8.4 KB, dependency-free, frozen, and proven character-for-character identical to what officers see; Chart.js is ~70 KB gzip and nothing comparable could be proven about it. Reconsider for **new** charts in V2.1 (trends, per-zone bars), where there is no design to preserve and no parity to lose. See `docs/V2-ROADMAP.md` |
 | Glass / glassmorphism | **Removed** | User asked for flat |
 | Chart background stage | **Removed** | Card matches the rest |
 | Card wrappers (chart + status) | **Removed** | User asked |
