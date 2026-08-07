@@ -16,7 +16,7 @@ evidence. The selectors they depend on are written down in
 
 ```sh
 npm ci                       # once
-npm test                     # all twelve suites
+npm test                     # all fifteen suites
 npm run test:offline         # or one at a time
 npm run test:clear
 npm run test:kad
@@ -29,6 +29,9 @@ npm run test:v2pending
 npm run test:v2filters
 npm run test:v2hydrants
 npm run test:v2records
+npm run test:v2donut
+npm run test:v2dashdata
+npm run test:v2dash
 ```
 
 Chromium is found at `/opt/pw-browsers/chromium` by default; override with
@@ -38,7 +41,7 @@ Exit code is 0 when everything passes, 1 otherwise.
 
 ## CI
 
-`.github/workflows/tests.yml` runs all twelve suites on **every push and pull
+`.github/workflows/tests.yml` runs all fifteen suites on **every push and pull
 request**, and `publish-to-site.yml` calls the same workflow and will not
 publish until it passes:
 
@@ -75,6 +78,9 @@ bumping the `playwright` version in `package.json` needs no change here.
 | `v2-filters-parity.js` | Scope, search and the zone panel, same principle without a browser: it lifts V1's **real source text** for `visible`, `zoneSummary`, `counts` and `searchMatches` out of `index.html` and runs it against the port over five registers × 144 scope combinations. Guards that the three axes still stack with AND, that a search still ignores the pills and searches the whole register, and that a gap in a range and an unparseable label are still both reported. Verified to go red on a port where a search obeys the Awam/Swasta pills. |
 | `v2-hydrants-parity.js` | Reading the register. Lifts V1's **real `cloudLoad`** out of `index.html` and runs it in a sandbox against the port over 0/1/187/999/1000/1001/2400 rows, comparing the exact page ranges requested and the resulting register. Guards §4.1 (PostgREST truncates at 1000 and reports no error), that a failed **or empty** read leaves the local copy alone — a partial read looks exactly like a mass deletion — and that a quiet background pull arms `noFitOnce` rather than clearing the fit key, so the map never jumps away from what an officer is reading. |
 | `v2-records-parity.js` | **The Kad Rekod's shape and growth rules** — the highest-consequence port in the migration, on a controlled record under MS ISO PS-8 (`docs/KAD-REKOD.md`). Compares the ported column keys, column types and per-card capacities against V1's real `SECTIONS` field by field, then compares `rowIsComplete`, `cardCount`, `padToCards`, `normalizeForm`, `formFingerprint` and the new-card rule against V1's real source. This caught two whole column lists transcribed wrongly on the first run: a mistyped column key produces a card that looks right and silently drops that column's data on every save. Fixtures are built from each section's own columns, because a first version hardcoded `tarikh`/`penguji` and was therefore testing Kompaun — the one section with an unusual shape — with empty rows. |
+| `v2-donut-parity.js` | The 3D donut's geometry. Compares the **whole emitted SVG string, character for character**, against V1's `buildDonut` — 10 named data splits, 26 animation frames each, plus 231 arbitrary splits. Exact equality is the point: CLAUDE.md §2 is explicit that face visibility is derived and must not be guessed, because guessing produces phantom faces at particular data splits, and "close enough" has no meaning for geometry. Includes three deliberately tiny last-slice cases, added after a mutation to the inner-wall band passed everything else — the band only bites when a slice is small enough that the gap shrinks below a degree. |
+| `v2-dashboard-parity.js` | The dashboard's data layer: rolling 6-month periods, the paged Pengujian scan (§4.1 — Supabase truncates at 1000 rows and reports no error, and the missing rows would simply read as "Belum diperiksa"), `mergeIndex`, and the scope rule that a cleared pill means **Semua**, not Awam (§4.3). Also checks that a first-page failure falls back to local data while a *later* failure keeps what already arrived. |
+| `v2-dashboard-view.js` | The V2 dashboard components mounted for real in Chromium and driven through the DOM, asserting the selectors frozen in `docs/DOM-CONTRACT.md`. Mirrors what `zone-panel.js` claims about V1 — same scenarios, same meanings — so the two views can be compared claim for claim. It does **not** edit `zone-panel.js`: that suite is V1's and must keep passing unchanged. Builds the harness page, which is excluded from production builds and asserted absent by `v2-csp.js`. |
 
 ## Adding to this
 

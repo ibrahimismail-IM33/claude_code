@@ -236,8 +236,55 @@ figure; it cannot damage a record.
   stays **buttons, not a table**.
 - Scoped styles replace the `#dashView` prefixing.
 
-**Gate:** `zone-panel.js` green unchanged; dashboard figures reconcile in all
-three scope states.
+**Gate:** `zone-panel.js` green **unchanged** (it tests V1 and must keep
+passing), plus three new suites that test V2:
+
+- `v2-donut-parity.js` — the **whole emitted SVG string**, character for
+  character, against V1's `buildDonut`. 10 named data splits × 26 animation
+  frames, plus 231 arbitrary splits.
+- `v2-dashboard-parity.js` — period arithmetic, the paged scan (§4.1),
+  `mergeIndex`, and the scope rule that a cleared pill means Semua not Awam
+  (§4.3).
+- `v2-dashboard-view.js` — the real components mounted in Chromium, driven
+  through the DOM, asserting the frozen selectors from `docs/DOM-CONTRACT.md`
+  and mirroring what `zone-panel.js` claims about V1.
+
+### Phase 2 status: partly done
+
+Done: `Donut`, `StatCards`, `ZonePanel`, `DashView`, and the whole data layer.
+
+**Not done, and both are real work:**
+
+- **The dashboard CSS has not been ported.** All of it is currently scoped under
+  `#dashView` in V1's global stylesheet. The gap is already visible: with no
+  CSS, a donut leader line sits over the ring and intercepts the pointer,
+  because V1 carries `.leadline { pointer-events: none }`. The component test
+  dispatches the event directly and says so at the call site, but a real click
+  will not work until the styles move.
+- **`Jadual`** — the shared inspection schedule — is not started.
+
+### What Phase 2 found
+
+- **A test can be blind at exactly the boundary it exists to guard.** A mutation
+  to the donut's inner-wall band (`90..270` → `90..269`) passed every case in
+  the first version of the parity suite. The band only bites when a segment ends
+  near 270°, which needs the *last* category small enough that `gapFor` shrinks
+  the gap below ~1° — a fraction under about 1/63. The arbitrary sweep used
+  `total: 20`, where the smallest slice is 5% and the gap never shrinks at all.
+  Three "tiny last slice" cases were added; the mutation now fails 9 assertions.
+- **One mutation is genuinely equivalent.** Start-cap visibility `dsin(d0) > 0`
+  → `>= 0` changes nothing, because `d0` can never land exactly on the axis: a
+  zero gap requires a zero fraction, and those segments are already filtered
+  out. Recorded so nobody later "fixes" the test to catch it.
+- **The harness must never ship.** `v2/harness.html` mounts components with
+  injected fixtures and is built only under `V2_HARNESS=1`, because
+  `publish-to-site.yml` copies `dist/` wholesale. `v2-csp.js` now asserts a
+  production build contains neither the page nor its bundle.
+- **A hardcoded expectation was wrong where a derived one would not have been.**
+  The view test asserted 170 Awam from CLAUDE.md's 187-hydrant seed, while its
+  own fixture follows the zone sketch and totals 188. Totals are now derived
+  from the fixture — the same lesson that made zones derived rather than
+  stored (§3).
 
 ---
 

@@ -113,3 +113,15 @@ jobs:
       # every save and looks perfectly fine on screen.
       - name: V2 Kad Rekod parity (config and growth rules)
         run: npm run test:v2records
+
+      # Whole-SVG comparison against V1. Face visibility in the donut is
+      # derived, never guessed — guessing produces phantom faces at particular
+      # data splits, which only appear with real inspection data.
+      - name: V2 donut geometry parity (exact SVG, every animation frame)
+        run: npm run test:v2donut
+
+      - name: V2 dashboard data parity (period, paged scan, merge, scope)
+        run: npm run test:v2dashdata
+
+      - name: V2 dashboard components (mounted in Chromium)
+        run: npm run test:v2dash
