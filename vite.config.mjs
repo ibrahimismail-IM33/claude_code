@@ -28,6 +28,12 @@ import vue from '@vitejs/plugin-vue';
 // The Vue build resolved here is the runtime-only one — no template compiler,
 // so there is no `new Function` and the policy never needs 'unsafe-eval'.
 // Do not import 'vue/dist/vue.esm-bundler.js' or enable a runtime compiler.
+// The component test harness (v2/harness.html) is built ONLY when V2_HARNESS=1.
+// It mounts components directly with injected fixtures, so it must never reach
+// the published bundle — publish-to-site.yml copies dist/ wholesale, and a
+// harness page sitting on a live government site is an unnecessary surface.
+const withHarness = process.env.V2_HARNESS === '1';
+
 export default defineConfig({
   root: 'v2',
   plugins: [vue()],
@@ -37,5 +43,8 @@ export default defineConfig({
     cssCodeSplit: false,
     assetsInlineLimit: 0,
     modulePreload: { polyfill: false },
+    rollupOptions: withHarness
+      ? { input: { main: 'v2/index.html', harness: 'v2/harness.html' } }
+      : undefined,
   },
 });

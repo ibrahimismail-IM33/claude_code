@@ -64,6 +64,15 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.css':'tex
 
   // Static facts about the bundle. A browser would catch an inline script, but
   // these name the specific failure rather than reporting a generic violation.
+  // The component harness (v2/harness.html) mounts components with injected
+  // fixtures and is built only under V2_HARNESS=1. publish-to-site.yml copies
+  // dist/ wholesale, so if it ever leaks into a plain build it lands on a live
+  // government site. This build was run WITHOUT that flag.
+  check('the test harness is not in a production build',
+    fs.existsSync(path.join(DIST, 'harness.html')), false);
+  check('no harness bundle either',
+    fs.readdirSync(path.join(DIST, 'assets')).some((f) => /^harness-/.test(f)), false);
+
   const html = fs.readFileSync(path.join(DIST, 'index.html'), 'utf8');
   check('no inline <script> body in the built page', /<script(?![^>]*\bsrc=)[^>]*>\s*\S/.test(html), false);
   check('no external origin in the built page', /https?:\/\//.test(html.replace(/https?:\/\/www\.w3\.org/g, '')), false);

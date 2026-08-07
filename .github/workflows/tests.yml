@@ -66,6 +66,14 @@ jobs:
       # Each suite is its own step so a failure names itself in the Actions
       # list instead of hiding inside one combined run. Every suite exits 1
       # on any failed assertion, so no extra reporting is needed.
+
+      # This one runs first, because a suite that quietly drops out of the
+      # chain is indistinguishable from one that passes. It exists because that
+      # happened: test:v2dash is a SUBSTRING of test:v2dashdata, so a
+      # string-replace edit to the chain mangled two entries at once.
+      - name: Suite wiring (every suite actually runs, here and in npm test)
+        run: npm run test:wiring
+
       - name: Offline sync (P0 — field data must survive with no signal)
         run: npm run test:offline
 
@@ -113,3 +121,25 @@ jobs:
       # every save and looks perfectly fine on screen.
       - name: V2 Kad Rekod parity (config and growth rules)
         run: npm run test:v2records
+
+      # Whole-SVG comparison against V1. Face visibility in the donut is
+      # derived, never guessed — guessing produces phantom faces at particular
+      # data splits, which only appear with real inspection data.
+      - name: V2 donut geometry parity (exact SVG, every animation frame)
+        run: npm run test:v2donut
+
+      - name: V2 dashboard data parity (period, paged scan, merge, scope)
+        run: npm run test:v2dashdata
+
+      - name: V2 dashboard components (mounted in Chromium)
+        run: npm run test:v2dash
+
+      # The dashboard stylesheet is a verbatim copy of V1's #dashView block.
+      # This compares computed styles against V1 in the same browser rather
+      # than diffing CSS text — a missed rule does not throw, it just renders
+      # differently, and on a phone in sunlight that can mean unreadable.
+      - name: V2 dashboard styles match V1 (computed, not eyeballed)
+        run: npm run test:v2css
+
+      - name: V2 Jadual parity (period filter, sort order, date formatting)
+        run: npm run test:v2jadual

@@ -1,0 +1,19 @@
+/* Design tokens — copied VERBATIM from index.html's :root block.
+ *
+ * dashboard.css references var(--mono) and var(--sans). Without these the
+ * rules still apply and nothing errors — the fonts just silently fall back to
+ * the UA default, which is precisely the kind of failure that looks fine in a
+ * screenshot and wrong on a phone. §4.6 was this shape: a .stat button not
+ * inheriting page colour and washing out against the card.
+ *
+ * --display, --gov and --pvt are carried too even though the dashboard does
+ * not use them yet: they belong to the same token set, the map and header will
+ * need them in Phase 3, and splitting a palette across two files is how the
+ * two halves drift.
+ */
+:root{
+  --sans:"DM Sans",ui-sans-serif,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,monospace;
+  --display:"Bricolage Grotesque","DM Sans",sans-serif;
+  --gov:#ef4444; --pvt:#facc15;
+}
