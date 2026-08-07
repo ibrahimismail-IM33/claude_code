@@ -1,0 +1,4 @@
+{
+  "//": "Scopes ES modules to v2/ only. The root package.json must stay CommonJS — every suite in tests/ is a CJS script, and flipping the root would break all of them. Without this file node re-parses each V2 source it imports and says so on stderr, which is noise in CI logs and a small cost on every run.",
+  "type": "module"
+}

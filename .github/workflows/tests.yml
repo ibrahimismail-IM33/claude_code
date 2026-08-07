@@ -103,3 +103,13 @@ jobs:
 
       - name: V2 filter and zone parity (V1 and the port must agree)
         run: npm run test:v2filters
+
+      - name: V2 register paging parity (no silent truncation, no re-fit)
+        run: npm run test:v2hydrants
+
+      # The Kad Rekod is a controlled record under MS ISO PS-8. This compares
+      # the ported column keys, per-card capacities and growth rule against
+      # V1's real config — a mistyped column key drops that column's data on
+      # every save and looks perfectly fine on screen.
+      - name: V2 Kad Rekod parity (config and growth rules)
+        run: npm run test:v2records
