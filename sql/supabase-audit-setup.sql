@@ -28,7 +28,14 @@ create or replace function public.stamp_row_audit()
 returns trigger
 language plpgsql
 security invoker
-set search_path to 'public, pg_temp'
+-- TWO quoted identifiers, not one quoted string. 'public, pg_temp' names a
+-- SINGLE schema that does not exist, so the pin silently does nothing while
+-- reading like hardening. It has never mattered — the body only touches now(),
+-- current_setting() and jsonb operators, all of which live in pg_catalog and
+-- resolve whatever search_path says — but the first unqualified reference to a
+-- public table added here would break. Was wrong in this file and on
+-- production; corrected 2026-08-07.
+set search_path to 'public', 'pg_temp'
 as $$
 begin
   new.updated_at := now();
@@ -48,6 +55,11 @@ drop trigger if exists trg_stamp_audit on public.hydrants;
 create trigger trg_stamp_audit
   before insert or update on public.hydrants
   for each row execute function public.stamp_row_audit();
+
+-- Runs from its triggers, as their owner. Revoked here as well as in
+-- supabase-hardening.sql, which is optional — see the note in
+-- supabase-records-setup.sql.
+revoke execute on function public.stamp_row_audit() from public, anon, authenticated;
 
 -- Expect: two rows, one per table
 select c.relname as table_name, t.tgname as trigger_name

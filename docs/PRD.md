@@ -190,9 +190,11 @@ the test suites now run in CI on every push with publishing blocked on them
 
 ### P2 — Hardening. Real, but nothing is on fire
 
-**6.1 Leaked-password protection is off.** One switch in Supabase Auth
-(Authentication → Providers → Password). Cannot be set from the repo, so it
-stays open here until someone flips it in the dashboard.
+**6.1 Leaked-password protection is off — and cannot be turned on.** The
+Supabase org is on the **`free` plan**; the HaveIBeenPwned check is a
+Pro-and-above feature. This was carried for weeks as "one switch in the
+dashboard", which was wrong — the switch is not there. It belongs with 6.3 as a
+spending decision, not a task.
 
 **6.2 Seven of eight accounts are admin.** Accepted deliberately, with the
 audit trail added instead. Revisit if headcount grows.

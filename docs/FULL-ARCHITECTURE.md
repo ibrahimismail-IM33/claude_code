@@ -581,8 +581,9 @@ Stated plainly. None is secret and none is currently causing harm.
 **1. Seven of eight accounts are admin.** Every one can write any hydrant and
 any record. Accepted deliberately, with the audit trail added in compensation.
 
-**2. Leaked-password protection is off** in Supabase Auth. One switch in the
-dashboard; it cannot be set from the repo.
+**2. Leaked-password protection is off** in Supabase Auth, and cannot be
+enabled on the current plan — the org is on `free` and the HaveIBeenPwned check
+is Pro-and-above. Not a forgotten toggle; a cost decision.
 
 **3. Backup retention is 90 days** and lives inside the GitHub account it
 protects.
@@ -595,6 +596,16 @@ verified matters more than that they are gone:
   Kunak's 188, certain at roughly five districts. Guarded by
   `tests/hydrant-paging.js`. `cloudFormLoad` was never at risk — it filters by
   `hydrant_id`, and one hydrant's card cannot approach 1000 rows.
+- **`sql/` drift from production** (2026-08-07). Supabase's security advisor —
+  a check nobody had been running — showed `lock_signed_records()` and its
+  trigger `trg_lock_signed` live on production and absent from this repo, and
+  `protect_signed_rows()` running as `SECURITY DEFINER` with a pinned
+  `search_path` that the script did not set. Signed rows were never at risk: a
+  restore would still have recreated `trg_protect_signed`, which does the same
+  job. Both backported. Separately, `stamp_row_audit()` pinned
+  `search_path` to `'public, pg_temp'` — **one quoted string naming a schema
+  that does not exist**, so the pin did nothing; inert, because the body only
+  touches `pg_catalog` functions. Corrected in the repo and in the script.
 - **The `SECURITY DEFINER` RPC endpoints** (2026-08-06). `sql/supabase-hardening.sql`
   applied to production and verified by an **admin saving a Kad Rekod row from
   the app** — the write reaching the database through RLS is what proves the

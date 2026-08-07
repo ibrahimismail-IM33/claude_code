@@ -83,9 +83,15 @@ create policy "admin delete unsigned records" on public.hydrant_records
 --    loosened by mistake, this trigger still refuses to let a signed row
 --    be edited or deleted.
 -- ---------------------------------------------------------------------------
+--    SECURITY DEFINER with a pinned search_path, matching production. The body
+--    only raises and returns a row, so it would behave identically as INVOKER —
+--    but this script IS what a recovery applies, and it must recreate what is
+--    actually running, not a near-enough version.
 create or replace function public.protect_signed_rows()
 returns trigger
 language plpgsql
+security definer
+set search_path to 'public', 'pg_temp'
 as $$
 begin
   if (TG_OP = 'UPDATE' and OLD.signed = true) then
@@ -102,6 +108,56 @@ drop trigger if exists trg_protect_signed on public.hydrant_records;
 create trigger trg_protect_signed
   before update or delete on public.hydrant_records
   for each row execute function public.protect_signed_rows();
+
+--    A THIRD guard, deliberately duplicating the second.
+--
+--    This pair has been running on production since the records table was
+--    created, but only trg_protect_signed was ever written down here — found
+--    2026-08-07 by reading the live schema after a Supabase security advisory
+--    flagged functions this repo did not know about. A restore would still
+--    have protected signed rows (trg_protect_signed does the same job), so
+--    nothing was at risk; the recovery would simply have come back with one
+--    guard instead of two.
+--
+--    Kept rather than dropped. A signed Kad Rekod row is the evidence that an
+--    inspection happened, and a redundant guard on the app's most important
+--    invariant costs nothing. Dropping a live guard is the riskier edit.
+--
+--    NOT purely redundant, as it turns out. Triggers fire in NAME order, so
+--    trg_lock_signed runs BEFORE trg_protect_signed and is the one that
+--    actually raises. Verified on a scratch Postgres: an owner-level UPDATE of
+--    a signed row fails with "This record row is signed and permanently
+--    locked." — this function's message, not the other's. A restore without it
+--    would still have blocked the write, but via the other trigger and with a
+--    different error, so error text is not a reliable identifier here.
+create or replace function public.lock_signed_records()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public', 'pg_temp'
+as $$
+begin
+  if (TG_OP = 'UPDATE' and OLD.signed = true) then
+    raise exception 'This record row is signed and permanently locked.';
+  end if;
+  if (TG_OP = 'DELETE' and OLD.signed = true) then
+    raise exception 'This record row is signed and permanently locked.';
+  end if;
+  return case when TG_OP = 'DELETE' then OLD else NEW end;
+end;
+$$;
+
+drop trigger if exists trg_lock_signed on public.hydrant_records;
+create trigger trg_lock_signed
+  before update or delete on public.hydrant_records
+  for each row execute function public.lock_signed_records();
+
+-- Both run from their triggers, as the trigger's owner, so nothing needs to
+-- call them as a caller. Revoked here as well as in supabase-hardening.sql —
+-- that script is optional, and a recovery that stops at step 4 would otherwise
+-- hand the implicit PUBLIC grant straight back.
+revoke execute on function public.protect_signed_rows() from public, anon, authenticated;
+revoke execute on function public.lock_signed_records() from public, anon, authenticated;
 
 
 -- ---------------------------------------------------------------------------

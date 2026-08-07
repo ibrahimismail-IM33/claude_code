@@ -47,7 +47,7 @@ Live at **epilibomba.com**. UI language is Bahasa Malaysia.
 | `sql/supabase-records-setup.sql` | **2nd** — hydrant_records, signatures bucket, permanent row lock |
 | `sql/supabase-jadual-setup.sql` | **3rd, optional** — shared inspection schedule |
 | `sql/supabase-audit-setup.sql` | **4th** — `updated_by` + a trigger that stamps it from the login token |
-| `sql/supabase-hardening.sql` | **5th, optional** — closes the PostgREST RPC endpoints on the two `SECURITY DEFINER` functions. `authenticated` **must keep** `EXECUTE` on `is_admin()`; see §5 |
+| `sql/supabase-hardening.sql` | **5th, optional** — closes the PostgREST RPC endpoints on all five `public` functions. `authenticated` **must keep** `EXECUTE` on `is_admin()`; see §5 |
 | `package.json` | Dev tooling only — `playwright` and the `npm test` scripts. The app still has no build step and nothing from `node_modules` is ever published |
 | `.github/workflows/tests.yml` | Runs all seven suites on every push/PR. Also `workflow_call`, so the publish gate can reuse it |
 | `.github/workflows/publish-to-site.yml` | Copies `index.html`, `_headers`, `vendor/` to the **site repo** on every push to main — **but only after `tests.yml` passes** (`needs: test`) |
@@ -344,9 +344,11 @@ Watch items:
   `bucket_is_private` and `read_is_authenticated_only` so the same drift shows
   up next time. **The DR scripts are not documentation — they are what a
   recovery actually applies. Change production, change the script.**
-- **From the audit — only one item left.** Still open: **leaked-password
-  protection is off** (Authentication → Providers → Password, a dashboard
-  toggle, no code). Accepted rather than fixed: 7 of 8 accounts are admin — the
+- **From the audit — nothing left that is free to fix.** **Leaked-password
+  protection is off and stays off: the Supabase org is on the `free` plan and
+  the feature is Pro-and-above.** It sat on this list for weeks described as a
+  dashboard toggle; it was never actionable. It is a spending decision, like
+  backup retention — not a task. Also accepted: 7 of 8 accounts are admin, the
   user chose to keep the roles and add the audit trail instead.
   **Closed:** the unbounded hydrant read is paged (`cloudLoad`; `cloudFormLoad`
   was never at risk, it filters by `hydrant_id`), and the `SECURITY DEFINER`
@@ -357,6 +359,17 @@ Watch items:
   own verification query passes even when every write is blocked, which is how
   the first version of this change nearly took the app down — see §5.
   **`authenticated` must keep `EXECUTE` on `is_admin()`.**
+- **`sql/` had drifted from production again — found 2026-08-07** by running
+  Supabase's own security advisor, a check nobody had ever run. Three things:
+  `lock_signed_records()` and `trg_lock_signed` existed on production and
+  **nowhere in this repo**; `protect_signed_rows()` was `SECURITY DEFINER` with
+  a pinned `search_path` live but neither in the script; and the hardening
+  claimed to close "both" `SECURITY DEFINER` helpers when there are five
+  functions in `public`, three of which it never touched. None was exploitable
+  — all three return `trigger`, so PostgREST cannot invoke them. All backported,
+  and the revokes added to the base scripts too so a recovery that skips the
+  optional 5th cannot reopen them. **Run `get_advisors` after any schema
+  change; it is free and it found what a year of reading the scripts did not.**
 - **Restore is verified and now automatic.** `restore-test.yml` in the site
   repo runs every Monday: downloads the newest backup, restores it into a
   throwaway Postgres, checks the counts and the signature images, and opens

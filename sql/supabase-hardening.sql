@@ -3,20 +3,28 @@
 --
 --  WHY
 --    PostgREST publishes every function in the `public` schema as an RPC
---    endpoint. Both of our SECURITY DEFINER helpers are therefore callable by
---    anyone who can reach the API, signed in or not.
+--    endpoint, and every function is created with an implicit EXECUTE grant to
+--    PUBLIC. Ours are therefore callable by anyone who can reach the API,
+--    signed in or not.
+--
+--    There are FIVE functions in `public`, not two. The first version of this
+--    script said "both of our SECURITY DEFINER helpers" and closed only
+--    is_admin() and handle_new_user(); the three trigger functions were missed
+--    entirely. Found 2026-08-07 from a Supabase security advisory — a check
+--    nobody was running. Count them before claiming a surface is closed.
 --
 --  HOW BAD IS IT
---    Not bad. This is surface reduction, not a fix:
---      * search_path is pinned on both, so neither can be tricked into
+--    Not bad. This is surface reduction and accuracy, not a fix:
+--      * search_path is pinned on all of them, so none can be tricked into
 --        resolving a name to an attacker's object — the usual escalation route
 --        for SECURITY DEFINER is closed already.
 --      * is_admin() takes no arguments and only reports on the caller. A
 --        stranger calling it is told "no".
---      * handle_new_user() returns trigger, so Postgres refuses to run it
---        outside a trigger context. It cannot be invoked over RPC at all.
+--      * handle_new_user(), lock_signed_records(), protect_signed_rows() and
+--        stamp_row_audit() all return trigger, so Postgres refuses to run them
+--        outside a trigger context. They cannot be invoked over RPC at all.
 --
---    There is still no reason for either to be reachable, so revoke them.
+--    There is still no reason for any of them to be reachable, so revoke them.
 --
 --  AUTHENTICATED MUST KEEP EXECUTE ON is_admin()  ← do not "tidy" this away
 --    Every write policy on hydrants, hydrant_records and jadual_pemeriksaan
@@ -54,15 +62,22 @@
 revoke execute on function public.is_admin() from public, anon;
 grant  execute on function public.is_admin() to authenticated;
 
--- Nothing calls this as a caller; the trigger runs as its owner.
-revoke execute on function public.handle_new_user() from public, anon, authenticated;
+-- Trigger functions. Nothing calls these as a caller — each runs from its own
+-- trigger, as the trigger's owner — so all three roles can lose EXECUTE.
+revoke execute on function public.handle_new_user()      from public, anon, authenticated;
+revoke execute on function public.lock_signed_records()  from public, anon, authenticated;
+revoke execute on function public.protect_signed_rows()  from public, anon, authenticated;
+revoke execute on function public.stamp_row_audit()      from public, anon, authenticated;
 
 
 -- ---------------------------------------------------------------------------
 --  Check it worked
 --    Expect exactly:
---      handle_new_user   anon_can_call f   auth_can_call f
---      is_admin          anon_can_call f   auth_can_call t   ← t is CORRECT
+--      handle_new_user       anon_can_call f   auth_can_call f
+--      is_admin              anon_can_call f   auth_can_call t   ← t is CORRECT
+--      lock_signed_records   anon_can_call f   auth_can_call f
+--      protect_signed_rows   anon_can_call f   auth_can_call f
+--      stamp_row_audit       anon_can_call f   auth_can_call f
 --
 --    auth_can_call = f on is_admin means the write policies are broken. That is
 --    a failure, not a stricter result.
@@ -78,7 +93,8 @@ select
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public'
-  and p.proname in ('is_admin','handle_new_user')
+  and p.proname in ('is_admin','handle_new_user','lock_signed_records',
+                    'protect_signed_rows','stamp_row_audit')
 order by p.proname;
 
 
@@ -87,4 +103,8 @@ order by p.proname;
 --    Sign in to the app as an admin and save a Kad Rekod row. Every write
 --    policy depends on is_admin(), so if anything here were wrong the symptom
 --    is officers unable to save at all. Do not assume — check.
+--
+--    That save also exercises trg_stamp_audit, trg_lock_signed and
+--    trg_protect_signed, so it proves the trigger revokes did not break the
+--    triggers themselves.
 -- ============================================================================

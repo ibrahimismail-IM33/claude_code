@@ -8,9 +8,11 @@ not a code review.
 
 Guarded by `tests/kad-rekod.js` (27 assertions). Implemented in `index.html`.
 
-> **MS ISO reference: `TBC`** — the standard's reference number has not yet
-> been recorded. Ask BBP Kunak and replace this line. A specification that
-> cannot name the standard it complies with is doing half its job.
+> ## MS ISO 9001:2015 — procedure **PS-8 PILI BOMBA**
+>
+> The Kad Rekod is a controlled record under JBPM's quality management system.
+> Its content and layout answer to that procedure, **not** to this repository.
+> Anything in this document that contradicts PS-8 is wrong and PS-8 wins.
 
 ---
 
