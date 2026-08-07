@@ -49,7 +49,7 @@ Live at **epilibomba.com**. UI language is Bahasa Malaysia.
 | `sql/supabase-audit-setup.sql` | **4th** — `updated_by` + a trigger that stamps it from the login token |
 | `sql/supabase-hardening.sql` | **5th, optional** — closes the PostgREST RPC endpoints on the two `SECURITY DEFINER` functions. `authenticated` **must keep** `EXECUTE` on `is_admin()`; see §5 |
 | `package.json` | Dev tooling only — `playwright` and the `npm test` scripts. The app still has no build step and nothing from `node_modules` is ever published |
-| `.github/workflows/tests.yml` | Runs all three suites on every push/PR. Also `workflow_call`, so the publish gate can reuse it |
+| `.github/workflows/tests.yml` | Runs all seven suites on every push/PR. Also `workflow_call`, so the publish gate can reuse it |
 | `.github/workflows/publish-to-site.yml` | Copies `index.html`, `_headers`, `vendor/` to the **site repo** on every push to main — **but only after `tests.yml` passes** (`needs: test`) |
 | `drafts/dashboard-draft-glass.html` | Standalone dashboard design draft (superseded by the real thing, kept for reference) |
 | `docs/FULL-ARCHITECTURE.md` | How the system is built — layers, data model, every RLS policy, the key flows, deploy pipeline, and §9 known defects |
@@ -94,6 +94,9 @@ the cloud copy when it arrives, and shows which source is in use.
 - **Clickable everywhere** — donut labels and status rows filter the map;
   any Lokasi searches the map.
 - **Period** — rolling 6-month half, current plus three archived.
+- **Nombor Pili Terkini** — beside Pemeriksaan terkini. One row per zone with
+  its number range and count, derived from the label prefix. Tapping a row
+  filters the map to that zone.
 - **Jadual Pemeriksaan** — shared via Supabase, admin-only writes.
 
 ### Donut geometry (for future edits)
@@ -120,7 +123,7 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Decision | Choice | Why |
 |---|---|---|
 | Two repos | `claude_code` builds, **`ibrahimismail-IM33/e-pili-bomba` is what Cloudflare publishes** | They drifted 7 commits apart once and officers used a live app missing fixes. A workflow now copies the three published paths on every push to main, and refuses to publish if a CDN tag reappears or `sql/`/`tests/` would go public |
-| CI | `tests.yml` runs all three suites on every push, and `publish-to-site.yml` **calls it and depends on it** (`needs: test`) rather than duplicating the steps | The suites existed for months and nothing ran them, while publishing was automatic — so the guarantee was "these bugs won't come back if someone remembers". The gate, not the workflow, is the deliverable: a CI job that reports red while the broken build ships anyway is decoration. Reusing the workflow via `workflow_call` means there is one definition of how tests run, so the gate cannot drift from the thing it is gating |
+| CI | `tests.yml` runs every suite on every push, and `publish-to-site.yml` **calls it and depends on it** (`needs: test`) rather than duplicating the steps | The suites existed for months and nothing ran them, while publishing was automatic — so the guarantee was "these bugs won't come back if someone remembers". The gate, not the workflow, is the deliverable: a CI job that reports red while the broken build ships anyway is decoration. Reusing the workflow via `workflow_call` means there is one definition of how tests run, so the gate cannot drift from the thing it is gating |
 | Audit identity | Taken from the **JWT inside the database**, never from the request body, no fallback | A first version had `coalesce(jwt_email, new.updated_by)`, which let a modified page write any name it liked. Caught in testing. An audit column the client can set is decorative |
 | Third-party libraries | **Self-hosted in `vendor/`**, no CDN, no SRI needed | A script from unpkg/jsdelivr runs with full access to the signed-in session and every record card, and `@supabase/supabase-js@2` floated — whatever the CDN called "latest 2.x" reached every officer with no review. Self-hosting removes the path entirely and lets CSP `script-src` drop to `'self'`. Versions pinned in `vendor/README.md` |
 | Signature links | Card requests a **1-hour signed link** when it opens; falls back to the stored value if signing is unavailable | Lets the bucket be locked down without a moment where signatures fail to display — which matters because the change was made while officers were using the app. New signatures store the **path**; rows signed earlier hold a full public URL and the path is extracted from it |
@@ -149,6 +152,12 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Cross-device refresh | Re-read on foreground/focus/online, **plus a 60s poll while visible** | The app read the cloud once at startup and then showed its cache, so a second device only caught up when you opened each hydrant by hand. Foreground alone is not enough — a device left open on the counter never fires one. Throttled to one pull per 10s; nothing runs while the tab is hidden |
 | Background pull and the map | **Never re-fits the view** (`cloudLoad(quiet)` + `noFitOnce`) | A pull that brings a hydrant someone else added changes the fit key, and a re-fit would jump the map away from what the officer is reading |
 | Dashboard scope | Follows the Awam/Swasta pills, incl. cleared = Semua | Must match the map exactly |
+| Nombor Pili Terkini scope | **The one exception — always the whole register**, ignores the pills | It answers "what number does the next pili get?", which is a fact about the register, not about a filter. Following the pills would make zone A's range jump between A114 and A91 as Swasta is toggled, and "the last number" would stop meaning the last number. The panel says so in its caption |
+| Zone data | **Derived from the label's leading letter**, never stored | Zones did not exist in the code at all. The user's hand-written table was already a row ahead of the repo's seed before it was written down — a stored copy ships stale. Deriving also makes "update when tambah pili" free (`refresh()` already runs after an add) and gives a brand-new zone letter its own row with no migration |
+| Zone as a filter | **Stacks** with Awam/Swasta and inspection status | Those two already combine with AND. A third axis behaving differently would be the surprise. Zone A + Awam = 97, which is correct, not a bug |
+| Zone rows vs odd labels | **No row**, but reported in the caption | User's call — zone rows only. But the add form validates the label as non-empty and nothing else, so a typo can exist. A panel whose rows silently sum to less than the register is misinformation, so the count of unparsed labels is stated rather than a "Lain-lain" row added |
+| Zone range vs count | **Both shown, and flagged when they disagree** | A range implies contiguity. Every zone is gap-free today, so the warning is dormant — but delete one pili and `A01 – A114` would keep claiming 114 |
+| Zone panel markup | **Buttons, not a table** | `#dashView table` carries `min-width:460px` for the wide record tables; reusing it inside the narrow grid column would push the page sideways on a phone — §4.9 again |
 | Mobile header | Hamburger menu for account actions; tabs left-aligned with pills | User sketch |
 | Mobile kicker | Shows **"BBP KUNAK"** only; `· Sabah · Bomba Malaysia` hidden | Full string is ~200px and forced an extra header row. Short form costs nothing |
 | Zoom buttons | 34px on mobile | User asked, and confirmed fine in the field. Below the 44px touch minimum — accepted |

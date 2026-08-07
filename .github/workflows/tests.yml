@@ -75,6 +75,9 @@ jobs:
       - name: Kad Rekod (MS ISO — 2 pages, card order, screen vs print)
         run: npm run test:kad
 
+      - name: Zone panel (Nombor pili terkini must match the register)
+        run: npm run test:zones
+
       - name: Hydrant paging (no silent truncation past 1000 rows)
         run: npm run test:paging
 

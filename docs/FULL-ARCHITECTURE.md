@@ -524,7 +524,7 @@ Retention is 90 days in GitHub artifacts, which vanish with the repository.
 
 ## 8. Testing
 
-Six Node + Playwright suites, **116 assertions**, driving the real page in
+Seven Node + Playwright suites, **145 assertions**, driving the real page in
 real Chromium.
 
 | Suite | Guards | Assertions |
@@ -533,6 +533,7 @@ real Chromium.
 | `csp-and-vendor.js` | No CDN tag or origin anywhere; every vendor file present; the app boots under the real CSP with real Leaflet — 187 pins, 7 clusters, zero violations | 21 |
 | `clear-row.js` | An officer can withdraw a wrong entry; signed rows stay untouchable; clearing works offline and survives a contested sync; the pin's date badge follows the rows that remain; a failed flush changes nothing | 27 |
 | `kad-rekod.js` | The Kad Rekod is 2 pages with its pages together and in order; screen shows the newest card first while **print stays oldest-first**; card numbers are permanent and chronological; a new card needs the last row complete **and saved**, offline included | 27 |
+| `zone-panel.js` | "Nombor pili terkini" matches the register: zones derived from the label prefix, ranges and counts correct, the panel ignoring the Awam/Swasta pills while the zone filter stacks with them, and both silent-lie paths (a gap in a range, an unparseable label) reported rather than hidden | 29 |
 | `hydrant-paging.js` | The hydrant read is paged, so a register past PostgREST's 1000-row cap cannot silently lose pins; a failed read leaves the local copy alone | 8 |
 | `signature-links.js` | Signatures resolve to short-lived links and **fall back** when signing is unavailable; covers legacy URLs and paths | 13 |
 
@@ -541,7 +542,7 @@ broken code.**
 
 ### CI, and the gate
 
-`.github/workflows/tests.yml` runs all six suites on **every push and pull
+`.github/workflows/tests.yml` runs all seven suites on **every push and pull
 request**. `publish-to-site.yml` calls that same workflow and depends on it:
 
 ```yaml

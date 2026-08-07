@@ -722,6 +722,26 @@
   #dashView .dstat .pc{display:block;font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.72);margin-top:4px}
   #dashView .dstat .go{display:block;font-size:11px;color:rgba(255,255,255,.55);margin-top:6px}
 
+  /* Nombor pili terkini. Buttons, not a table: #dashView table carries
+     min-width:460px for the wide record tables, and reusing it inside this
+     narrow grid column would push the page sideways on a phone — the same
+     defect as §4.9. */
+  #dashView .zlist{display:flex;flex-direction:column;gap:8px}
+  #dashView .zrow{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:11px;
+    background:#161920;border:1px solid rgba(255,255,255,.09);color:#f4f7fb;
+    cursor:pointer;transition:.18s;text-align:left;width:100%;min-height:44px}
+  #dashView .zrow:hover{background:#181b21;border-color:rgba(255,255,255,.2);transform:translateX(2px)}
+  #dashView .zrow.on{border-color:rgba(255,255,255,.34);background:#1b1f26}
+  #dashView .zrow .zk{font-family:var(--mono);font-size:15px;font-weight:700;color:#fff;
+    width:22px;flex:none;text-align:center}
+  #dashView .zrow .zr{flex:1;min-width:0;font-family:var(--mono);font-size:13px;
+    color:rgba(255,255,255,.88);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #dashView .zrow .zc{flex:none;font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.62)}
+  #dashView .zrow.zwarn{border-color:rgba(250,204,21,.42)}
+  #dashView .zrow.zwarn .zc{color:#FDE047}
+  #dashView .znote{font-size:11.5px;color:rgba(255,255,255,.5);margin-top:12px;line-height:1.5}
+  #dashView .znote .zbad{display:block;color:rgba(253,224,71,.92);margin-top:4px}
+
   /* tables — wide content scrolls inside its own box so the page never
      scrolls sideways on a phone */
   #dashView .dtwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -955,13 +975,21 @@
         </div>
       </div>
 
-      <div class="dcard" style="margin-bottom:16px">
-        <h2>Pemeriksaan terkini</h2>
-        <div class="dtwrap"><table>
-          <thead><tr><th style="width:120px">Tarikh</th><th style="width:100px">No. Pili</th>
-            <th>Lokasi</th><th style="width:140px">Penguji</th><th style="width:120px">Status</th></tr></thead>
-          <tbody id="dashRecent"></tbody>
-        </table></div>
+      <div class="dgrid">
+        <div class="dcard">
+          <h2>Pemeriksaan terkini</h2>
+          <div class="dtwrap"><table>
+            <thead><tr><th style="width:120px">Tarikh</th><th style="width:100px">No. Pili</th>
+              <th>Lokasi</th><th style="width:140px">Penguji</th><th style="width:120px">Status</th></tr></thead>
+            <tbody id="dashRecent"></tbody>
+          </table></div>
+        </div>
+
+        <div class="dcard">
+          <h2>Nombor pili terkini</h2>
+          <div class="zlist" id="dashZones"></div>
+          <div class="znote" id="dashZoneNote"></div>
+        </div>
       </div>
 
       <div class="dcard">
@@ -1347,6 +1375,7 @@
   var hydrants = loadHydrants();
   var activeFilter = null, showAdd = false, draft = null;
   var inspFilter = null;              // 'ok' | 'wait' | 'none' | null — set from the dashboard
+  var zoneFilter = null;              // 'A'..'E'.. | null — set from Nombor pili terkini
 
   function pad(n){return String(n).padStart(2,"0");}
   function today(){return new Date().toISOString().split("T")[0];}
@@ -1368,9 +1397,38 @@
     var list = activeFilter?hydrants.filter(function(h){return h.status===activeFilter;}):hydrants;
     // second, independent axis: inspection status for the dashboard period
     if(inspFilter) list = list.filter(function(h){ return inspStatusOf(h)===inspFilter; });
+    // third axis: zone, from the leading letter of the label
+    if(zoneFilter) list = list.filter(function(h){ return zoneOf(h.label)===zoneFilter; });
     return list;
   }
   function counts(){var c={kerajaan:0,swasta:0};hydrants.forEach(function(h){c[h.status]++;});return c;}
+  /* Zones are not stored anywhere — they are the leading letter of the label.
+     Deriving them means the panel cannot drift from the register, and a pili
+     added in a brand-new zone gets its own row for free. A hand-kept table was
+     already a row stale before it was written. */
+  var ZONE_RE=/^([A-Za-z])0*(\d+)$/;
+  function zoneOf(label){ var m=ZONE_RE.exec(String(label==null?"":label).trim()); return m?m[1].toUpperCase():null; }
+  function zoneLabel(z,n){ return z + (n<10 ? "0"+n : String(n)); }
+  function zoneSummary(){
+    var by={}, odd=0;
+    hydrants.forEach(function(h){
+      var m=ZONE_RE.exec(String(h.label==null?"":h.label).trim());
+      if(!m){ odd++; return; }                       // no row of its own; still counted
+      var z=m[1].toUpperCase(), n=parseInt(m[2],10);
+      var e=by[z] || (by[z]={zone:z,min:n,max:n,count:0});
+      if(n<e.min) e.min=n; if(n>e.max) e.max=n; e.count++;
+    });
+    var out=Object.keys(by).sort().map(function(z){
+      var e=by[z];
+      e.first=zoneLabel(z,e.min); e.last=zoneLabel(z,e.max);
+      // A range implies contiguity. Every zone is gap-free today, so this is
+      // dormant — but a deleted pili would otherwise leave the range quietly
+      // claiming more pili than the register holds.
+      e.gap = e.count !== (e.max - e.min + 1);
+      return e;
+    });
+    return {zones:out, odd:odd};
+  }
   function nextId(){return hydrants.length?Math.max.apply(null,hydrants.map(function(h){return h.id;}))+1:1;}
   function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(m){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m];});}
   function fmtBadge(d){if(!d)return"";var x=new Date(d);if(isNaN(x.getTime()))return d.slice(0,10);
@@ -1478,6 +1536,7 @@
     if(inspFilter){ var im=INSP[inspFilter]; hex=im.hex;
       parts.push('<span style="font-weight:600;color:'+im.hex+'">'+im.label+'</span>');
     }
+    if(zoneFilter){ parts.push('<span style="font-weight:600;color:#fff">Zon '+esc(zoneFilter)+'</span>'); }
     if(parts.length){
       b.style.boxShadow="0 0 0 1px "+hex+"44,0 12px 30px rgba(0,0,0,.5)";
       b.style.cursor="pointer";
@@ -1487,7 +1546,7 @@
         +'<span class="t bt">Menunjukkan '+parts.join(' · ')+' sahaja</span>'
         +'<span class="bx" aria-hidden="true">✕</span>';
       b.setAttribute("title","Ketik untuk buang penapis");
-      b.onclick=function(){ activeFilter=null; inspFilter=null; refresh(); };
+      b.onclick=function(){ activeFilter=null; inspFilter=null; zoneFilter=null; refresh(); };
       b.classList.remove("hide");
     } else { b.onclick=null; b.classList.add("hide"); }
   }
@@ -3148,7 +3207,35 @@
     });
     dAnimate(dashData(), animate);
     renderRecent();
+    renderZones();
     renderJadual();
+  }
+
+  /* Nombor pili terkini. Deliberately reads `hydrants` and NOT dashList() —
+     the last number in a zone is a fact about the register, not about whichever
+     pill happens to be on, so this one panel does not follow the Awam/Swasta
+     scope the rest of the dashboard does. The caption says so. */
+  function renderZones(){
+    var box=document.getElementById("dashZones"), note=document.getElementById("dashZoneNote");
+    if(!box) return;
+    var s=zoneSummary(), bad=[];
+    if(!s.zones.length){
+      box.innerHTML='<div class="znote">Tiada pili berdaftar.</div>';
+      note.innerHTML=""; return;
+    }
+    box.innerHTML = s.zones.map(function(e){
+      if(e.gap) bad.push("Zon "+e.zone);
+      return '<button class="zrow'+(e.gap?" zwarn":"")+(zoneFilter===e.zone?" on":"")+'" type="button"'
+        + ' data-z="'+esc(e.zone)+'" title="Tunjuk pili Zon '+esc(e.zone)+' pada peta sahaja">'
+        + '<span class="zk">'+esc(e.zone)+'</span>'
+        + '<span class="zr">'+esc(e.first)+' – '+esc(e.last)+'</span>'
+        + '<span class="zc">'+e.count+' pili</span></button>';
+    }).join("");
+    var msg='Semua pili · tidak mengikut penapis Awam/Swasta';
+    if(bad.length) msg+='<span class="zbad">Nombor tidak berturutan dalam '+esc(bad.join(", "))
+      +' — julat lebih besar daripada bilangan sebenar.</span>';
+    if(s.odd) msg+='<span class="zbad">'+s.odd+' pili tidak mengikut format zon (cth A01) dan tidak disenaraikan di atas.</span>';
+    note.innerHTML=msg;
   }
 
   /* ---------- going back to the map ---------- */
@@ -3165,6 +3252,17 @@
     inspFilter = (inspFilter===k) ? null : k;
     var inp=document.getElementById("searchInput");
     if(inp) inp.value="";            // a live search would override the filter
+    searchQuery=""; fittedKey="";
+    setTab("map");
+    refresh();
+  }
+  // Same shape as goMapStatus. The zone stacks with the Awam/Swasta pill and
+  // the inspection status rather than replacing them — those two already
+  // combine, and a third axis behaving differently would be the surprise.
+  function goMapZone(z){
+    zoneFilter = (zoneFilter===z) ? null : z;
+    var inp=document.getElementById("searchInput");
+    if(inp) inp.value="";
     searchQuery=""; fittedKey="";
     setTab("map");
     refresh();
@@ -3227,6 +3325,17 @@
 
     document.querySelectorAll("#dashView .dstat").forEach(function(b){
       b.onclick=function(){ goMapStatus(b.getAttribute("data-f")); };
+    });
+
+    // Delegated: the zone rows are rebuilt on every renderZones(), so binding
+    // them individually here would only ever wire the first render.
+    var zbox=document.getElementById("dashZones");
+    if(zbox) zbox.addEventListener("click", function(e){
+      var el=e.target;
+      while(el && el!==zbox){
+        if(el.getAttribute && el.getAttribute("data-z")){ goMapZone(el.getAttribute("data-z")); return; }
+        el=el.parentNode;
+      }
     });
 
     var wrap=document.getElementById("dashDonut");
