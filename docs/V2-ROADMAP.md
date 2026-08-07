@@ -156,8 +156,69 @@ Two rules, both load-bearing:
 - **`pending` is ported line by line, not re-designed.** §4.10 and §4.14 are both
   in this code. A failed flush must still change *nothing*.
 
-**Gate:** `p0-offline-sync.js` and `clear-row.js` green against the Pinia
-implementation, still driving the V1 UI.
+**Gate — as written, this was wrong too.** It said the suites must pass "against
+the Pinia implementation, still driving the V1 UI". They cannot: V1's UI does not
+use Pinia, and it will not until Phases 2–5 move the views. Taken literally the
+gate is either impossible or satisfied by a test that proves nothing.
+
+**The gate that replaces it: differential parity.** Run V1's real logic and the
+port over the same inputs and require identical decisions.
+
+- `tests/v2-pending-parity.js` drives V1's **real `flushPending`** in a browser,
+  triggered by an `online` event exactly as a reconnect does, beside the ported
+  `planFlush()` — over all 32 combinations of (edit vs removal) × (cloud
+  absent/unchanged/changed/signed) × (base unseen/never-existed/matching/
+  differing), **twice**: once with the writes landing, once with them failing.
+  Both halves are needed. "A failed flush changes nothing" (§4.14) is invisible
+  on the success path, and the first version of this test had exactly that hole.
+- `tests/v2-filters-parity.js` lifts V1's **real source text** for `visible`,
+  `zoneSummary`, `counts` and `searchMatches` out of `index.html` and runs it
+  against the port over five registers × 144 scope combinations.
+
+Both were verified to go red on a deliberately broken port — the signed-row
+guard removed, failed pushes dropped from the queue, and a search made to obey
+the Awam/Swasta pills.
+
+### Phase 1 status: all five stores done
+
+| Store | Pure logic | Parity suite |
+|---|---|---|
+| `pending` | `pending-logic.js` | `v2-pending-parity.js` — 64 |
+| `filters` | `filters-logic.js` | `v2-filters-parity.js` — 720 comparisons |
+| `hydrants` | `hydrants-logic.js` | `v2-hydrants-parity.js` — 22 |
+| `records` | `records-logic.js` | `v2-records-parity.js` — 163 |
+| `auth` | — | none, deliberately (see below) |
+
+`auth` has no parity suite on purpose. Unlike the other four it holds no
+decision worth getting wrong — everything V1's `applyRoleUI` does is DOM
+toggling, which becomes template bindings in Phases 2–4 and is covered there.
+A suite asserting `role === 'admin'` would be ceremony, and ceremony makes the
+suites that matter harder to take seriously. The rule that IS load-bearing is
+written at the top of the store: **the client's idea of the role is a UI
+convenience.** Every write is authorised by RLS in the database, evaluated as
+the calling role. Hiding a button is courtesy, not the control.
+
+### What Phase 1 found
+
+- **Two whole column lists were transcribed wrongly**, and the config comparison
+  caught them on its first run. `pengujian` records pressure readings
+  (`penguji`, `statik`, `semasa`, `gpm`, `catatan`) — not the `injap`/`tekanan`
+  guessed — and `kompaun` is two six-column blocks (`t1…b1`, `t2…b2`) with **no
+  signature column at all**. A mistyped column key produces a card that looks
+  perfectly right and silently drops that column's data on every save. Nothing
+  short of comparing against V1's real `SECTIONS` would have found it.
+- **A first version of the records fixtures tested Kompaun with empty rows**,
+  because it hardcoded `tarikh`/`penguji` as key names — on the one section
+  whose shape is unusual. Fixtures are now derived from each section's own
+  columns.
+- **`needsNewCard` nearly diverged.** V1 tests the last row of the *array*;
+  the first port tested row `cards*perPage - 1`. Identical while the form is
+  padded to whole cards, different on a ragged one. Matched to V1 and the
+  transcription is guarded — if `maybeAddPage`'s condition is ever edited, the
+  suite throws rather than comparing against a stale copy.
+- **`v2/` needed its own `package.json`** declaring `"type": "module"`. The root
+  must stay CommonJS or every suite in `tests/` breaks; without the scoped
+  file, node re-parsed each V2 source it imported and said so on stderr.
 
 ---
 
