@@ -351,6 +351,27 @@ and the stylesheet.
 
 ---
 
+## A constraint on Phases 3–5: don't foreclose district
+
+District expansion is **not scheduled** and is explicitly out of scope below.
+`docs/PRD.md` §7 holds the analysis: it is a `district` column with scoped
+writes, not a folder, and it costs about two days once a second district is
+actually confirmed.
+
+But Phases 3–5 are being written now, and the cheapest moment to avoid a
+retrofit is while the code is being written anyway. So, at zero cost:
+
+- **Keep queries going through store methods that take their filters as
+  arguments.** Adding `.eq('district', …)` later should be one line in one
+  place, not a hunt through components.
+- **Keep `visible()` as one derived getter.** `filters-logic.js` already stacks
+  Awam/Swasta × inspection status × zone with AND; district would be a fourth
+  axis of the same shape rather than a special case.
+- **Do not add a district parameter, column, selector or default anywhere.**
+  The point is to avoid foreclosing it, not to build it. Building multi-district
+  support for a district that never arrives is pure cost, and half-built
+  multi-tenancy is worse than none — it looks like a guarantee and is not one.
+
 ## Phase 3 — Map, registry, search
 
 - Leaflet stays imperative behind the Phase 0 adapter. **Do not wrap markers in
