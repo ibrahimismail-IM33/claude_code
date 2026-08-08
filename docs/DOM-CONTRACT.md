@@ -76,6 +76,15 @@ record under MS ISO PS-8 and several of these carry legal meaning.
 | `#fPending` | `p0-offline-sync`, `clear-row` | Unsent-work banner. Its presence is how the tests detect parked offline work |
 | `#sigFile` / `#sigOk` | `kad-rekod` | Signature file input and confirm |
 
+### Kad Rekod — V2 additions
+
+| Selector | Used by | Meaning |
+|---|---|---|
+| `#formOverlay` | `kad-rekod`, `v2-kad-rekod` | The card overlay. **Must be a DIRECT CHILD of `<body>`** — the print rule `body.form-open > *:not(#formOverlay)` hides everything else, so a nested overlay is hidden by its own ancestor and prints a blank sheet. V2 teleports it |
+| `.kadno` / `.terkini` | `v2-kad-rekod` | Card number (permanent, chronological, oldest = Kad 1) and the newest-card marker. `TERKINI` is a screen affordance and is `display:none` in print |
+| `.sigwait` | `v2-kad-rekod` | Placeholder for a signed row whose signed link has not resolved. **Never an `<img>` at the stored path** — on a private bucket that is a dead URL, and a broken-image icon on a signed row reads as a lost signature |
+| `tr.rowsigned` | `kad-rekod`, `v2-kad-rekod` | A signed row. Every input disabled and no `.sigbtn`. One of four defences; the other three are RLS, the trigger, and the store refusing the edit |
+
 ## Rules
 
 1. **Ids and classes above are renamed only with a deliberate decision**, and the

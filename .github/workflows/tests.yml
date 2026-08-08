@@ -167,3 +167,18 @@ jobs:
       # CSP probe instead of an application, which it did for three phases.
       - name: V2 app shell (login gate, role UI, tabs, phone menu)
         run: npm run test:v2shell
+
+      # The Kad Rekod in V2. The only suite in this repo that RENDERS TO PDF
+      # AND COUNTS THE PAGES — one card is exactly two, and a row height or a
+      # capacity changed by a few percent pushes it onto a third sheet with
+      # nothing visible on screen. It is still not a substitute for printing a
+      # card; docs/KAD-REKOD.md §6 requires a real printout before this ships.
+      - name: V2 Kad Rekod (rendered to PDF and page-counted)
+        run: npm run test:v2kad
+
+      # The record card's cloud round trip in V2 — the counterpart of
+      # p0-offline-sync.js and clear-row.js, which test V1 only. Every
+      # data-loss defect this app has had (§4.10, §4.13, §4.14) lives in these
+      # paths, and all three were found by an officer using the app.
+      - name: V2 record sync (offline, contested rows, clears, failed flushes)
+        run: npm run test:v2sync

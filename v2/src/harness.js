@@ -3,9 +3,11 @@ import { createPinia } from 'pinia';
 import DashView from './components/DashView.vue';
 import MapShell from './components/MapShell.vue';
 import Pills from './components/Pills.vue';
+import KadRekod from './components/KadRekod.vue';
 import './styles/tokens.css';
 import './styles/dashboard.css';
 import './styles/map.css';
+import './styles/kad-rekod.css';
 
 /* Component test harness. NOT shipped — built only under V2_HARNESS=1.
  *
@@ -41,6 +43,10 @@ const fixture = reactive(Object.assign({
   addError: '',
   pending: [],          // hydrant ids with unsent work
   insp: {},             // id -> 'ok' | 'wait' | 'none'
+  // kad rekod
+  hydrant: null,
+  form: null,
+  lastEdit: null,
 }, window.__fixture || {}));
 
 window.__events = [];
@@ -50,6 +56,15 @@ const record = (name) => (v) => window.__events.push([name, v]);
 
 createApp({
   render() {
+    if (fixture.view === 'kad') {
+      return h(KadRekod, {
+        hydrant: fixture.hydrant, form: fixture.form,
+        isAdmin: fixture.isAdmin, lastEdit: fixture.lastEdit,
+        cloudNote: fixture.cloudNote, pending: fixture.pending && fixture.pending.items ? fixture.pending : null,
+        onClose: record('close'), onSave: record('save'),
+        onEdit: record('edit'), onSign: record('sign'),
+      });
+    }
     if (fixture.view === 'map') {
       // Pills sit beside MapShell, not inside it — that is where the real app
       // puts them (AppHeader). Mounting them here keeps the Phase 3 assertions

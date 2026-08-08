@@ -187,3 +187,122 @@ export function formFingerprint(f) {
   });
   try { return JSON.stringify(out); } catch (e) { return String(Math.random()); }
 }
+
+/* ── The cloud round trip's DECISIONS ─────────────────────────────────────
+ *
+ * Ported from index.html line by line and deliberately not improved. Three
+ * defects have lived in these paths (CLAUDE.md §4.10, §4.13, §4.14) and each
+ * one lost, or nearly lost, inspection data an officer had typed in the field.
+ * A tidier version that is subtly different is worth less than an ugly one
+ * that is identical.
+ *
+ * Kept pure — no Pinia, no window, no network — so the suites can drive every
+ * branch without a server, which is the only way the offline branches get
+ * exercised at all.
+ */
+
+// Anything prefixed `_` is client state (_signed, _sig, _sigUrl) and must never
+// be written to the database.
+export function cleanRow(r) {
+  const o = {};
+  Object.keys(r || {}).forEach((k) => { if (k.charAt(0) !== '_') o[k] = r[k]; });
+  return o;
+}
+
+/* The rows to upsert. A SIGNED ROW IS NEVER SENT — not as an update, not as an
+ * identical no-op. It is permanent, and the safest client is one that never
+ * even asks. */
+export function upsertRows(id, f) {
+  const rows = [{ hydrant_id: id, section: 'header', row_index: 0, data: f.header }];
+  SEC_ORDER.forEach((s) => {
+    (f[s] || []).forEach((r, idx) => {
+      if (r._signed) return;
+      if (rowHasData(s, r) || r.tt) rows.push({ hydrant_id: id, section: s, row_index: idx, data: cleanRow(r) });
+    });
+  });
+  return rows;
+}
+
+/* Rows the officer CLEARED, which must be sent as an explicit DELETE.
+ *
+ * §4.13: an upsert does not delete what it is not sent, so for a year a cleared
+ * row simply came back on the next open. Clearing was not broken — it had never
+ * been implemented. On a legal inspection record an entry that cannot be
+ * withdrawn is worse than one that is missing.
+ *
+ * `baseFor` answers what the cloud held when the card was opened:
+ *   undefined → the cloud was never read this session. Change NOTHING; acting
+ *               on a snapshot we never took would delete rows this device has
+ *               simply not seen yet.
+ *   null      → the row did not exist there, so there is nothing to delete.
+ */
+export function deadRows(f, isAdmin, baseFor, signedInCloud) {
+  const out = [];
+  if (!isAdmin) return out;          // a viewer's delete is refused by RLS; never park one
+  const wasSigned = signedInCloud || (() => false);
+  SEC_ORDER.forEach((s) => {
+    (f[s] || []).forEach((r, idx) => {
+      /* SIGNED ROWS ARE PERMANENT, and this is checked TWICE on purpose.
+       *
+       * `r._signed` is the in-memory flag — and it is not trustworthy on its
+       * own. V1 always wrote into the existing row object, so the flag
+       * survived; V2 can REPLACE a row with a fresh blank one, and a blank row
+       * carries no `_signed`. That is exactly what happened: an admin clearing
+       * a signed row produced a DELETE for it, and the row went. The database
+       * trigger would have refused it, but a client that has to be caught by
+       * the trigger is a client that will eventually find a path around it.
+       *
+       * So the cloud's own view of signedness, snapshotted when the card was
+       * opened, is the second check — and it cannot be lost by a UI action. */
+      if (r._signed || wasSigned(s, idx)) return;
+      if (rowHasData(s, r) || r.tt) return;             // still has content
+      const had = baseFor(s, idx);
+      if (had === undefined || had === null) return;    // cloud never held this row
+      if (!Object.keys(had).length) return;             // it was already empty there
+      out.push({ section: s, row_index: idx, base: had });
+    });
+  });
+  return out;
+}
+
+// What gets parked when a save cannot land. Removals carry no data, so they are
+// parked as an explicit marker — without it a clear made with no signal would
+// simply evaporate.
+export function parkRows(rows, dead, baseFor) {
+  return rows
+    .filter((r) => r.section !== 'header' || true)
+    .map((r) => ({ section: r.section, row_index: r.row_index, data: r.data, base: baseFor(r.section, r.row_index) }))
+    .concat((dead || []).map((d) => ({ section: d.section, row_index: d.row_index, removed: true, base: d.base })));
+}
+
+/* Rebuild a card from what the cloud actually holds.
+ *
+ * THE DATABASE IS THE RECORD. Rows an admin cleared must not linger in this
+ * browser's cache and must not be pushed back up on the next save — which is
+ * exactly why `openForm` overwrites the cache, and exactly what made §4.10 so
+ * damaging before the pending queue existed to protect unsent work.
+ *
+ * Returns the form and the last edit, which is stamped by the DATABASE from the
+ * login token — evidence, not something the page asserts.
+ */
+export function applyCloudRows(f, rows) {
+  let lastEdit = null;
+  (rows || []).forEach((rec) => {
+    if (rec.updated_at && (!lastEdit || rec.updated_at > lastEdit.at)) {
+      lastEdit = { at: rec.updated_at, by: rec.updated_by || '' };
+    }
+    if (rec.section === 'header') { f.header = Object.assign(f.header, rec.data || {}); return; }
+    if (!SECTIONS[rec.section]) return;
+    const arr = f[rec.section];
+    while (arr.length <= rec.row_index) arr.push(emptyRow(rec.section));
+    const row = Object.assign(emptyRow(rec.section), rec.data || {});
+    if (rec.signed) {
+      row._signed = true;
+      row._sig = rec.signature || '';
+      row._signedBy = rec.signed_by || '';
+      row._signedAt = rec.signed_at || '';
+    }
+    arr[rec.row_index] = row;
+  });
+  return { form: normalizeForm(f), lastEdit };
+}

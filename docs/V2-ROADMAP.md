@@ -623,6 +623,93 @@ Its own branch, its own release, nothing else in it.
 rendered PDF page-counted by hand**, plus one card printed on the real printer
 before release. The screen has never been sufficient evidence for this view.
 
+### Phase 5 status — the card renders and is page-counted; the data paths are not ported
+
+**Done:** `v2/src/styles/kad-rekod.css` (index.html 396–655, copied whole),
+`KadRekod.vue`, `v2/src/lib/signature-print.js`, and the card wired into
+`App.vue` for the **local** round trip — open from a pin, edit, save to
+localStorage, and grow a new card when the last row of a section is complete.
+Growth fires on the local save, not on a successful upload, so an officer with
+no signal still gets their next card.
+
+Guarded by **`tests/v2-kad-rekod.js`, 39 assertions** — the only suite in this
+repo that **renders to PDF and counts the pages**.
+
+#### The defect that assertion existed for, found on its first run
+
+`#formOverlay` must be a **direct child of `<body>`**. V1's print rule is
+`body.form-open > *:not(#formOverlay){display:none!important}`, and in V2 the
+component naturally renders inside `#app` — so `#app` matched the rule and
+**the entire card was `display:none` on paper.** It printed one blank sheet.
+
+Nothing on screen changed. Nothing in the PDF looked wrong; the card simply was
+not in it. The only signal was the page count: 1 where 2 was required.
+
+Fixed with `<Teleport to="body">` — matching V1's DOM position rather than
+editing the print CSS to suit a new structure. **The CSS is the part that has
+been proven on paper; the component is not.** Whenever those two disagree, the
+component moves.
+
+#### What the PDF gate is actually sensitive to
+
+Worth writing down rather than assuming. Raising `.ftab.pengujian td` from
+8.3mm: 9.6mm and 11mm still produce 2 pages; **13mm produces 3** and the suite
+goes red on all three fixtures. So there is real headroom on Letter at an 8mm
+margin — the layout is not on a knife edge — but the gate does catch the
+failure mode it exists for. The millimetre difference between Pengujian rows
+and the rest is asserted separately, border-independently, because that is the
+part that would quietly vanish if someone normalised the heights to one value.
+
+Also verified red on: an overlay that is not a direct child of body (3
+failures), and a screen order that stops being newest-first (2).
+
+#### The cloud round trip — ported, with its own suite
+
+`v2/src/stores/record-sync.js`, guarded by **`tests/v2-record-sync.js`, 38
+assertions.** This is the V2 counterpart of `p0-offline-sync.js` and
+`clear-row.js`, which test V1's `index.html` and were watching nothing in V2.
+
+The suites were written from V1's scenarios **before** the port was trusted,
+and the four defect classes were each verified red by removing their guard:
+
+| Mutation | Failures |
+|---|---|
+| A failed flush drops the parked work (§4.14) | 4 |
+| Clearing never issues a DELETE (§4.13) | 3 |
+| Save does not park before the request (§4.10) | 9 |
+| Signed permanence relies on the in-memory flag alone | 1 |
+
+**One real defect, and it is V2-only.** `deadRows` refused to delete a row
+carrying `_signed` — which was sufficient in V1, because V1 always wrote *into*
+the existing row object so the flag survived. V2 can **replace** a row with a
+fresh blank one, and a blank row carries no `_signed`. An admin clearing a
+signed row therefore produced a DELETE for it, and the row went. The database
+trigger would have refused it — but a client that has to be caught by the
+trigger is a client that will eventually find a path around it. Signedness is
+now also snapshotted from the server at open, where no UI action can lose it.
+
+**And one assertion that passed for the wrong reason**, which is worth more
+than the defect. The follow-up case — permanence surviving a *preceding* save —
+went green on the first run. Not because the guard worked: `save()`
+re-snapshots the base from the rows it just wrote, a signed row is never in
+that payload, so the row's *base* was forgotten too and `deadRows` skipped it
+as "cloud never held this". Right outcome, accidental reason. Remove the base
+coincidence and a signed row becomes deletable again. The signed map is now
+merged rather than replaced — additive only, since signedness can never be
+withdrawn.
+
+#### Still to port before cutover
+
+Signed-link resolution and signature capture. Nothing else on this view.
+
+#### And the gate that no suite can give
+
+`docs/KAD-REKOD.md` §6 requires **a real printout before anything touching this
+card ships**, and this suite does not replace it. Three print defects have
+shipped on this card; every one was measurable, and every one still reached
+paper wrong. The page count is necessary evidence. It has never been
+sufficient.
+
 ---
 
 ## Branching and release
