@@ -143,3 +143,9 @@ jobs:
 
       - name: V2 Jadual parity (period filter, sort order, date formatting)
         run: npm run test:v2jadual
+
+      # The fit rule is a rule about something NOT happening: a background pull
+      # must never re-fit the map. The failure is not an error — the map simply
+      # jumps away from what an officer is reading, on a phone, mid-read.
+      - name: V2 map parity (markers, tooltip, and the fit rule)
+        run: npm run test:v2map

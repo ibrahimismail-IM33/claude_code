@@ -384,6 +384,41 @@ retrofit is while the code is being written anyway. So, at zero cost:
 **Gate:** `hydrant-paging.js` green unchanged; `fitBounds` called 0 times during
 a background pull, measured.
 
+### Phase 3 status: logic done, components to come
+
+Done: **`v2/src/stores/map-logic.js`** and **`tests/v2-map-parity.js`** (41
+assertions) — the palette, the date badge, marker HTML and icon geometry, the
+tooltip, and **the fit rule**.
+
+The fit rule was taken first deliberately. It is the only part of the map layer
+with real consequence, and it is a rule about something *not* happening:
+
+> A background pull must **never** re-fit the map.
+
+That failure produces no error. The map simply jumps away from whatever an
+officer is reading, mid-read, on a phone — which is why it needs a test rather
+than care. Two details are easy to lose in a port and both are guarded:
+`noFitOnce` is **consumed** (it records the key without fitting, so the *next*
+genuine change still fits), and an empty result **never** fits and never records
+its key.
+
+Two things about the suite worth keeping:
+
+- V1 has no function for the fit rule — it is three lines inline in
+  `renderMarkers`. The transcription is **guarded**: if that code is edited, the
+  test throws rather than silently comparing the port against a stale copy.
+- The rule is asserted **directly** as well as by parity. Parity alone would
+  happily agree with V1 if V1 itself ever regressed.
+
+Verified red on three mutations: a background pull that re-fits (3 failures), an
+empty result that fits, and an order-insensitive key made order-sensitive.
+
+**Still to do:** `MapView` (Leaflet imperative behind `v2/src/lib/leaflet.js`),
+pills, registry, banner, place search, the add-hydrant modal, and the map CSS.
+Then the browser-level gate — `fitBounds` called **0 times** during a background
+pull, measured against a real Leaflet stub, which is the end-to-end version of
+what `map-logic.js` now guarantees in isolation.
+
 ---
 
 ## Phase 4 — Auth shell and header
