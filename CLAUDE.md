@@ -504,6 +504,18 @@ was the screen. Every print-facing property of this card is invisible until it
 reaches paper, which is why `docs/KAD-REKOD.md` requires a real printout before
 anything touching the card ships.
 
+**And confirmed again on paper (2026-08-08, second printout)** — the black box
+that fix caused (§4.15) is gone, and the signature is present and legible. That
+second check mattered as much as the first: the replacement had to be verified
+not only for "is the ink black" but for "is the signature still *there*", since
+a threshold slightly too high erases faint strokes entirely.
+
+**Three print defects, three found on paper, none found by any other means.**
+Faded ink, then a black box, then the risk of an erased signature. The screen
+was wrong every time, the automated measurements were necessary but never
+sufficient, and each one was caught by an officer printing a card. Treat the
+printout as the gate it is.
+
 **Committed regression tests** (`tests/`, see `tests/README.md`):
 - `csp-and-vendor.js` — 21 assertions: no CDN tag or CDN origin left anywhere,
   every vendor file present, and the app booted under the **real CSP read from

@@ -207,6 +207,12 @@ printout came out visibly faded.
 >
 > 0.65 was measured: below it the residue survives (0.55 → 7.7% dark against
 > 5.3% of real ink), above it the strokes erode (0.70 → 5.2%).
+>
+> **Confirmed on a real printer, 2026-08-08.** No box, and the signature is
+> present and legible. Both halves had to be checked: that the ink is black,
+> and that the signature is still *there* — a threshold slightly too high
+> erases faint strokes, and a missing signature on a filed record is worse than
+> either defect this replaced.
 
 The print CSS **used to** apply
 `filter: brightness(0)` plus **three** `drop-shadow(0 0 0 #000)` passes.
