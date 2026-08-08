@@ -9,6 +9,8 @@ import { getClient } from './lib/supabase.js';
 import { useAuthStore } from './stores/auth.js';
 import { useHydrantsStore, PULL_EVERY } from './stores/hydrants.js';
 import { useRecordsStore } from './stores/records.js';
+import { useRecordSyncStore } from './stores/record-sync.js';
+import { usePendingStore } from './stores/pending.js';
 import { counts as countsOf } from './stores/filters-logic.js';
 
 /* The app shell.
@@ -40,12 +42,14 @@ import { counts as countsOf } from './stores/filters-logic.js';
  * upload, so an officer with no signal still gets their next card
  * (docs/KAD-REKOD.md §2).
  *
- * NOT yet wired, and it must be before cutover: the cloud record round trip
- * (`cloudFormLoad` / `cloudFormSave` / `deleteRows`), signed-link resolution,
- * signature capture, and the offline pending queue on this view. Those are the
- * paths §4.10, §4.13 and §4.14 all live in, and they are not to be reconstructed
- * from memory — they get ported line by line with their parity suites, as
- * Phase 1 did for the logic.
+ * The cloud round trip is now wired too, through `record-sync.js`, which is
+ * ported line by line and guarded by `tests/v2-record-sync.js`. The order in
+ * `open()` matters and is not to be rearranged: FLUSH first, then read, then
+ * overwrite the cache. Overwriting is only safe because the flush parked
+ * anything unsent — that is the whole of §4.10.
+ *
+ * Still not wired, and needed before cutover: signed-link resolution and
+ * signature capture.
  */
 const SUPABASE_URL = 'https://isxfhocfkjamjchmicwq.supabase.co';
 // The PUBLISHABLE key, same one V1 ships in plain sight. It is not a secret:
@@ -58,6 +62,8 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || 'sb_publishable_T3MxpZ
 const auth = useAuthStore();
 const hydrants = useHydrantsStore();
 const records = useRecordsStore();
+const sync = useRecordSyncStore();
+const pending = usePendingStore();
 
 const sb = ref(null);
 const tab = ref('map');
@@ -80,7 +86,7 @@ const counts = computed(() => countsOf(hydrants.list));
 // "Belum diperiksa" rather than being guessed at — a wrong figure on a
 // dashboard is worse than an honest zero.
 const inspStatusOf = () => 'none';
-const hasPending = () => false;
+const hasPending = (id) => pending.has(id);
 
 async function signIn({ email, password, clear }) {
   authError.value = '';
@@ -140,10 +146,22 @@ async function addHydrant(h) {
  * boolean to fall out of step with it. */
 const openHydrant = ref(null);
 
-function openCard(h) {
+async function openCard(h) {
   records.load(h.id);
   if (!records.form.header.lokasi && h.location) records.form.header.lokasi = h.location;
   openHydrant.value = h;
+  // The card shows the cached copy immediately and catches up when the cloud
+  // answers. Making the officer wait on a field connection to see a record
+  // they already have is the wrong trade.
+  const res = await sync.open(sb.value, h.id, records.form);
+  if (res.changed) {
+    if (!res.form.header.lokasi && h.location) res.form.header.lokasi = h.location;
+    records.form = res.form;
+    records.saveLocal(h.id, res.form);
+  }
+  // A last row completed on ANOTHER device arrives here, not through a
+  // keystroke, so the next card has to be offered on open too.
+  if (records.needsNewCard(records.form)) records.grow(records.form);
 }
 function closeCard() { openHydrant.value = null; }
 
@@ -159,9 +177,11 @@ function editCell(e) {
   row[e.key] = e.value;
 }
 
-function saveCard() {
+async function saveCard() {
   const h = openHydrant.value;
   if (!h || !records.form) return;
+  // LOCAL FIRST, always. The new card and the officer's own copy must not
+  // depend on a request succeeding (docs/KAD-REKOD.md §2).
   records.saveLocal(h.id, records.form);
   // Growth is triggered from Save, never from a keystroke: a half-typed row is
   // not a record, and a card conjured by one stray keypress is a card the
@@ -171,6 +191,7 @@ function saveCard() {
   const hy = hydrants.list.find((x) => x.id === h.id);
   if (hy) hy.lastInspected = d || '';
   hydrants.persist();
+  await sync.save(sb.value, h.id, records.form, auth.isAdmin);
 }
 
 function clearFilters() { statusFilter.value = null; inspFilter.value = null; zoneFilter.value = null; }
@@ -186,7 +207,14 @@ function tickClock() {
 // Every one of these is a QUIET pull — noFitOnce is armed, so the map records
 // the new key without re-fitting. A pull that brings in a hydrant someone else
 // added must never jump the view away from what an officer is reading (§3).
-const quiet = () => { if (auth.ready) hydrants.pullFresh(sb.value); };
+/* Anything parked from an earlier offline session goes up automatically when
+ * the connection returns — the officer should not have to open every pili to
+ * find what has not synced. */
+function flushAll() {
+  if (!sb.value || !auth.ready) return;
+  pending.ids().forEach((id) => sync.flush(sb.value, id));
+}
+const quiet = () => { if (auth.ready) { hydrants.pullFresh(sb.value); flushAll(); } };
 const onVisible = () => { if (!document.hidden) quiet(); };
 let clockTimer = null, pollTimer = null;
 
@@ -266,6 +294,7 @@ onBeforeUnmount(() => {
 
     <KadRekod v-if="openHydrant && records.form"
               :hydrant="openHydrant" :form="records.form" :is-admin="auth.isAdmin"
+              :last-edit="sync.lastEdit" :cloud-note="sync.note"
               @close="closeCard" @save="saveCard" @edit="editCell" />
 
     <AuthGate v-if="!auth.ready" :busy="authBusy" :error="authError" @sign-in="signIn" />

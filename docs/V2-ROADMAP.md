@@ -663,15 +663,44 @@ part that would quietly vanish if someone normalised the heights to one value.
 Also verified red on: an overlay that is not a direct child of body (3
 failures), and a screen order that stops being newest-first (2).
 
-#### Still to port before cutover — and NOT to be reconstructed from memory
+#### The cloud round trip — ported, with its own suite
 
-The cloud record round trip (`cloudFormLoad`, `cloudFormSave`, `deleteRows`),
-signed-link resolution, signature capture, and the offline pending queue on
-this view. **§4.10 (offline data destroyed), §4.13 (a row that could never be
-cleared) and §4.14 (a failed flush discarding parked work) all live in exactly
-those paths.** They get ported line by line with parity suites, the way Phase 1
-did for the logic — and `p0-offline-sync.js` and `clear-row.js` still describe
-the behaviour they must produce.
+`v2/src/stores/record-sync.js`, guarded by **`tests/v2-record-sync.js`, 38
+assertions.** This is the V2 counterpart of `p0-offline-sync.js` and
+`clear-row.js`, which test V1's `index.html` and were watching nothing in V2.
+
+The suites were written from V1's scenarios **before** the port was trusted,
+and the four defect classes were each verified red by removing their guard:
+
+| Mutation | Failures |
+|---|---|
+| A failed flush drops the parked work (§4.14) | 4 |
+| Clearing never issues a DELETE (§4.13) | 3 |
+| Save does not park before the request (§4.10) | 9 |
+| Signed permanence relies on the in-memory flag alone | 1 |
+
+**One real defect, and it is V2-only.** `deadRows` refused to delete a row
+carrying `_signed` — which was sufficient in V1, because V1 always wrote *into*
+the existing row object so the flag survived. V2 can **replace** a row with a
+fresh blank one, and a blank row carries no `_signed`. An admin clearing a
+signed row therefore produced a DELETE for it, and the row went. The database
+trigger would have refused it — but a client that has to be caught by the
+trigger is a client that will eventually find a path around it. Signedness is
+now also snapshotted from the server at open, where no UI action can lose it.
+
+**And one assertion that passed for the wrong reason**, which is worth more
+than the defect. The follow-up case — permanence surviving a *preceding* save —
+went green on the first run. Not because the guard worked: `save()`
+re-snapshots the base from the rows it just wrote, a signed row is never in
+that payload, so the row's *base* was forgotten too and `deadRows` skipped it
+as "cloud never held this". Right outcome, accidental reason. Remove the base
+coincidence and a signed row becomes deletable again. The signed map is now
+merged rather than replaced — additive only, since signedness can never be
+withdrawn.
+
+#### Still to port before cutover
+
+Signed-link resolution and signature capture. Nothing else on this view.
 
 #### And the gate that no suite can give
 

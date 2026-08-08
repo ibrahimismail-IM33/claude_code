@@ -65,6 +65,20 @@ export const usePendingStore = defineStore('pending', {
 
     has(id) { return !!this.load(id); },
 
+    /* Every hydrant with unsent work, found by scanning the key prefix. Used to
+     * push everything on reconnect: an officer should not have to open each
+     * pili to discover what has not synced (CLAUDE.md §3). */
+    ids() {
+      const out = [];
+      try {
+        for (let i = 0; i < window.localStorage.length; i++) {
+          const k = window.localStorage.key(i);
+          if (k && k.indexOf(KEY_PREFIX) === 0) out.push(+k.slice(KEY_PREFIX.length));
+        }
+      } catch (e) { /* storage blocked */ }
+      return out;
+    },
+
     snapCloudBase(id, rows) {
       const m = {};
       (rows || []).forEach((r) => { m[r.section + '|' + r.row_index] = r.data || {}; });

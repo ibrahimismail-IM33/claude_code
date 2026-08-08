@@ -353,6 +353,16 @@ Draw order: caps → walls → top faces (painter's algorithm).
   signature metric and the clean signature fixture: **a fixture that cannot
   reproduce the defect proves nothing, however many assertions it carries.**
   Mutate the code and watch the test go red, every time, before trusting it.
+- **Relied on an in-memory flag to protect a permanent record.** V2's
+  `deadRows` refused to delete a row carrying `_signed`, which is what V1 does
+  and is sufficient *there* — V1 always writes into the existing row object, so
+  the flag survives. V2 can **replace** a row with a fresh blank one, and a
+  blank row carries no `_signed`. An admin clearing a signed row produced a
+  DELETE for it. The trigger would have refused it, but **a client that has to
+  be caught by the trigger will eventually find a path around it.** Permanence
+  is now also read from the server's own `signed` column, snapshotted at open.
+  The wider point: when a rule is enforced in several layers, the client's copy
+  of it must not depend on state a UI action can quietly drop.
 - **Moved the record card into a component and it stopped printing.** V1's
   print rule is `body.form-open > *:not(#formOverlay){display:none!important}`.
   In V2 the card renders inside `#app`, so `#app` matched that rule and the
