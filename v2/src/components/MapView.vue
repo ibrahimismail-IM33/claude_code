@@ -22,6 +22,10 @@ const props = defineProps({
   // recorded WITHOUT fitting, so the next genuine change still fits.
   noFitOnce: { type: Boolean, default: false },
   adding: { type: Boolean, default: false },
+  // Bumped by a search. V1 does the same with `fittedKey = ""` inside
+  // applySearch: without it a search finds three pili and leaves the view
+  // exactly where it was, which reads as the search having done nothing.
+  refit: { type: Number, default: 0 },
 });
 const emit = defineEmits(['pick', 'pickLatLng', 'fitted']);
 
@@ -81,7 +85,15 @@ onMounted(async () => {
   onBeforeUnmount(() => window.removeEventListener('resize', fix));
 });
 
-watch(() => props.visible, draw, { deep: false });
+/* ONE watcher, not two. A search changes `visible` and bumps `refit` in the
+ * same tick, and two watchers would fit the map twice — one wasted animation
+ * on a phone, and a second fit racing the first. The reset happens before the
+ * draw so the single fitDecision() sees a cleared key, exactly as V1's
+ * applySearch does. */
+watch(() => [props.visible, props.refit], ([, r], old) => {
+  if (old && r !== old[1]) fittedKey = '';
+  draw();
+}, { deep: false });
 </script>
 
 <template>

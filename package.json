@@ -4,7 +4,7 @@
   "private": true,
   "description": "Build and test tooling for e-Pili Bomba Kunak. V1 — what officers run today — is still one static index.html with no build step. The Vite/Vue/Pinia dependencies belong to the V2 migration (docs/V2-ROADMAP.md) and reach nobody until cutover.",
   "scripts": {
-    "test": "npm run test:wiring && npm run test:offline && npm run test:clear && npm run test:kad && npm run test:zones && npm run test:paging && npm run test:csp && npm run test:signatures && npm run test:v2csp && npm run test:v2pending && npm run test:v2filters && npm run test:v2hydrants && npm run test:v2records && npm run test:v2donut && npm run test:v2dashdata && npm run test:v2dash && npm run test:v2css && npm run test:v2jadual && npm run test:v2map && npm run test:v2mapview",
+    "test": "npm run test:wiring && npm run test:offline && npm run test:clear && npm run test:kad && npm run test:zones && npm run test:paging && npm run test:csp && npm run test:signatures && npm run test:v2csp && npm run test:v2pending && npm run test:v2filters && npm run test:v2hydrants && npm run test:v2records && npm run test:v2donut && npm run test:v2dashdata && npm run test:v2dash && npm run test:v2css && npm run test:v2jadual && npm run test:v2map && npm run test:v2mapview && npm run test:v2mapsearch",
     "test:offline": "node tests/p0-offline-sync.js",
     "test:clear": "node tests/clear-row.js",
     "test:kad": "node tests/kad-rekod.js",
@@ -25,7 +25,8 @@
     "test:v2jadual": "node tests/v2-jadual-parity.js",
     "test:wiring": "node tests/suite-wiring.js",
     "test:v2map": "node tests/v2-map-parity.js",
-    "test:v2mapview": "node tests/v2-map-view.js"
+    "test:v2mapview": "node tests/v2-map-view.js",
+    "test:v2mapsearch": "node tests/v2-map-search-add.js"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "6.0.8",

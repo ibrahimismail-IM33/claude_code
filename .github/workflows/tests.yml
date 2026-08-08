@@ -155,3 +155,9 @@ jobs:
       # any error will ever report.
       - name: V2 map components (fitBounds counted during a background pull)
         run: npm run test:v2mapview
+
+      # Search and the add modal. The headline is that a search IGNORES the
+      # Awam/Swasta pills — if it ever respected them, a pili sitting in the
+      # register would report as missing, and that reads as a lost hydrant.
+      - name: V2 place search and add-hydrant modal
+        run: npm run test:v2mapsearch

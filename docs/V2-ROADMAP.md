@@ -437,7 +437,54 @@ The import is now lazy and only loads when nothing has provided an `L`, which
 also moved 148 KB of Leaflet out of the main chunk: the harness bundle went from
 176 KB to 29.5 KB.
 
-**Still to do:** place search and the add-hydrant modal.
+### Place search and the add-hydrant modal — done
+
+`SearchBox.vue` and `AddHydrantModal.vue`, with `searchInfo()` in
+`filters-logic.js` and the add rules (`validAdd`, `newHydrant`, the geolocation
+messages) in `map-logic.js`. Guarded by **`tests/v2-map-search-add.js`, 56
+assertions.**
+
+Two behaviours carry the piece, and neither announces itself when it breaks.
+
+**A search ignores the Awam/Swasta pills.** `visible()` already returns the
+search matches before it looks at any axis, so this is a property of the port
+rather than of the components — but the *consequence* is the components': the
+result line has to say the pill was ignored, or the box reports "1 pili
+dijumpai" while a pill claims to be narrowing the view and the two silently
+disagree. If a search ever did respect the pill, a pili sitting in the register
+would report as **Tiada pili dijumpai**, which reads as a lost hydrant, not as
+a filter.
+
+**A search re-fits the map.** V1 clears `fittedKey` inside `applySearch`.
+`MapShell` bumps a `refit` counter that `MapView` watches, in the **same**
+watcher as `visible` — two watchers fit twice, once wastefully, on a phone.
+
+The second is the one worth recording, because **the first version of that
+assertion was blind.** Deleting the `fittedKey` reset left every search test
+green: a narrowing search changes the visible set, so the key differs and the
+map fits anyway. The reset only matters for a search whose matches are the set
+already fitted — the officer has panned and zoomed by hand, and V1 re-centres
+regardless. That case is now asserted, and it is the only mutation of the four
+that the suite could not originally see.
+
+Verified red on four mutations: a search that respects the pill (2 failures), a
+missing `fittedKey` reset, a blank label accepted by the add form, and a dropped
+`box-sizing:border-box` — which is how the phone widths were found overflowing
+sideways (§4.9). V1's reset block was missing from `tokens.css` entirely; it is
+now carried verbatim, and the overflow assertions at 360/390/430px are what
+caught it.
+
+The add modal is asserted on its **validation**, not its looks: a hydrant with
+a bad coordinate is a pin in the sea, and the officer who typed it is standing
+next to the real one with no way to tell. Save stays disabled and reads
+"Fill Lat/Long" until the label and both coordinates are valid, a map tap fills
+the fields live while the modal is open and is ignored when it is not, and
+"Guna Lokasi Saya" keeps V1's Bahasa Malaysia messages — including the
+low-accuracy warning at 30 m, which tells the officer to re-take the fix rather
+than accepting it quietly. The button depends on `geolocation=(self)` in
+`_headers`; nothing in the component can compensate for that header's absence.
+
+**Phase 3 is complete.**
 
 ---
 

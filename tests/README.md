@@ -16,7 +16,7 @@ evidence. The selectors they depend on are written down in
 
 ```sh
 npm ci                       # once
-npm test                     # all twenty suites
+npm test                     # all twenty-one suites
 npm run test:wiring          # or one at a time
 npm run test:offline
 npm run test:clear
@@ -46,7 +46,7 @@ Exit code is 0 when everything passes, 1 otherwise.
 
 ## CI
 
-`.github/workflows/tests.yml` runs all twenty suites on **every push and pull
+`.github/workflows/tests.yml` runs all twenty-one suites on **every push and pull
 request**, and `publish-to-site.yml` calls the same workflow and will not
 publish until it passes:
 
@@ -91,6 +91,7 @@ bumping the `playwright` version in `package.json` needs no change here.
 | `v2-jadual-parity.js` | The schedule's period filter and sort, against V1's real source. The order has already been changed twice (upcoming-first → newest-entry-first → **latest Tarikh first**) and has two tie-breaks under it, which is exactly the kind of rule a port gets 90% right: the common case looks fine while rows sharing a date sit wrong, and nobody notices until an admin says the list "looks odd". Also covers `dmy`, which parses the ISO pieces directly instead of going through `new Date()` — that reads the string as UTC midnight and renders it back in local time, silently shifting the displayed date by a day. Verified red on a reversed sort, a dropped tie-break, and a `dmy` routed through `Date()` under `TZ=America/New_York`. |
 | `v2-map-parity.js` | The map layer against V1's real source: the palette, the date badge, the marker HTML and icon geometry, the tooltip — and **the fit rule**, which is why the suite exists. "A background pull must never re-fit the map" (§3) is a rule about something *not* happening, so the failure is never an error: the map just jumps away from whatever an officer is reading, mid-read, on a phone. V1 expresses it inline in `renderMarkers` with a one-shot `noFitOnce` flag, so the transcription is guarded — edit that code and this throws rather than comparing against a stale copy. The rule is also asserted directly, not only by parity, because if V1 ever regressed a pure comparison would happily agree with it. Verified red on three mutations: a background pull that re-fits, an empty result that fits, and an order-sensitive key. |
 | `v2-map-view.js` | The V2 map components mounted in Chromium against a Leaflet stub that **records what the app asked it to do**. `v2-map-parity.js` proves the fit decision in isolation; this proves the component obeys it. The headline is a negative assertion — **`fitBounds` called 0 times during a background pull** — because "the map did not move" is not something any error will ever report. Also covers the three filter axes stacking with AND, the date badge and unsent "!" on the right pins, the registry counting the *view* while the pill counts stay over the *whole register*, and the banner naming every active filter and clearing all of them. Verified red on a `MapView` that ignores `noFitOnce`. |
+| `v2-map-search-add.js` | Place search and the **Tambah Pili Bomba** modal, mounted in Chromium. Two behaviours carry the suite. **A search ignores the Awam/Swasta pills** and says so in the result line — if it ever respected them, a pili sitting in the register would report as "Tiada pili dijumpai", which reads as a lost hydrant rather than as a filter. And **a search re-fits the map**: V1 clears `fittedKey` inside `applySearch`, and the only case that proves the reset is a search whose matches are the set already fitted — every narrowing search changes the key by itself, so the first version of this assertion was blind and the reset could be deleted with everything still green. Also: the ✕ and Escape (which must blur, or the phone keyboard stays up), admin-only add, the three validation axes with save disabled and reading "Fill Lat/Long", a map tap filling the coordinates live while the modal is open and being ignored when it is not, and the Bahasa Malaysia geolocation messages including the low-accuracy warning. Verified red on four mutations: a search that respects the pill, a missing `fittedKey` reset, a blank label accepted, and a dropped `box-sizing:border-box` (which overflows the phone widths sideways — §4.9). |
 
 ## Adding to this
 

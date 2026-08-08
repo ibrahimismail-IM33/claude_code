@@ -88,3 +88,83 @@ export function tipHtml(h, pending) {
     + '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;opacity:.7">' + (h.lastInspected ? 'Inspected: ' + esc(h.lastInspected) : 'No inspection date') + '</div>'
     + (pending ? '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#fbbf24">! Belum dihantar ke pelayan</div>' : '') + '</div>';
 }
+
+/* ---- adding a hydrant ------------------------------------------------------
+ *
+ * Ported from V1's openAdd(). The validation is the whole point of the modal:
+ * a hydrant with a bad coordinate is a pin in the sea, and the officer who
+ * typed it is standing next to the real one with no way to tell.
+ *
+ * Kept pure and separate so the rules can be asserted without a map, a modal
+ * or a geolocation prompt — none of which a headless browser gives honestly.
+ */
+export function nextId(hydrants) {
+  return hydrants.length ? Math.max.apply(null, hydrants.map((h) => h.id)) + 1 : 1;
+}
+
+// V1's default label for a new unit: "PILI 07". Deliberately NOT a zone label —
+// zones are derived from what the officer types, never invented here.
+export function defaultLabel(hydrants) {
+  return 'PILI ' + pad(nextId(hydrants));
+}
+
+export function today() { return new Date().toISOString().split('T')[0]; }
+
+// A future inspection date is not a record of anything, so it is pulled back
+// to today rather than rejected — the officer keeps typing either way.
+export function clampDate(v) { return (v && v > today()) ? today() : v; }
+
+export function validAdd(lat, lng, label) {
+  const a = parseFloat(lat), b = parseFloat(lng);
+  return {
+    la: !isNaN(a) && a >= -90 && a <= 90,
+    lo: !isNaN(b) && b >= -180 && b <= 180,
+    lb: String(label == null ? '' : label).trim().length > 0,
+  };
+}
+
+export function canAdd(lat, lng, label) {
+  const v = validAdd(lat, lng, label);
+  return v.la && v.lo && v.lb;
+}
+
+// V1 stamps every new pili with the station's district. Left as one literal in
+// one place: docs/PRD.md §7 rules that district becomes a COLUMN if a second
+// district ever arrives, and a hard-coded string in a single spot is a
+// one-line change then. Do not spread it.
+export const NEW_LOCATION = 'Kunak, Sabah';
+
+export function newHydrant(hydrants, { label, lat, lng, status, insp }) {
+  return {
+    id: nextId(hydrants),
+    label: String(label).trim(),
+    lat: parseFloat(lat),
+    lng: parseFloat(lng),
+    status,
+    location: NEW_LOCATION,
+    lastInspected: clampDate(insp),
+  };
+}
+
+/* The geolocation failure messages, in Bahasa Malaysia, keyed by the
+ * PositionError code. Field-facing text: each one says what to DO, because an
+ * officer standing beside a hydrant cannot act on "error 2". */
+export function geoMessage(err) {
+  if (!err) return 'Tidak dapat mengambil lokasi.';
+  if (err.code === 1) return 'Kebenaran lokasi ditolak. Benarkan akses lokasi dalam tetapan pelayar.';
+  if (err.code === 2) return 'Isyarat GPS tidak dijumpai. Cuba di kawasan lapang.';
+  if (err.code === 3) return 'Terlalu lama menunggu isyarat GPS. Sila cuba lagi.';
+  return 'Tidak dapat mengambil lokasi.';
+}
+
+// Accuracy is reported rather than hidden, and 30 m is the line V1 draws: a
+// pin that vague is worth re-taking in the open.
+export function geoAccuracyMessage(accuracy) {
+  const acc = Math.round(accuracy || 0);
+  return {
+    text: 'Lokasi diambil — ketepatan lebih kurang ' + acc + ' meter.'
+      + (acc > 30 ? ' Ketepatan rendah; cuba di kawasan lapang.' : ''),
+    colour: acc > 30 ? '#fcd34d' : '#86efac',
+    low: acc > 30,
+  };
+}

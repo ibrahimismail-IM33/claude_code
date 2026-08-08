@@ -35,6 +35,9 @@ const fixture = reactive(Object.assign({
   query: '',
   noFitOnce: false,
   adding: false,
+  draft: null,
+  saving: false,
+  addError: '',
   pending: [],          // hydrant ids with unsent work
   insp: {},             // id -> 'ok' | 'wait' | 'none'
 }, window.__fixture || {}));
@@ -55,6 +58,10 @@ createApp({
         query: fixture.query,
         noFitOnce: fixture.noFitOnce,
         adding: fixture.adding,
+        isAdmin: fixture.isAdmin,
+        draft: fixture.draft,
+        saving: fixture.saving,
+        addError: fixture.addError,
         inspStatusOf: (hy) => fixture.insp[hy.id] || 'none',
         hasPending: (id) => fixture.pending.indexOf(id) >= 0,
         onPick: record('pick'),
@@ -65,6 +72,9 @@ createApp({
           fixture.statusFilter = null; fixture.inspFilter = null; fixture.zoneFilter = null;
         },
         onFitted: record('fitted'),
+        onSearch: (v) => { window.__events.push(['search', v]); fixture.query = v; },
+        onCloseAdd: () => { window.__events.push(['close-add', null]); fixture.adding = false; },
+        onAddHydrant: record('add'),
       });
     }
     return h(DashView, {

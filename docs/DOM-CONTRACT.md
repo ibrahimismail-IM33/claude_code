@@ -40,6 +40,14 @@ time of writing.
 | `#dashZones .zrow` | `zone-panel` | One zone row. **Buttons, never a table** — `#dashView table` carries `min-width:460px` and would push a phone sideways (§4.9) |
 | `.zk` / `.zr` / `.zc` | `zone-panel` | Zone letter / range / count inside a `.zrow` |
 | `#dashZoneNote` | `zone-panel` | Caption. Carries the unparsed-label count and any range/count disagreement — the two ways the panel could quietly lie |
+| `#searchInput` | `v2-map-search-add`, and V1's `goMapSearch` | The place-search box. The dashboard writes into it directly, so it is an interface between two views |
+| `#searchClear` | `v2-map-search-add` | The ✕. Carries `.hide` while the box is empty |
+| `#searchResult` | `v2-map-search-add` | The result line. `.none` is the empty state and `.note` is the "pills ignored" explanation — **the note is not decoration**: without it a search and a pill silently disagree |
+| `#hint` | `v2-map-search-add` | "Click anywhere on map to set lat / long". Shown only while adding |
+| `#aLabel` / `#aLat` / `#aLng` / `#aInsp` | `v2-map-search-add` | Add-modal fields. `.bad` marks an out-of-range coordinate, `#aLatErr` / `#aLngErr` state the range |
+| `#aGeo` / `#aGeoTxt` / `#aGeoMsg` | `v2-map-search-add` | "Guna Lokasi Saya" and its status line. Needs `geolocation=(self)` in `_headers` — nothing in the app can compensate for that header's absence |
+| `#aSave` | `v2-map-search-add` | Add button. **Disabled until the label and both coordinates are valid**, and reads "Fill Lat/Long" until then |
+| `.cls[data-s=…]` | `v2-map-search-add` | Classification buttons in the add modal. `.sel` marks the chosen one |
 | `#dOpenForm` | `kad-rekod`, `clear-row` | "Kad Rekod" button in the hydrant detail modal |
 
 ### Kad Rekod
