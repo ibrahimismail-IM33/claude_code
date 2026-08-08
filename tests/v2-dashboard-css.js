@@ -109,6 +109,35 @@ const READ = (probes) => {
 (async () => {
   execFileSync('npx', ['vite', 'build'], { cwd: ROOT, stdio: 'pipe', env: { ...process.env, V2_HARNESS: '1' } });
 
+  /* THE STYLESHEET MUST BALANCE.
+   *
+   * An unbalanced stylesheet does not fail and does not warn: a missing `}`
+   * makes the parser NEST everything after it inside the unclosed block, so
+   * those rules simply stop applying. It happened here — a transcription cut
+   * `.cards .card` in half, map.css came out one `}` short, and because
+   * main.js imports dashboard.css AFTER map.css the entire dashboard silently
+   * lost its styling while every build stayed green and the app still
+   * rendered.
+   *
+   * Checked on the BUILT file, because that is what the browser parses and it
+   * is the concatenation of all four stylesheets — the place where one file's
+   * missing brace becomes another file's problem. Counting braces in the
+   * sources is not equivalent and gives false positives: `{` and `}` appear
+   * inside comments and in @keyframes prose. */
+  const cssFile = fs.readdirSync(path.join(DIST, 'assets')).find((f) => f.endsWith('.css'));
+  check('exactly one stylesheet is emitted (cssCodeSplit:false)', !!cssFile, true);
+  const cssText = fs.readFileSync(path.join(DIST, 'assets', cssFile), 'utf8');
+  let depth = 0, wentNegative = false;
+  for (const ch of cssText) {
+    if (ch === '{') depth++;
+    else if (ch === '}') { depth--; if (depth < 0) wentNegative = true; }
+  }
+  check('the built stylesheet has balanced braces', [depth, wentNegative], [0, false]);
+  // A rule from the LAST stylesheet in the import chain: if anything earlier
+  // swallowed it, this is what goes missing first.
+  check('dashboard rules survived the concatenation',
+    /#dashView[^{}]*\.dcard[^{}]*\{/.test(cssText), true);
+
   const server = http.createServer((req, res) => {
     const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'harness.html';
     const file = path.join(DIST, rel);

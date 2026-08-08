@@ -1,7 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
 import MapView from './MapView.vue';
-import Pills from './Pills.vue';
 import Registry from './Registry.vue';
 import Banner from './Banner.vue';
 import SearchBox from './SearchBox.vue';

@@ -353,6 +353,27 @@ Draw order: caps → walls → top faces (painter's algorithm).
   signature metric and the clean signature fixture: **a fixture that cannot
   reproduce the defect proves nothing, however many assertions it carries.**
   Mutate the code and watch the test go red, every time, before trusting it.
+- **Cut a CSS rule in half and lost a whole stylesheet, silently.** Copying
+  V1's mobile block into `map.css` I sliced through `.cards .card`, leaving the
+  file one `}` short. **An unbalanced stylesheet does not fail and does not
+  warn** — the parser NESTS everything after the unclosed block inside it, so
+  those rules just stop applying. Because `main.js` imports `dashboard.css`
+  after `map.css`, the entire dashboard lost its styling while the build stayed
+  green and the app still rendered. Two things worth carrying: **transcribe
+  whole rules, never line ranges**, and counting braces in the *sources* is not
+  a check — `{` and `}` appear inside comments and `@keyframes` prose, which
+  gives false answers in both directions. The built file is what the browser
+  parses, and `tests/v2-dashboard-css.js` now checks its balance there.
+- **Recommended a deploy off an app that did not exist.** I described V2 as
+  "done minus login and the record card" and proposed a staging deploy on that
+  basis. `v2/src/App.vue` was still the **CSP probe** written as scaffolding in
+  Phase 0 — the production bundle had contained no application for three
+  phases, while every component suite ran green, because they all mount
+  components through the test harness rather than through the app. One command
+  against the built bundle would have shown it, and I ran that command only
+  after recommending the deploy. **A green suite says the parts work, never
+  that the whole exists** — and "I know what this builds" is a claim about an
+  artefact, so check the artefact.
 - **Recommended work I could not finish.** I proposed creating a scratch
   Supabase project for a restore test "then deleting it" without first checking
   that I had a way to delete it, or a token to download the backup artifact. I

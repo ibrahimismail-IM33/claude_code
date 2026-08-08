@@ -495,6 +495,110 @@ Login gate, account menu, role UI, the mobile hamburger, the z-index ladder
 listed separately because it is the last thing standing between V2 and the record
 card.
 
+### What Phase 4 found first: THERE WAS NO APP
+
+`v2/src/App.vue` was a **CSP probe** — a count and two buttons, written in
+Phase 0 so `v2-csp.js` had something to boot under the hardened policy. It was
+never replaced. For three phases the production bundle contained **no
+application at all**, while every component suite ran green, because every one
+of them mounts components through the test harness rather than through the app.
+
+Found by checking the production entry point before recommending a staging
+deploy off it. The check took one command; the belief it corrected had been
+stated confidently twice.
+
+**The lesson is the important part: a green suite says the parts work, never
+that the whole exists.** The harness is a good tool and it has caught real
+defects, but a component proven in isolation is not a shipped component. There
+is now one assertion that cannot pass without an assembled app — `v2-csp.js`
+mounts `.app` and requires the login gate — and it replaced the probe assertion
+that could have passed forever.
+
+### Built
+
+`App.vue` (the real one), `AppHeader.vue`, `AuthGate.vue`, and
+`v2/src/styles/shell.css` copied verbatim. Guarded by **`tests/v2-shell.js`,
+50 assertions**.
+
+The shell owns three things, and each is above the components on purpose:
+
+- **The scope filters.** Awam/Swasta is read by the map *and* the dashboard, so
+  it lives above both. §4.2 was the opposite arrangement.
+- **The session.** Nothing renders below the gate until a role resolves — not
+  as a security control (RLS decides that, in the database, as the calling
+  role) but because an app rendered before its session exists reads the
+  register as empty and looks like 187 deleted hydrants.
+- **The refresh cadence.** Foreground, focus, online, plus a 60s poll while
+  visible, throttled to one pull per 10s, nothing at all while hidden. Every
+  one is a *quiet* pull and must never re-fit the map.
+
+### Two defects the suite caught immediately
+
+- **The app rendered TWO sets of pills.** `MapShell` still carried the stand-in
+  set added in Phase 3 "for the harness, until the real header arrives" — and
+  when the real header arrived, nothing removed it. The harness now mounts
+  `Pills` beside `MapShell` instead, so production code carries no branch that
+  exists only for tests.
+- **A sign-out assertion that read as a failure and was not one.** `signOut`
+  reloads the page by design, so anything recorded on `window` dies with it.
+  Chromium will not let `window.location.reload` be redefined either. Recorded
+  in `sessionStorage` and observed through Playwright's navigation event
+  instead.
+
+### And one wrong claim of my own, corrected rather than defended
+
+The suite's comment asserted that a menu item cannot delegate to a
+`display:none` button because "a click on a hidden element is not dispatched".
+The mutation test disagreed: `element.click()` *does* fire on a hidden element
+— only *user* gestures require visibility. The rationale was wrong, so the
+rationale was fixed. The assertion stays, on its real merit: below 640px the
+hamburger is the **only** route to Tambah Pili and sign-out, so it is asserted
+end to end at 390px through a real user click.
+
+Verified red on: an unknown role failing open to admin, and a gate that never
+shows.
+
+### A third defect, and the one that hid best
+
+Copying V1's mobile block into `map.css`, I sliced through `.cards .card` and
+left the file **one `}` short**. An unbalanced stylesheet does not fail and does
+not warn — the parser nests everything after the unclosed block inside it, so
+those rules stop applying. `main.js` imports `dashboard.css` after `map.css`, so
+**the whole dashboard silently lost its styling** while the build stayed green,
+the app rendered, and 16 suites passed. It surfaced only in
+`v2-dashboard-css.js`, which compares computed values against V1 — 25 red at
+once.
+
+`tests/v2-dashboard-css.js` now checks brace balance on the **built** file,
+which is both what the browser parses and the point where one stylesheet's
+missing brace becomes another's problem. Counting braces in the sources is not
+equivalent: `{` and `}` appear inside comments and `@keyframes` prose.
+
+The transcription rule that follows from it: **copy whole rules, never line
+ranges.**
+
+### Staging deploy
+
+`_headers` for the V2 bundle lives at `v2/public/_headers` (Vite copies it into
+`dist/`), and `.github/workflows/deploy-staging.yml` builds, verifies and
+uploads to a **separate** Cloudflare Pages project. It runs on the V2 branches
+only and reuses `tests.yml` through `workflow_call` with `needs: test`, exactly
+as the publish gate does.
+
+The staging policy is **stricter than production**: `script-src 'self'` with no
+`'unsafe-inline'`. V1 needs that allowance because the whole app is an inline
+`<script>`; V2 is a bundle and does not. `v2-csp.js` now boots the real app
+under the **actual** staging header rather than one it synthesised itself, and
+asserts the two policies differ in `script-src` *alone* — a staging header that
+quietly widened `img-src` or `connect-src` would make its green meaningless at
+cutover. `X-Robots-Tag: noindex` is staging-only and comes off at cutover.
+
+**Two things staging cannot yet do, and both should be said to officers up
+front:** there is no Kad Rekod until Phase 5, so tapping a pin opens nothing;
+and the dashboard reports every hydrant as *Belum diperiksa*, because the
+Pengujian scan belongs to Phase 5 too. Honest zeros were chosen over guessed
+figures — a wrong number on a dashboard is worse than an obvious gap.
+
 ---
 
 ## Phase 5 — Kad Rekod *(alone, and last)*

@@ -30,21 +30,44 @@ const check = (name, got, want) => { const ok = JSON.stringify(got) === JSON.str
   console.log((ok ? '  PASS  ' : '  FAIL  ') + name + '  got=' + JSON.stringify(got) + (ok ? '' : '  want=' + JSON.stringify(want)));
   ok ? pass++ : fail++; };
 
-// The deployed CSP, read from _headers so the test cannot drift from what
-// Cloudflare sends — then hardened by dropping 'unsafe-inline' from script-src
-// ONLY. Every other directive is left exactly as deployed.
-const DEPLOYED = (fs.readFileSync(path.join(ROOT, '_headers'), 'utf8')
+/* Both real policies, read from the files Cloudflare actually reads, so this
+ * test cannot drift from what is served:
+ *
+ *   ROOT /_headers          — V1, what officers get today. Needs
+ *                             'unsafe-inline' because the whole app is an
+ *                             inline <script>.
+ *   v2/public/_headers      — the V2 bundle's own, copied into dist/ by Vite.
+ *                             Drops 'unsafe-inline'.
+ *
+ * The V2 policy is used VERBATIM below — not synthesised here. An earlier
+ * version of this file built the hardened policy itself by string-replacing
+ * V1's, which proved that a policy nobody ships would work. */
+const readCsp = (f) => (fs.readFileSync(f, 'utf8')
   .split('\n').find(l => l.trim().startsWith('Content-Security-Policy:')) || '')
   .replace(/^\s*Content-Security-Policy:\s*/, '').trim();
-const CSP = DEPLOYED.replace(/script-src 'self' 'unsafe-inline'/, "script-src 'self'");
+
+const DEPLOYED = readCsp(path.join(ROOT, '_headers'));
+const CSP = readCsp(path.join(ROOT, 'v2', 'public', '_headers'));
 
 const TYPES = { '.html':'text/html', '.js':'application/javascript', '.css':'text/css', '.png':'image/png', '.svg':'image/svg+xml' };
 
 (async () => {
-  check('the deployed policy still carries the unsafe-inline V1 needs',
+  check('V1\'s live policy still carries the unsafe-inline it needs',
     /script-src 'self' 'unsafe-inline'/.test(DEPLOYED), true);
-  check('the policy under test has dropped it',
+  check('the V2 policy that will actually ship has dropped it',
     /script-src 'self';/.test(CSP), true);
+  // Everything except script-src must match V1 exactly. A staging policy that
+  // quietly widened img-src or connect-src would make this suite's green
+  // meaningless at cutover.
+  check('and differs from V1 in script-src ALONE',
+    CSP.split(';').map(d => d.trim()).filter(d => !d.startsWith('script-src')),
+    DEPLOYED.split(';').map(d => d.trim()).filter(d => !d.startsWith('script-src')));
+  // Staging must never be indexed: it holds real hydrant data and real logins.
+  check('staging is marked noindex',
+    /X-Robots-Tag:\s*noindex/.test(fs.readFileSync(path.join(ROOT, 'v2', 'public', '_headers'), 'utf8')), true);
+  // The geolocation grant is what makes "Guna Lokasi Saya" work at all.
+  check('geolocation=(self) is carried over, or Tambah Pili loses its GPS button',
+    /Permissions-Policy:.*geolocation=\(self\)/.test(fs.readFileSync(path.join(ROOT, 'v2', 'public', '_headers'), 'utf8')), true);
   console.log('\nCSP under test:\n  ' + CSP + '\n');
 
   // V1 loads its libraries from vendor/, V2 will get them from npm. They must
@@ -113,23 +136,44 @@ const TYPES = { '.html':'text/html', '.js':'application/javascript', '.css':'tex
   // been caught passing on a bundle the browser refused to run. If the app does
   // not mount, report it and stop rather than throwing on a null element, or the
   // crash hides the finding.
-  const mounted = await p.evaluate(() => !!document.querySelector('#cspProbe'));
-  check('Vue mounted under the hardened policy', mounted, true);
+  /* This used to assert on a #cspProbe component — a stand-in that existed
+   * because no app had been assembled yet. It is now the REAL app, which is
+   * what this suite always meant to prove: the thing officers would load boots
+   * under the hardened policy. The probe could have passed forever while the
+   * production bundle contained no application at all, and for three phases it
+   * did exactly that. */
+  const mounted = await p.evaluate(() => !!document.querySelector('.app'));
+  check('the real app mounted under the hardened policy', mounted, true);
 
   if (mounted) {
-    check('the scoped stylesheet applied',
-      await p.evaluate(() => getComputedStyle(document.querySelector('.count')).fontVariantNumeric), 'tabular-nums');
+    // The gate is what an unauthenticated visitor must get, and it must be the
+    // TOP layer: z-index 100000, above modals (9999) and the form (12000). A
+    // gate something can paint over is not a gate (§4.8).
+    check('the login gate is up for an unauthenticated visitor',
+      await p.evaluate(() => !!document.querySelector('#authGate')), true);
+    check('and it sits above every other layer',
+      await p.evaluate(() => getComputedStyle(document.querySelector('#authGate')).zIndex), '100000');
+    check('the sign-in control is present and enabled',
+      await p.evaluate(() => { const b2 = document.querySelector('#authBtn'); return b2 && !b2.disabled; }), true);
 
-    // A Pinia store with a derived getter, driven through real DOM events. This
-    // is the Phase 1 shape: filters stacking with AND in one getter (§3).
-    check('store renders its initial derived count',
-      await p.evaluate(() => document.querySelector('.count').textContent), '4/4');
-    await p.click('#probeZone');
-    check('reactivity survives — one filter applied',
-      await p.evaluate(() => document.querySelector('.count').textContent), '3/4');
-    await p.click('#probeSwasta');
-    check('two filters stack with AND',
-      await p.evaluate(() => document.querySelector('.count').textContent), '1/4');
+    // The global stylesheet reached the app — a bundle that runs but arrives
+    // unstyled looks like a broken deploy and is easy to miss in a headless run.
+    check('the global stylesheet applied',
+      await p.evaluate(() => getComputedStyle(document.querySelector('header')).zIndex), '1000');
+
+    // Reactivity, driven through a real DOM event under the real policy: no
+    // inline handler, no eval, and the framework still responds.
+    check('reactivity survives the policy',
+      await p.evaluate(async () => {
+        const i = document.querySelector('#authEmail');
+        i.value = 'a@b.c';
+        i.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 60));
+        document.querySelector('#authBtn').click();
+        await new Promise((r) => setTimeout(r, 120));
+        const e = document.querySelector('#authErr');
+        return !!e && !e.classList.contains('hide');
+      }), true);
   } else {
     console.log('  ----  app did not mount; skipping the behavioural checks');
     fail++;

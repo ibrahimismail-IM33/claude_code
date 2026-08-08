@@ -1,0 +1,134 @@
+# ============================================================================
+#  Deploy the V2 bundle to the STAGING Cloudflare Pages project
+#
+#  WHY THIS EXISTS
+#    V2 is held back from officers until cutover, so they would otherwise meet
+#    the entire rewrite on one day — and every serious bug this app has had
+#    (§4.10 offline data destroyed, §4.13 a row that could never be cleared,
+#    three print defects) was found by a person USING it, two in the field and
+#    one on paper. None was found by review. Staging is how that feedback
+#    arrives before cutover instead of after.
+#
+#  WHAT IT PUBLISHES
+#    `dist/` only — the Vite build of v2/. It never touches index.html,
+#    _headers or vendor/ at the repo root: those are V1, and publish-to-site.yml
+#    remains the only thing that ships them.
+#
+#  THE GATE IS THE POINT
+#    `needs: test` with tests.yml reused via `workflow_call`, exactly as
+#    publish-to-site.yml does. One definition of how tests run, so the gate
+#    cannot drift from the thing it is gating (CLAUDE.md §3). A staging deploy
+#    that ships red is worse than none: officers would report bugs that are
+#    already known and already failing in CI.
+#
+#  SAFETY
+#    - Runs on the V2 branches ONLY. It must never fire for `main`.
+#    - The staging project is SEPARATE from the live site's Pages project, so
+#      there is no path by which this reaches epilibomba.com.
+#    - dist/_headers (from v2/public/) carries X-Robots-Tag: noindex and drops
+#      'unsafe-inline' from script-src. Staging holds real hydrant data and
+#      real officer logins; it must not be indexed.
+#
+#  SETUP REQUIRED ONCE, BY A HUMAN
+#    1. Cloudflare dashboard → Workers & Pages → Create → Pages → "Direct
+#       Upload". Name it `epilibomba-staging`. Do NOT connect it to a git repo
+#       — this workflow uploads the build.
+#    2. Create an API token with the "Cloudflare Pages — Edit" permission.
+#    3. Add two repository secrets here:
+#         CLOUDFLARE_API_TOKEN
+#         CLOUDFLARE_ACCOUNT_ID
+#    Until those secrets exist the deploy step is skipped and the job still
+#    builds and tests, so a missing secret shows up as "skipped", never as a
+#    silent success.
+# ============================================================================
+name: Deploy V2 staging
+
+on:
+  push:
+    branches:
+      - claude/epb-v2
+      - claude/epb-v2-**
+  workflow_dispatch:
+
+concurrency:
+  group: staging-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  # Reused, not duplicated — see publish-to-site.yml. If this ever becomes a
+  # copy of the test steps, the gate has detached from what it gates.
+  test:
+    uses: ./.github/workflows/tests.yml
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      # No V2_HARNESS here. The component harness must never reach a deployed
+      # page — v2-csp.js asserts its absence from a production build, and this
+      # is the build that would carry it if the flag leaked in.
+      - name: Build the V2 bundle
+        run: npx vite build
+
+      # A deploy that quietly shipped V1's policy, or a bundle with a CDN in
+      # it, would undo the two things this migration is buying. Checked against
+      # the artefact rather than the source, because the artefact is what ships.
+      - name: Verify the built bundle before it goes anywhere
+        run: |
+          set -e
+          test -f dist/index.html || { echo "::error::no dist/index.html"; exit 1; }
+          test -f dist/_headers   || { echo "::error::dist/_headers missing — v2/public/_headers did not get copied"; exit 1; }
+          SCRIPT_SRC=$(grep '^ *Content-Security-Policy:' dist/_headers | sed 's/.*script-src\([^;]*\).*/\1/')
+          case "$SCRIPT_SRC" in
+            *unsafe-inline*|*unsafe-eval*) echo "::error::script-src is not 'self' alone:$SCRIPT_SRC"; exit 1 ;;
+          esac
+          grep -q "X-Robots-Tag: *noindex" dist/_headers || { echo "::error::staging is not marked noindex"; exit 1; }
+          if grep -rEl "unpkg\.com|cdn\.jsdelivr\.net|cdnjs\.cloudflare\.com" dist/ ; then
+            echo "::error::a CDN origin reappeared in the bundle"; exit 1
+          fi
+          # sql/ and tests/ must never be published, on any surface.
+          test ! -e dist/sql   || { echo "::error::sql/ in the bundle";   exit 1; }
+          test ! -e dist/tests || { echo "::error::tests/ in the bundle"; exit 1; }
+          echo "bundle OK:"; ls -la dist
+
+      # `env.X` does NOT resolve inside the same step's `if:`, so whether the
+      # secrets exist has to become an output first. Written this way because
+      # the obvious form silently evaluates to '' and skips forever.
+      - name: Are the Cloudflare secrets configured?
+        id: cf
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "$CF_TOKEN" ] && [ -n "$CF_ACCOUNT" ]; then
+            echo "ready=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=no" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The token is passed as env, never interpolated into the script, so it
+      # cannot be echoed into a log line.
+      - name: Publish to Cloudflare Pages (staging)
+        if: steps.cf.outputs.ready == 'yes'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler@3 pages deploy dist --project-name=epilibomba-staging --branch=staging
+
+      - name: Say plainly when the deploy was skipped
+        if: steps.cf.outputs.ready != 'yes'
+        run: |
+          echo "::warning::Built and verified, but NOT deployed - CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID are not set. See the header of this workflow for the one-time setup."

@@ -2,6 +2,7 @@ import { createApp, reactive, h } from 'vue';
 import { createPinia } from 'pinia';
 import DashView from './components/DashView.vue';
 import MapShell from './components/MapShell.vue';
+import Pills from './components/Pills.vue';
 import './styles/tokens.css';
 import './styles/dashboard.css';
 import './styles/map.css';
@@ -50,7 +51,19 @@ const record = (name) => (v) => window.__events.push([name, v]);
 createApp({
   render() {
     if (fixture.view === 'map') {
-      return h(MapShell, {
+      // Pills sit beside MapShell, not inside it — that is where the real app
+      // puts them (AppHeader). Mounting them here keeps the Phase 3 assertions
+      // driving the same component the header uses, without MapShell carrying
+      // a branch that exists only for tests.
+      const c = { kerajaan: 0, swasta: 0 };
+      fixture.hydrants.forEach((x) => { c[x.status]++; });
+      return h('div', {}, [
+        h(Pills, {
+          counts: c, active: fixture.statusFilter,
+          onPick: (s) => { window.__events.push(['status', s]); fixture.statusFilter = s; },
+          onClear: () => { window.__events.push(['status', null]); fixture.statusFilter = null; },
+        }),
+        h(MapShell, {
         hydrants: fixture.hydrants,
         statusFilter: fixture.statusFilter,
         inspFilter: fixture.inspFilter,
@@ -75,7 +88,8 @@ createApp({
         onSearch: (v) => { window.__events.push(['search', v]); fixture.query = v; },
         onCloseAdd: () => { window.__events.push(['close-add', null]); fixture.adding = false; },
         onAddHydrant: record('add'),
-      });
+        }),
+      ]);
     }
     return h(DashView, {
       ...fixture,

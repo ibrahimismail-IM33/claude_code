@@ -1,0 +1,43 @@
+# ============================================================================
+#  e-Pili Bomba Kunak — V2 STAGING security response headers
+#
+#  This file is copied into dist/ by Vite (anything in v2/public/ is) and is
+#  read by Cloudflare Pages, which applies these headers to every response.
+#
+#  WHY THIS IS SEPARATE FROM THE ROOT _headers
+#    The root /_headers belongs to V1 and is what officers get today. It must
+#    not be touched by the migration. This one belongs to the V2 bundle, and
+#    it is deliberately STRICTER — see below.
+#
+#  THE ONE REAL DIFFERENCE: script-src has no 'unsafe-inline'.
+#    V1 needs it because the whole app is an inline <script> in index.html.
+#    V2 is a bundle, so the allowance can go — proved by tests/v2-csp.js, which
+#    boots the real built app under exactly this policy and fails on a single
+#    CSP violation or page error. This is the security improvement the
+#    migration buys, and it is the reason not to copy V1's header across
+#    unchanged at cutover.
+#
+#  UNCHANGED FROM V1, AND MUST STAY THAT WAY
+#    geolocation=(self) is required by "Guna Lokasi Saya" in Tambah Pili.
+#    Setting it back to geolocation=() silently disables that button with no
+#    error message at all.
+#
+#    No CDN appears in script-src. Leaflet, markercluster and the Supabase
+#    client are bundled from npm at versions pinned to exactly what V1
+#    vendors. A third-party script would run with full access to the signed-in
+#    session and to every record card.
+#
+#  STAGING-ONLY: X-Robots-Tag.
+#    Staging must never be indexed. It carries real hydrant data and real
+#    officer logins, and a search result pointing at it is a support incident
+#    waiting to happen. Remove this line at cutover — and only then.
+# ============================================================================
+
+/*
+  X-Robots-Tag: noindex, nofollow
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=(), usb=(), accelerometer=(), gyroscope=(), magnetometer=()
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://isxfhocfkjamjchmicwq.supabase.co; connect-src 'self' https://isxfhocfkjamjchmicwq.supabase.co wss://isxfhocfkjamjchmicwq.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'

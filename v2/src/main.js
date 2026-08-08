@@ -2,6 +2,8 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 import './styles/tokens.css';
+import './styles/shell.css';
+import './styles/map.css';
 import './styles/dashboard.css';
 
 createApp(App).use(createPinia()).mount('#app');

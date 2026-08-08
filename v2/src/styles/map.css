@@ -226,8 +226,10 @@
     .sresult{font-size:10px}
   }
 
-  /* ---- phone: modal sizing ---- */
-  @media (max-width:760px){
+  /* ---- phone: modal sizing ----
+     640px, matching V1. This block is inside V1's @media (max-width:640px)
+     header block; transcribing it at 760px would have widened it silently. */
+  @media (max-width:640px){
     .m-head { padding:16px 14px 12px; }
     .m-head h2 { font-size:20px; }
     .m-body {
@@ -244,4 +246,51 @@
     .grid2 { grid-template-columns:1fr 1fr; gap:8px; }
     .cls { padding:12px 10px; }
     .maplink { padding:10px 14px; font-size:13px; min-height:44px; }
+  }
+
+  /* ---- phone: zoom controls, the registry bottom sheet, chip, banner, hint ----
+     Verbatim from V1's @media (max-width:640px) block, lines 315-352. Taken as
+     WHOLE rules: an earlier transcription cut `.cards .card` in half, which
+     left the stylesheet one `}` short — and an unbalanced stylesheet does not
+     fail, it NESTS everything after it inside the unclosed block. That is how
+     dashboard.css silently stopped applying while every build stayed green. */
+  @media (max-width:640px){
+    /* ---- map zoom controls — thumb-friendly ---- */
+    .leaflet-top.leaflet-right { top:10px; right:10px; }
+    .leaflet-control-zoom { border-radius:10px !important; overflow:hidden; }
+    .leaflet-control-zoom-in,
+    .leaflet-control-zoom-out {
+      display:block !important;          /* do not rely on Leaflet's own CSS for this */
+      min-width:34px !important; min-height:34px !important;
+      width:34px !important; height:34px !important;
+      line-height:34px !important; font-size:17px !important;
+    }
+
+    /* ---- registry card — bottom sheet ---- */
+    .cards {
+      position:fixed; left:0; right:0; bottom:0; top:auto;
+      width:auto; z-index:600; flex-direction:column;
+    }
+    .cards .card {
+      width:100%; border-radius:16px 16px 0 0; border-bottom:none;
+      padding:0 16px 16px;
+      transform:translateY(calc(100% - 52px));
+      transition:transform .35s cubic-bezier(.32,.72,0,1);
+      will-change:transform;
+    }
+    .cards.mob-open .card { transform:translateY(0); }
+    /* show summary row when collapsed */
+    .mob-reg-summary { display:flex; }
+    .cards.mob-open .mob-reg-summary { display:none; }
+
+    /* chip — raise above sheet handle */
+    .chip { bottom:56px; }
+
+    /* banner & hint */
+    /* sits directly under the search bar, and reads at the same size as the
+       "Tap hydrant" chip so the two map notices match */
+    .banner { top:8px; max-width:calc(100% - 20px); padding:6px 12px; gap:8px; }
+    .banner .t { font-size:12px; }
+    .banner .d { width:7px; height:7px; }
+    .hint   { top:170px; max-width:calc(100vw - 32px); text-align:center; }
   }
