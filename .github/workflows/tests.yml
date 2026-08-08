@@ -149,3 +149,9 @@ jobs:
       # jumps away from what an officer is reading, on a phone, mid-read.
       - name: V2 map parity (markers, tooltip, and the fit rule)
         run: npm run test:v2map
+
+      # The end-to-end half: the component must actually OBEY the fit rule.
+      # fitBounds is counted, because "the map did not move" is not something
+      # any error will ever report.
+      - name: V2 map components (fitBounds counted during a background pull)
+        run: npm run test:v2mapview

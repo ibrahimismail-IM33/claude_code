@@ -1,15 +1,15 @@
 # e-Pili Bomba V2 — Vue 3 + Vite + Pinia
 
-> **Status: Phases 0, 1 and 2 built. Phases 3, 4 and 5 not started.**
+> **Status: Phases 0, 1, 2 and most of 3 built. Phases 4 and 5 not started.**
 >
 > V1 (`index.html`) is what runs at epilibomba.com and is **byte-identical** to
 > what it was before this work began. Nothing here has reached an officer, and
 > nothing can until a deliberate merge to `main`.
 >
 > Phases 0, 1 and 2 are **merged into `claude/epb-v2`**, each as its own merge
-> commit so any one phase can still be reverted on its own. Eighteen suites pass
-> on the merged branch — a clean merge proves nothing about behaviour, so it was
-> run afterwards, not assumed.
+> commit so any one phase can still be reverted on its own — a clean merge proves
+> nothing about behaviour, so the full suite is run after each one rather than
+> assumed. Phase 3 is on `claude/epb-v2-p3-map` and not yet merged.
 >
 > **`main` stays V1 until cutover**, which is a single deliberate merge.
 
@@ -413,11 +413,31 @@ Two things about the suite worth keeping:
 Verified red on three mutations: a background pull that re-fits (3 failures), an
 empty result that fits, and an order-insensitive key made order-sensitive.
 
-**Still to do:** `MapView` (Leaflet imperative behind `v2/src/lib/leaflet.js`),
-pills, registry, banner, place search, the add-hydrant modal, and the map CSS.
-Then the browser-level gate — `fitBounds` called **0 times** during a background
-pull, measured against a real Leaflet stub, which is the end-to-end version of
-what `map-logic.js` now guarantees in isolation.
+**Components done too:** `MapView`, `Pills`, `Registry`, `Banner`, `MapShell`,
+plus `v2/src/styles/map.css` copied verbatim, guarded by `tests/v2-map-view.js`
+(27 assertions). **The gate is met: `fitBounds` is called 0 times during a
+background pull**, counted in a real browser, and the suite goes red on a
+`MapView` that ignores `noFitOnce`.
+
+### What Phase 3 found — the adapter defeated its own seam
+
+`v2/src/lib/leaflet.js` imported Leaflet **statically**. Leaflet assigns itself
+to `window.L` when it loads, so the import overwrote the tests' stub before the
+component ever asked for it: the map mounted with the real library against a
+fake DOM, and every assertion read zero.
+
+That is worse than an ordinary bug, because the seam is what makes the suites
+framework-agnostic and therefore usable as the migration contract. It had been
+sitting there since Phase 0, unnoticed, because nothing had used it yet.
+
+V1 dodges the same problem only by accident — its suites copy `index.html` to a
+temp dir without `vendor/`, so the `<script src="vendor/leaflet.js">` 404s and
+the stub survives. V2 bundles its dependencies, so the check has to be explicit.
+The import is now lazy and only loads when nothing has provided an `L`, which
+also moved 148 KB of Leaflet out of the main chunk: the harness bundle went from
+176 KB to 29.5 KB.
+
+**Still to do:** place search and the add-hydrant modal.
 
 ---
 
