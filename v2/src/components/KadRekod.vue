@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { SECTIONS, SEC_ORDER, cardCount, padToCards, emptyRow } from '../stores/records-logic.js';
 import { addPrintSigs } from '../lib/signature-print.js';
+import SignPopup from './SignPopup.vue';
 
 /* KAD REKOD PILI BOMBA.
  *
@@ -45,6 +46,9 @@ import { addPrintSigs } from '../lib/signature-print.js';
  * `formFingerprint` excludes it, or every card would look changed.
  */
 const props = defineProps({
+  signing: { type: Object, default: null },   // {section,row} while the popup is open
+  signBusy: { type: Boolean, default: false },
+  signError: { type: String, default: '' },
   hydrant: { type: Object, required: true },
   form: { type: Object, required: true },
   isAdmin: { type: Boolean, default: false },
@@ -52,7 +56,7 @@ const props = defineProps({
   cloudNote: { type: String, default: '' },
   pending: { type: Object, default: null },
 });
-const emit = defineEmits(['close', 'save', 'edit', 'sign', 'dropPending']);
+const emit = defineEmits(['close', 'save', 'edit', 'sign', 'signCancel', 'signConfirm', 'dropPending']);
 
 const root = ref(null);
 
@@ -253,5 +257,8 @@ watch(() => props.form, refreshPrintSigs, { deep: true });
       </div>
     </div>
   </div>
+
+  <SignPopup v-if="signing" :busy="signBusy" :error="signError"
+             @close="emit('signCancel')" @confirm="(d) => emit('signConfirm', d)" />
   </Teleport>
 </template>

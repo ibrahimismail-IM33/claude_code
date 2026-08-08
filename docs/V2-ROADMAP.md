@@ -732,9 +732,42 @@ coincidence and a signed row becomes deletable again. The signed map is now
 merged rather than replaced — additive only, since signedness can never be
 withdrawn.
 
-#### Still to port before cutover
+#### Signatures — ported, and Phase 5 is complete
 
-Signed-link resolution and signature capture. Nothing else on this view.
+`v2/src/lib/signature-links.js` (short-lived signed links) and
+`signature-capture.js` (photo → transparent, trimmed PNG), plus `signRow()` in
+`record-sync.js` and `SignPopup.vue`. Guarded by **`tests/v2-signatures.js`,
+43 assertions.**
+
+Two rules carry it, and both come straight from `docs/KAD-REKOD.md` §5 —
+*the signature IS the evidence*:
+
+**A signed row is permanent.** Signing is the only irreversible action in the
+app. The upload happens **first** and the row is marked signed only if it
+succeeded — the other order produces a row claiming to be signed and pointing
+at an image that does not exist, a record asserting evidence it cannot produce.
+A second signature is refused. `upsert:false` on the upload makes a path
+collision an error rather than a silent overwrite. And signing registers
+permanence in `cloudSigned`, where no UI action can lose it, so clearing a
+signed row still produces no DELETE.
+
+**A signature is never silently unreachable.** The bucket is private, so links
+are short-lived and resolved per viewing, cached for their lifetime so
+reopening a card costs no round trip. Every failure path — request errors,
+request rejects, no backend at all — falls back to the stored value rather than
+showing nothing, because **a blank T.T on a signed row reads as the signature
+having been lost.** Rows signed before the bucket was locked down hold a full
+public URL rather than a path; `sigPath()` extracts it, and it must keep
+working forever since those rows can never be corrected.
+
+Verified red on five mutations: a signed row that can be re-signed (2), a row
+marked signed despite a failed upload (2), a public URL stored instead of the
+path (1), no fallback when signing fails (2), and accepting only one spelling
+of Supabase's signed-url key (1) — that last one would resolve nothing and look
+exactly like a lost signature.
+
+**Phase 5 is complete.** The remaining gate is not code: `docs/KAD-REKOD.md` §6
+requires **one card printed on the real printer** before this ships.
 
 #### And the gate that no suite can give
 

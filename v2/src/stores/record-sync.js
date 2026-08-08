@@ -1,9 +1,11 @@
 import { defineStore } from 'pinia';
 import { usePendingStore } from './pending.js';
 import { planFlush, settle } from './pending-logic.js';
+import { dataUrlToBlob, signaturePath } from '../lib/signature-capture.js';
+import { resolveSigs } from '../lib/signature-links.js';
 import {
   SEC_ORDER, blankForm, normalizeForm, cardCount, padToCards, formFingerprint,
-  upsertRows, deadRows, parkRows, applyCloudRows,
+  upsertRows, deadRows, parkRows, applyCloudRows, cleanRow,
 } from './records-logic.js';
 
 /* The record card's cloud round trip.
@@ -164,6 +166,66 @@ export const useRecordSyncStore = defineStore('recordSync', {
         this.note = 'Cloud ERROR · ' + ((e && e.message) || 'network error');
         return { ok: false, reason: (e && e.message) || 'network error' };
       }
+    },
+
+    /* Resolve the short-lived signed links for every signature on a card.
+     * Separate from open() on purpose: the officer should not wait on a second
+     * round trip to see the card, so this is fired alongside and paints when it
+     * lands (CLAUDE.md §3). */
+    async resolveSignatures(sb, f) {
+      return resolveSigs(sb, f, SEC_ORDER);
+    },
+
+    /* SIGN A ROW, AND LOCK IT FOREVER.
+     *
+     * This is the only irreversible action in the app. Once it succeeds the row
+     * can never be edited, cleared or deleted — by anyone, including an admin —
+     * and the image can never be replaced. Enforced in RLS and in a database
+     * trigger as well as here (docs/KAD-REKOD.md §5).
+     *
+     * ORDER MATTERS: the image is uploaded FIRST and the row is marked signed
+     * only if that succeeded. The other order would produce a row claiming to
+     * be signed and pointing at an image that does not exist — a record that
+     * asserts evidence it cannot produce, which is worse than an unsigned row.
+     *
+     * `upsert:false` on the upload means a path collision is an error rather
+     * than a silent overwrite.
+     */
+    async signRow(sb, id, f, sec, ri, dataUrl, email) {
+      if (!sb) return { ok: false, reason: 'Perlu sambungan pelayan untuk tandatangan.' };
+      const row = (f[sec] || [])[ri];
+      if (!row) return { ok: false, reason: 'Baris tidak dijumpai.' };
+      if (row._signed) return { ok: false, reason: 'Baris ini sudah ditandatangani.' };
+
+      const path = signaturePath(id, sec, ri);
+      try {
+        const up = await sb.storage.from('signatures')
+          .upload(path, dataUrlToBlob(dataUrl), { contentType: 'image/png', upsert: false });
+        if (up && up.error) return { ok: false, reason: 'Muat naik gagal: ' + (up.error.message || '') };
+      } catch (e) { return { ok: false, reason: 'Muat naik gagal (rangkaian).' }; }
+
+      // The PATH is stored, never a public URL: a public URL stops working the
+      // moment the bucket is locked down, and the row is permanent so it could
+      // never be corrected afterwards.
+      const signedAt = new Date().toISOString();
+      const payload = {
+        hydrant_id: id, section: sec, row_index: ri, data: cleanRow(row),
+        signed: true, signed_by: email || '', signed_at: signedAt, signature: path,
+      };
+      try {
+        const res = await sb.from('hydrant_records').upsert(payload, { onConflict: 'hydrant_id,section,row_index' });
+        if (res && res.error) return { ok: false, reason: 'Simpan gagal: ' + (res.error.message || '') };
+      } catch (e) { return { ok: false, reason: 'Simpan gagal (rangkaian).' }; }
+
+      row._signed = true;
+      row._sig = path;
+      row._sigUrl = dataUrl;              // what was just captured, shown immediately
+      row._signedBy = email || '';
+      row._signedAt = signedAt;
+      // The server now says this row is signed, so record that where no UI
+      // action can lose it — see deadRows().
+      this.cloudSigned[id] = Object.assign({}, this.cloudSigned[id] || {}, { [sec + '|' + ri]: true });
+      return { ok: true, path };
     },
 
     /* Open a card: flush, read, snapshot, rebuild.

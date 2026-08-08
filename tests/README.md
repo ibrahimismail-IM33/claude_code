@@ -16,7 +16,7 @@ evidence. The selectors they depend on are written down in
 
 ```sh
 npm ci                       # once
-npm test                     # all twenty-four suites
+npm test                     # all twenty-five suites
 npm run test:wiring          # or one at a time
 npm run test:offline
 npm run test:clear
@@ -46,7 +46,7 @@ Exit code is 0 when everything passes, 1 otherwise.
 
 ## CI
 
-`.github/workflows/tests.yml` runs all twenty-four suites on **every push and pull
+`.github/workflows/tests.yml` runs all twenty-five suites on **every push and pull
 request**, and `publish-to-site.yml` calls the same workflow and will not
 publish until it passes:
 
@@ -95,6 +95,7 @@ bumping the `playwright` version in `package.json` needs no change here.
 | `v2-shell.js` | The V2 **app shell** mounted for real: login gate, header, tabs, role UI and the phone menu. It exists because writing the shell revealed there was no app — `App.vue` was a CSP probe, so the production bundle had carried no application for three phases while every component suite ran green. Asserts the z-index ladder by computed value (gate 100000 > header 1000 — §4.8), that an empty login never reaches the network, that a bad password reveals neither which field was wrong nor whether the account exists, that an unknown role fails **closed** to viewer, that both views stay mounted across a tab switch so an officer keeps their pan, that the header pills move the dashboard as well as the map (§4.2), and that the hamburger — the only route to Tambah Pili and sign-out below 640px — works end to end at 390px. Caught two real defects on its first run: the app rendering **two** sets of pills, and a sign-out check that read as failing because the deliberate page reload wiped what it recorded. Verified red on an unknown role failing open to admin, and on a gate that never shows. |
 | `v2-kad-rekod.js` | The **Kad Rekod** in V2, and the only suite here that **renders to PDF and counts the pages**. One card is exactly two — a row height, a font size or a capacity changed by a few percent pushes it onto a third sheet with nothing visible on screen. Also guards the deliberate inversion (screen newest-first via `column-reverse`, paper oldest-first from a chronological render loop), permanent chronological card numbers with `TERKINI` hidden in print, the four row capacities, signed rows disabled with no way to re-sign, an unresolved signature showing a placeholder rather than a broken image, Kompaun having no T.T column at all, and no overflow at 360px. **Caught a print defect on its first run**: `#formOverlay` was nested inside `#app`, so V1's `body.form-open > *:not(#formOverlay)` rule hid the whole card and it printed one blank sheet — invisible on screen, invisible in the PDF's appearance, visible only in the page count. Verified red on that nesting (3), on a screen order that stops being newest-first (2), and on a 13mm row height that spills to a third page (3). **It does not replace printing a card** — `docs/KAD-REKOD.md` §6 still requires one. |
 | `v2-record-sync.js` | The record card's **cloud round trip** in V2 — the counterpart of `p0-offline-sync.js` and `clear-row.js`, which test V1 only and were watching nothing here. Drives the real Pinia stores against a fake Supabase that can go offline (rejects), refuse a write (returns an error — a different path, and the §4.14 one), or be edited "by the office" between calls. Covers: an offline edit surviving and reaching the server, a contested row where the cloud wins and the officer keeps what they typed, a signed row never overwritten and never even offered in the payload, clearing issuing a real DELETE, a viewer never parking one, a clear made offline landing later, a contested removal not deleting, a failed flush changing **nothing**, and an unreadable cloud keeping the local card rather than blanking it. Verified red on all four defect classes: §4.14 (4 failures), §4.13 (3), §4.10 (9), and signed permanence resting on the in-memory flag (1). |
+| `v2-signatures.js` | **Signed links and signature capture** in V2 — the evidence layer. `docs/KAD-REKOD.md` §5: any change that makes a signed row writable, or a signature unreachable, is as severe as losing the record. Asserts that the image uploads **before** the row is marked signed (the other order writes a row claiming evidence it cannot produce), that a second signature is refused, that `upsert:false` stops an overwrite, that the stored reference is the storage **path** and never a public URL, that no `_`-prefixed client key leaks into the payload, and that every failure path leaves the row **unsigned**. On the read side: legacy public/sign URLs still resolve to a path, links are cached so reopening costs no round trip, both spellings of Supabase's signed-url key are accepted, an unsigned row is never given a signature, and **every** failure falls back to the stored value rather than blank — a blank T.T on a signed row reads as a lost signature. Verified red on five mutations. |
 
 ## Adding to this
 
