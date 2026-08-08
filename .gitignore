@@ -11,4 +11,9 @@ playwright-report/
 # docs/V2-ROADMAP.md. Never commit it: the whole point of the publish gate is
 # that officers get a bundle built from reviewed source, not one someone had
 # lying around locally.
+#
+# The entry is on the V1 branch and main too, even though V1 does not build at
+# all, because a `git add -A` run after a V2 build once swept dist/ into a V1
+# commit — including the test harness bundle that v2-csp.js asserts must stay
+# out of a production build. Keep it in both places.
 dist/

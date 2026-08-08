@@ -227,6 +227,34 @@ can say which district runs which.
 
 **One codebase. Many districts inside it. Always.**
 
+#### Nor per-district files or folders
+
+Raised 2026-08-08 as *"the hydrant file is `../kunak(district)/hydrant list`"* —
+separate each district's data. **The goal is right and it is problem #1 below.
+The shape is not**, and the intermediate idea deserves ruling out explicitly
+because it is the form the thought naturally takes and it sits one small step
+from the per-district deployments above.
+
+Three reasons:
+
+1. **"The hydrant list" is not a file.** The source of truth is the `hydrants`
+   table in Supabase; `cloudLoad()` pages it and replaces local state. The
+   189-line `INITIAL_HYDRANTS` array in `index.html` is a **seed/fallback** for a
+   device that has never reached the cloud — `loadHydrants()` returns
+   localStorage first and that array last. Reorganising it into district folders
+   would tidy the least important of the three copies.
+2. **A folder fixes none of the five problems in §7.2.** Labels still collide,
+   writes are still global, and a database cannot filter on a directory. The
+   separation has to exist where the data does.
+3. **It invites the failure §7.1 exists to prevent.** Per-district files are one
+   refactor away from per-district deploys, and this project has already paid
+   that bill once.
+
+What *is* worth doing, **after** the `district` column exists: lift the seed data
+out of `index.html` into per-district data files. That is what makes §7.3's
+promise true — a new district becomes a data-entry job. Before the column it
+buys nothing, and doing it first would feel like progress while delivering none.
+
 ### 7.2 What actually breaks
 
 | # | Problem | Detail |
@@ -234,8 +262,23 @@ can say which district runs which.
 | 1 | **No `district` column** | Not on hydrants, records or jadual. Today everything *is* Kunak; the day it is not, every row is ambiguous |
 | 2 | **Label collision** | `A01`–`E**` are zoned to Kunak. Another district will also want `A01` |
 | 3 | **Global write access** | `is_admin()` grants write everywhere. A Lahad Datu officer could edit Kunak's records |
-| 4 | **The 1,000-row wall** | ~5 districts crosses it. Rows stop arriving, nothing errors |
+| 4 | ~~**The 1,000-row wall**~~ **— CLOSED** | Was: ~5 districts crosses it, rows stop arriving, nothing errors. Now paged or bounded everywhere it mattered — see below |
 | 5 | **Wasted load** | Without the column the database cannot filter, so every phone downloads every district |
+
+On (4), closed 2026-08-08 — recorded because a document that overstates what is
+broken drives bad decisions just as surely as one that hides breakage:
+
+| Read | State |
+|---|---|
+| `cloudLoad` (the register) | Paged — `LOAD_PAGE=1000, LOAD_MAX=50`, ordered by `id` so `range()` cannot repeat or skip |
+| Dashboard Pengujian scan | Paged — `SCAN_PAGE=1000, SCAN_MAX=50`, ordered by `hydrant_id, row_index` |
+| `cloudFormLoad` (one card) | Never at risk — filtered by `hydrant_id`, so it reads one card's rows |
+| Jadual | **Capped, not paged** — 1000 per period, and the header *says so* rather than undercounting silently. Far beyond realistic six-month volume; paginate if it ever becomes real |
+
+All four are carried into V2 with parity suites that compare the ported logic
+against V1's real source. **The rule that remains: any new query gets `.range()`
+from the start.** PostgREST truncates at 1000 and reports no error, so an
+unbounded read does not fail — it lies.
 
 On (5): a Kunak officer still inspects the same set of hydrants no matter how many
 districts exist. Without a `district` column their phone would download ~1,870
@@ -253,9 +296,10 @@ station while reads stay global for mutual aid; make labels unique per
 `(district, label)`.
 
 **App** — one district selector defaulting to the officer's own; every query
-filtered by it. Bound `cloudLoad` and `cloudFormLoad` with `.range()`
-regardless — the dashboard scan already pages correctly and is the pattern to
-copy.
+filtered by it. Paging is **already done** (§7.2 item 4) — `cloudLoad` and the
+dashboard scan both page, and `cloudFormLoad` is bounded by `hydrant_id`. Keep
+`.range()` on anything new, and note that the district filter *reduces* each
+phone's load rather than adding to it.
 
 **Tests** — extend `p0-offline-sync.js` with a cross-district permission case:
 an officer of district A must be rejected writing district B. Confirm it fails

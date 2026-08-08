@@ -190,6 +190,11 @@ Two things about this are load-bearing:
   help a single already-filed record. That is why `stripSignatureBg` is left
   alone.
 
+**Confirmed on a real printer, 2026-08-08.** The signature reads solid black
+against the table rules and the `Baik` text beside it. Three passes was the
+right number — a fourth was measured (`darkest 0 / mean 41`) and is available
+if a different printer ever needs it, but is not needed here.
+
 The rule must also stay **after** the screen `.sigimg` rule in source order.
 Both are the same specificity, so an earlier `@media print` block loses — a
 `6.6mm` height declared higher up was silently dead for exactly this reason.

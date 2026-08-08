@@ -458,6 +458,19 @@ this was checked outside a headless browser:
   viewer account clears them fine
 - **Clearing a row did nothing** — see §4.13. Found by trying it
 
+**Confirmed on paper (2026-08-08)** — the printed Kad Rekod signature now reads
+solid black against the table rules, on a real printer. This closes the defect
+found on the first real printout: the ink was measured at darkest luminance 137
+with **not one pixel below 128**, looked perfectly fine on a backlit screen, and
+came out visibly faded.
+
+Worth keeping the shape of this in mind: the fix was measured (darkest 134 → 0,
+and 0 → 2,972 pixels below mid-grey) and guarded by
+`tests/kad-rekod.js` T7, but **the measurement was never the proof**. Neither
+was the screen. Every print-facing property of this card is invisible until it
+reaches paper, which is why `docs/KAD-REKOD.md` requires a real printout before
+anything touching the card ships.
+
 **Committed regression tests** (`tests/`, see `tests/README.md`):
 - `csp-and-vendor.js` — 21 assertions: no CDN tag or CDN origin left anywhere,
   every vendor file present, and the app booted under the **real CSP read from
