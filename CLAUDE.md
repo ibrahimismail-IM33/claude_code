@@ -274,6 +274,39 @@ Draw order: caps → walls → top faces (painter's algorithm).
     flaky connection, as opposed to a clean outage. **A flush that fails must
     now change nothing.**
 
+15. **The fix for the faded signature printed a black box.** Found on paper
+    2026-08-08, on C26, one day after the faded fix was confirmed. The two are
+    the same defect seen from opposite sides. `stripSignatureBg` keys the paper
+    out with a *ramp*, so on a badly-lit photo the background is not removed —
+    it is left at low-but-non-zero alpha. The print filter was three stacked
+    `drop-shadow` passes whose entire purpose is to **compound partial alpha
+    toward 1**; that is what made the ink solid, and it did exactly the same to
+    the leftover paper. Measured: the print went from **5.7% dark to 95.8%**.
+
+    Three things are worth carrying forward:
+
+    - **"Just thicken the stroke" was the wrong lever twice** — it does not
+      touch the cause (background alpha being multiplied up), and a capture-side
+      change repairs no filed record, because a signed row's image can never be
+      re-uploaded. The same constraint that made the first fix render-side.
+    - **Neither a CSS nor an SVG filter survives `page.pdf()`.** The shipped
+      filter was tested as a control and came out unfiltered, despite being
+      confirmed black on a real printer. So the fix is not a filter at all:
+      `signatureForPrint()` thresholds alpha in a canvas and prints a plain
+      PNG, leaving the print pipeline nothing to drop.
+    - **The threshold has to be relative.** An absolute 0.65 erased a signature
+      whose ink sat at alpha 158. It is now 0.65 **of the image's own strongest
+      alpha**. A signature missing from a filed record is worse than either
+      defect it replaces.
+
+    The test lesson is the sharper one. T7 asserted the ink reaches black — and
+    **a solid black box satisfies that perfectly**, which is why the first fix
+    shipped green. It now measures the *fraction* of dark pixels, and its
+    fixture carries residue: a clean fixture cannot reproduce this at all. Even
+    the replacement was blind at first, because the box has *no grey in it*, so
+    a grey-based check also passed on the bug. Verified red on the pre-fix code
+    before being trusted: 6 assertions fail.
+
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"

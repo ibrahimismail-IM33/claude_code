@@ -237,16 +237,29 @@ const tops = p => p.evaluate(()=>[...document.querySelectorAll('.fcard')]
   p = await boot(b, [done(0, true)]);
   // a photographed signature as stripSignatureBg leaves it: grey-brown ink,
   // never black, with stroke mid-tones ramped to partial alpha
+  // The fixture carries RESIDUE as well as ink. On a badly-lit photo
+  // stripSignatureBg cannot key the paper out cleanly and leaves it at
+  // low-but-non-zero alpha. A clean fixture cannot reproduce the black box
+  // (§4.15) — the first version of this test used one, which is exactly why it
+  // stayed green while a black box printed.
   await p.evaluate(() => {
     const W=600,H=180,c=document.createElement('canvas'); c.width=W; c.height=H;
-    const x=c.getContext('2d'); x.lineCap='round'; x.lineJoin='round';
+    const x=c.getContext('2d');
+    // leftover paper: faint, textured, covering the whole frame
+    const im0=x.getImageData(0,0,W,H), d0=im0.data;
+    for(let i=0;i<d0.length;i+=4){
+      d0[i]=150; d0[i+1]=146; d0[i+2]=140;
+      d0[i+3]=40+((Math.random()*40)|0);          // alpha ~40-80 of 255
+    }
+    x.putImageData(im0,0,0);
+    x.lineCap='round'; x.lineJoin='round';
     x.strokeStyle='rgb(70,64,58)'; x.lineWidth=9;
     x.beginPath(); x.moveTo(40,140);
     x.bezierCurveTo(140,20,200,170,270,90);
     x.bezierCurveTo(330,20,360,160,430,80);
     x.bezierCurveTo(470,40,520,120,560,70); x.stroke();
     const im=x.getImageData(0,0,W,H), d=im.data;
-    for(let i=0;i<d.length;i+=4) if(d[i+3]>0) d[i+3]=Math.round(d[i+3]*0.62);
+    for(let i=0;i<d.length;i+=4) if(d[i+3]>128) d[i+3]=Math.round(d[i+3]*0.62);
     x.putImageData(im,0,0);
     window.__sigUrl = c.toDataURL('image/png');
   });
@@ -254,23 +267,46 @@ const tops = p => p.evaluate(()=>[...document.querySelectorAll('.fcard')]
   check('the signature image rendered',
     await p.evaluate(()=>!!document.querySelector('img.sigimg')), true);
 
+  /* Measures whichever signature image is actually VISIBLE in this medium —
+   * the original on screen, the pre-rendered copy in print. Also counts grey
+   * pixels, which is the number that separates "black ink" from "black box".
+   * Nothing here measured that before, so a solid black rectangle satisfied
+   * every assertion. */
   const inkOf = async (media) => {
     await p.emulateMedia({ media });
-    await p.waitForTimeout(250);
-    const buf = await p.locator('img.sigimg').first().screenshot();
-    return await p.evaluate(async b64 => {
+    await p.waitForTimeout(300);
+    const sel = await p.evaluate(() => {
+      const pr = document.querySelector('img.sigprint');
+      if (pr && getComputedStyle(pr).display !== 'none') return 'img.sigprint';
+      return 'img.sigimg';
+    });
+    const buf = await p.locator(sel).first().screenshot();
+    const r = await p.evaluate(async b64 => {
       const img=new Image();
       await new Promise(r=>{ img.onload=r; img.src='data:image/png;base64,'+b64; });
       const c=document.createElement('canvas'); c.width=img.width; c.height=img.height;
-      const x=c.getContext('2d'); x.drawImage(img,0,0);
+      const x=c.getContext('2d');
+      x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height);   // paper behind it
+      x.drawImage(img,0,0);
       const d=x.getImageData(0,0,c.width,c.height).data;
-      let darkest=255, darkPx=0;
+      let darkest=255, darkPx=0, greyPx=0, n=0;
       for(let i=0;i<d.length;i+=4){
         const L=(d[i]*299+d[i+1]*587+d[i+2]*114)/1000;
-        if(L<250){ if(L<darkest) darkest=L; if(L<128) darkPx++; }
+        n++;
+        if(L<darkest) darkest=L;
+        if(L<128) darkPx++;
+        else if(L<235) greyPx++;      // neither ink nor paper => residue
       }
-      return { darkest:Math.round(darkest), darkPx };
+      /* darkPct is the assertion that actually catches a black box, and it was
+       * missing. greyPct alone does NOT: when the residue is blackened rather
+       * than removed there is no grey left at all, so a grey-based check passes
+       * on the very defect it was written for. Verified against the pre-fix
+       * code — box: darkPct ~100, greyPct 0. */
+      return { darkest:Math.round(darkest), darkPx,
+               darkPct:+(darkPx/n*100).toFixed(1), greyPct:+(greyPx/n*100).toFixed(1) };
     }, buf.toString('base64'));
+    r.via = sel;
+    return r;
   };
 
   const scr = await inkOf('screen');
@@ -281,19 +317,52 @@ const tops = p => p.evaluate(()=>[...document.querySelectorAll('.fcard')]
   console.log('        screen', JSON.stringify(scr), ' print', JSON.stringify(prn));
   check('in print the ink reaches black',   prn.darkest < 40, true);
   check('in print there is solid dark ink', prn.darkPx > 0, true);
-  check('print carries far more dark ink than screen',
-        prn.darkPx >= scr.darkPx * 2, true);
+  /* This used to assert print carried >= 2x the dark pixels of screen. That
+   * encoded the OLD mechanism — stacked drop-shadows amplifying alpha — and a
+   * black box satisfies it beautifully. The new mechanism deliberately does not
+   * inflate anything: it reproduces exactly the ink and drops the rest, so
+   * keeping that assertion would force amplification, and the box, back.
+   *
+   * What actually separates a good print from the two failures: the ink reaches
+   * black (above) and the residue is GONE. The source image here is mostly
+   * residue, so screen is full of grey and print must not be. */
+  check('the residue in the source is removed for print, not blackened',
+        prn.greyPct * 5 < scr.greyPct, true);
+
+  /* \u00a74.15 \u2014 the black box. The previous fix amplified alpha, which made the
+   * ink solid AND blackened the leftover paper. Nothing measured that, so it
+   * shipped. Grey is the tell: real ink is black and real paper is white, so a
+   * healthy print has almost nothing in between. */
+  /* THE assertion for \u00a74.15. A signature is strokes on paper: mostly white,
+   * with a few percent of black. A black box is ~100% dark. Measured on the
+   * pre-fix code this was 100; with the fix it is a few percent. */
+  check('print is a signature, NOT a black box', prn.darkPct < 40, true);
+  check('the print copy is what gets printed', prn.via, 'img.sigprint');
 
   await p.emulateMedia({ media:'screen' }); await p.waitForTimeout(150);
   check('no filter on screen \u2014 the officers\' view is unchanged',
     await p.evaluate(()=>getComputedStyle(document.querySelector('img.sigimg')).filter), 'none');
+  check('the print copy is hidden on screen', await p.evaluate(()=>{
+    const n=document.querySelector('img.sigprint');
+    return n ? getComputedStyle(n).display : 'MISSING';
+  }), 'none');
+  check('the original is what officers see', scr.via, 'img.sigimg');
+
   await p.emulateMedia({ media:'print' }); await p.waitForTimeout(150);
-  check('print filter is applied', await p.evaluate(()=>
-    /brightness\(0\)/.test(getComputedStyle(document.querySelector('img.sigimg')).filter)), true);
+  // The original is swapped out in print rather than filtered \u2014 measured:
+  // neither a CSS nor an SVG filter survives PDF generation.
+  check('the original is hidden in print', await p.evaluate(()=>
+    getComputedStyle(document.querySelector('img.sigimg')).display), 'none');
+  check('the print copy carries no filter of its own', await p.evaluate(()=>{
+    const n=document.querySelector('img.sigprint');
+    return n ? getComputedStyle(n).filter : 'MISSING';
+  }), 'none');
   // .sigimg max-height was set in TWO @media print blocks at the same
   // specificity, so the later silently won and the mm-tuned value was dead.
-  check('exactly one print height applies', await p.evaluate(()=>
-    getComputedStyle(document.querySelector('img.sigimg')).maxHeight), '30px');
+  check('exactly one print height applies', await p.evaluate(()=>{
+    const n=document.querySelector('img.sigprint');
+    return n ? getComputedStyle(n).maxHeight : 'MISSING';
+  }), '30px');
   await p.emulateMedia({ media:'screen' });
   await p.close();
 
