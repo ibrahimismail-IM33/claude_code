@@ -49,6 +49,32 @@ export function visible(hydrants, { status, insp, zone, query }, inspStatusOf) {
   return list;
 }
 
+/* The line under the search box.
+ *
+ * Ported from V1's renderSearchInfo(). Two details are decisions, not cosmetics:
+ *
+ *  - It says so when a pill is on. A search deliberately ignores Awam/Swasta
+ *    (see `visible` above), so without the note an officer reads "3 pili
+ *    dijumpai" while a pill claims to be narrowing the view, and the two
+ *    disagree with no explanation. The note appears on the STATUS pill only —
+ *    V1 checks `activeFilter`, not the inspection or zone axes.
+ *  - The empty state is its own class. "Tiada pili dijumpai" is styled red
+ *    because it is the answer an officer needs to notice.
+ *
+ * Returned as data rather than HTML so the assertion can be about meaning.
+ */
+export function searchInfo(matchCount, query, status) {
+  const q = String(query || '').trim();
+  if (!q) return { show: false, clear: false, count: 0, none: false, note: false };
+  return {
+    show: true,
+    clear: true,
+    count: matchCount,
+    none: matchCount === 0,
+    note: !!status,
+  };
+}
+
 export function counts(hydrants) {
   const c = { kerajaan: 0, swasta: 0 };
   hydrants.forEach((h) => { c[h.status]++; });

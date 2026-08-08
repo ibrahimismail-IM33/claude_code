@@ -143,3 +143,21 @@ jobs:
 
       - name: V2 Jadual parity (period filter, sort order, date formatting)
         run: npm run test:v2jadual
+
+      # The fit rule is a rule about something NOT happening: a background pull
+      # must never re-fit the map. The failure is not an error — the map simply
+      # jumps away from what an officer is reading, on a phone, mid-read.
+      - name: V2 map parity (markers, tooltip, and the fit rule)
+        run: npm run test:v2map
+
+      # The end-to-end half: the component must actually OBEY the fit rule.
+      # fitBounds is counted, because "the map did not move" is not something
+      # any error will ever report.
+      - name: V2 map components (fitBounds counted during a background pull)
+        run: npm run test:v2mapview
+
+      # Search and the add modal. The headline is that a search IGNORES the
+      # Awam/Swasta pills — if it ever respected them, a pili sitting in the
+      # register would report as missing, and that reads as a lost hydrant.
+      - name: V2 place search and add-hydrant modal
+        run: npm run test:v2mapsearch

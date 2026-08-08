@@ -344,6 +344,15 @@ Draw order: caps → walls → top faces (painter's algorithm).
   `authenticated` **must keep EXECUTE**; revoke from `public, anon` only.
   `handle_new_user()` is different and can be closed to everyone, because it is
   only ever invoked by the trigger, as the trigger's owner.
+- **Wrote a fourth test that was blind at exactly the boundary it guarded.**
+  V2's search suite asserted that a search re-fits the map. Deleting the
+  `fittedKey` reset it existed to protect left it entirely green — every
+  *narrowing* search changes the visible set, so the map fits for an unrelated
+  reason. The reset only matters when the matches are the set already fitted.
+  Same shape as the donut band, the §4.14 flush path, the grey-vs-dark
+  signature metric and the clean signature fixture: **a fixture that cannot
+  reproduce the defect proves nothing, however many assertions it carries.**
+  Mutate the code and watch the test go red, every time, before trusting it.
 - **Recommended work I could not finish.** I proposed creating a scratch
   Supabase project for a restore test "then deleting it" without first checking
   that I had a way to delete it, or a token to download the backup artifact. I

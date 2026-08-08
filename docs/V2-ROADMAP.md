@@ -1,15 +1,15 @@
 # e-Pili Bomba V2 — Vue 3 + Vite + Pinia
 
-> **Status: Phases 0, 1 and 2 built. Phases 3, 4 and 5 not started.**
+> **Status: Phases 0, 1, 2 and most of 3 built. Phases 4 and 5 not started.**
 >
 > V1 (`index.html`) is what runs at epilibomba.com and is **byte-identical** to
 > what it was before this work began. Nothing here has reached an officer, and
 > nothing can until a deliberate merge to `main`.
 >
 > Phases 0, 1 and 2 are **merged into `claude/epb-v2`**, each as its own merge
-> commit so any one phase can still be reverted on its own. Eighteen suites pass
-> on the merged branch — a clean merge proves nothing about behaviour, so it was
-> run afterwards, not assumed.
+> commit so any one phase can still be reverted on its own — a clean merge proves
+> nothing about behaviour, so the full suite is run after each one rather than
+> assumed. Phase 3 is on `claude/epb-v2-p3-map` and not yet merged.
 >
 > **`main` stays V1 until cutover**, which is a single deliberate merge.
 
@@ -383,6 +383,108 @@ retrofit is while the code is being written anyway. So, at zero cost:
 
 **Gate:** `hydrant-paging.js` green unchanged; `fitBounds` called 0 times during
 a background pull, measured.
+
+### Phase 3 status: logic done, components to come
+
+Done: **`v2/src/stores/map-logic.js`** and **`tests/v2-map-parity.js`** (41
+assertions) — the palette, the date badge, marker HTML and icon geometry, the
+tooltip, and **the fit rule**.
+
+The fit rule was taken first deliberately. It is the only part of the map layer
+with real consequence, and it is a rule about something *not* happening:
+
+> A background pull must **never** re-fit the map.
+
+That failure produces no error. The map simply jumps away from whatever an
+officer is reading, mid-read, on a phone — which is why it needs a test rather
+than care. Two details are easy to lose in a port and both are guarded:
+`noFitOnce` is **consumed** (it records the key without fitting, so the *next*
+genuine change still fits), and an empty result **never** fits and never records
+its key.
+
+Two things about the suite worth keeping:
+
+- V1 has no function for the fit rule — it is three lines inline in
+  `renderMarkers`. The transcription is **guarded**: if that code is edited, the
+  test throws rather than silently comparing the port against a stale copy.
+- The rule is asserted **directly** as well as by parity. Parity alone would
+  happily agree with V1 if V1 itself ever regressed.
+
+Verified red on three mutations: a background pull that re-fits (3 failures), an
+empty result that fits, and an order-insensitive key made order-sensitive.
+
+**Components done too:** `MapView`, `Pills`, `Registry`, `Banner`, `MapShell`,
+plus `v2/src/styles/map.css` copied verbatim, guarded by `tests/v2-map-view.js`
+(27 assertions). **The gate is met: `fitBounds` is called 0 times during a
+background pull**, counted in a real browser, and the suite goes red on a
+`MapView` that ignores `noFitOnce`.
+
+### What Phase 3 found — the adapter defeated its own seam
+
+`v2/src/lib/leaflet.js` imported Leaflet **statically**. Leaflet assigns itself
+to `window.L` when it loads, so the import overwrote the tests' stub before the
+component ever asked for it: the map mounted with the real library against a
+fake DOM, and every assertion read zero.
+
+That is worse than an ordinary bug, because the seam is what makes the suites
+framework-agnostic and therefore usable as the migration contract. It had been
+sitting there since Phase 0, unnoticed, because nothing had used it yet.
+
+V1 dodges the same problem only by accident — its suites copy `index.html` to a
+temp dir without `vendor/`, so the `<script src="vendor/leaflet.js">` 404s and
+the stub survives. V2 bundles its dependencies, so the check has to be explicit.
+The import is now lazy and only loads when nothing has provided an `L`, which
+also moved 148 KB of Leaflet out of the main chunk: the harness bundle went from
+176 KB to 29.5 KB.
+
+### Place search and the add-hydrant modal — done
+
+`SearchBox.vue` and `AddHydrantModal.vue`, with `searchInfo()` in
+`filters-logic.js` and the add rules (`validAdd`, `newHydrant`, the geolocation
+messages) in `map-logic.js`. Guarded by **`tests/v2-map-search-add.js`, 56
+assertions.**
+
+Two behaviours carry the piece, and neither announces itself when it breaks.
+
+**A search ignores the Awam/Swasta pills.** `visible()` already returns the
+search matches before it looks at any axis, so this is a property of the port
+rather than of the components — but the *consequence* is the components': the
+result line has to say the pill was ignored, or the box reports "1 pili
+dijumpai" while a pill claims to be narrowing the view and the two silently
+disagree. If a search ever did respect the pill, a pili sitting in the register
+would report as **Tiada pili dijumpai**, which reads as a lost hydrant, not as
+a filter.
+
+**A search re-fits the map.** V1 clears `fittedKey` inside `applySearch`.
+`MapShell` bumps a `refit` counter that `MapView` watches, in the **same**
+watcher as `visible` — two watchers fit twice, once wastefully, on a phone.
+
+The second is the one worth recording, because **the first version of that
+assertion was blind.** Deleting the `fittedKey` reset left every search test
+green: a narrowing search changes the visible set, so the key differs and the
+map fits anyway. The reset only matters for a search whose matches are the set
+already fitted — the officer has panned and zoomed by hand, and V1 re-centres
+regardless. That case is now asserted, and it is the only mutation of the four
+that the suite could not originally see.
+
+Verified red on four mutations: a search that respects the pill (2 failures), a
+missing `fittedKey` reset, a blank label accepted by the add form, and a dropped
+`box-sizing:border-box` — which is how the phone widths were found overflowing
+sideways (§4.9). V1's reset block was missing from `tokens.css` entirely; it is
+now carried verbatim, and the overflow assertions at 360/390/430px are what
+caught it.
+
+The add modal is asserted on its **validation**, not its looks: a hydrant with
+a bad coordinate is a pin in the sea, and the officer who typed it is standing
+next to the real one with no way to tell. Save stays disabled and reads
+"Fill Lat/Long" until the label and both coordinates are valid, a map tap fills
+the fields live while the modal is open and is ignored when it is not, and
+"Guna Lokasi Saya" keeps V1's Bahasa Malaysia messages — including the
+low-accuracy warning at 30 m, which tells the officer to re-take the fix rather
+than accepting it quietly. The button depends on `geolocation=(self)` in
+`_headers`; nothing in the component can compensate for that header's absence.
+
+**Phase 3 is complete.**
 
 ---
 
