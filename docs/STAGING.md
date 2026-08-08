@@ -16,6 +16,14 @@ feedback arrives early.
 
 No API token and no secret is needed. Cloudflare builds the branch itself.
 
+> **Connect to Git, NOT Direct Upload.** Direct Upload was the earlier plan and
+> was rejected: it means a machine *pushes* the built files to Cloudflare, which
+> needs a `CLOUDFLARE_API_TOKEN`, an account ID stored as a repository secret,
+> and `wrangler` in a workflow. Connect to Git means Cloudflare *pulls* the repo
+> and builds it, and the whole point of this route is that **no secret has to be
+> created at all**. The two are opposite mechanisms and a project created as
+> Direct Upload cannot be converted — if one exists, delete it and start again.
+
 1. **Workers & Pages → Create → Pages → Connect to Git.**
    Authorise the Cloudflare GitHub App for `ibrahimismail-IM33/claude_code`.
    This is a click-through authorisation, not a token you generate.
@@ -43,7 +51,17 @@ No API token and no secret is needed. Cloudflare builds the branch itself.
    Environment variable: **`NODE_VERSION` = `20`** (`package.json` requires
    `>=20`).
 
-5. Deploy. Open the URL — **you must get the login gate.** That is the
+5. **Settings → Builds & deployments → Preview branch control → turn preview
+   deployments OFF** (or restrict them to none), so **only `claude/epb-v2`
+   deploys.
+
+   This is not tidiness. Cloudflare builds *every* branch by default, so each
+   push to `claude/epb-v2-p5-kad` or any future phase branch would put a live
+   URL online — and **every one of those writes to the production Supabase
+   project** (§3). One staging URL against the real register is an accepted
+   risk; one per branch is not, and nobody would have chosen it.
+
+6. Deploy. Open the URL — **you must get the login gate.** That is the
    end-to-end proof. A page that loads but shows an empty map means the sign-in
    or RLS is the problem, not the hosting: an unauthenticated visitor is
    returned nothing by `select ... to authenticated`.

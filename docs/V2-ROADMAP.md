@@ -607,13 +607,12 @@ because the exit code *is* the mechanism.
 
 So: **a malformed bundle cannot reach staging; a logic regression can.**
 
-### Original staging notes
+### The staging CSP
 
-`_headers` for the V2 bundle lives at `v2/public/_headers` (Vite copies it into
-`dist/`), and `.github/workflows/deploy-staging.yml` builds, verifies and
-uploads to a **separate** Cloudflare Pages project. It runs on the V2 branches
-only and reuses `tests.yml` through `workflow_call` with `needs: test`, exactly
-as the publish gate does.
+`_headers` for the V2 bundle lives at `v2/public/_headers`; Vite copies it into
+`dist/`. (How the bundle is deployed is described once, above — there is no
+second account of it here. A duplicate description is what let this section go
+on claiming a deleted workflow and a test gate the chosen route does not have.)
 
 The staging policy is **stricter than production**: `script-src 'self'` with no
 `'unsafe-inline'`. V1 needs that allowance because the whole app is an inline
@@ -624,10 +623,15 @@ quietly widened `img-src` or `connect-src` would make its green meaningless at
 cutover. `X-Robots-Tag: noindex` is staging-only and comes off at cutover.
 
 **Two things staging cannot yet do, and both should be said to officers up
-front:** there is no Kad Rekod until Phase 5, so tapping a pin opens nothing;
-and the dashboard reports every hydrant as *Belum diperiksa*, because the
-Pengujian scan belongs to Phase 5 too. Honest zeros were chosen over guessed
-figures — a wrong number on a dashboard is worse than an obvious gap.
+front:** the Kad Rekod opens and can be edited and saved, but it **cannot be
+signed** — signature capture and signed-link resolution are still to port, so
+existing signatures may not display either; and the dashboard reports every
+hydrant as *Belum diperiksa*, because the Pengujian scan belongs to Phase 5
+too. Honest zeros were chosen over guessed figures — a wrong number on a
+dashboard is worse than an obvious gap.
+
+`docs/STAGING.md` §4 carries this same list and is the copy to keep current;
+it is what someone reads before pointing an officer at the URL.
 
 ---
 
