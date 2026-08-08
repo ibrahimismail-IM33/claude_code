@@ -31,6 +31,10 @@ time of writing.
 | Selector | Used by | Meaning |
 |---|---|---|
 | `#authGate` | `p0-offline-sync`, `clear-row`, `kad-rekod` | Login gate overlay. Its removal is how the tests know the app is usable |
+| `#authGate` / `#authBtn` / `#authEmail` / `#authPass` / `#authErr` | `v2-shell`, `v2-csp` | The login gate. **z-index 100000 — the top of the ladder.** `#authErr` must never say which half of the credentials was wrong |
+| `#tabMap` | `v2-shell` | The Peta Pili tab button. `.on` marks the active tab; `aria-selected` must follow it |
+| `#headerAdd` / `#signOutBtn` / `#roleBadge` / `#roleTxt` | `v2-shell` | Header account controls. `.ro-hidden` hides writes from a viewer — **courtesy, not the control**: RLS refuses the write regardless |
+| `#menuBtn` / `#menuPanel` / `#mAdd` / `#mSignOut` / `#mEmail` / `#mRole` | `v2-shell` | The phone menu. Below 640px `.hright` is `display:none`, so this is the **only** route to Tambah Pili and sign-out |
 | `#tabDash` | `zone-panel` | The Dashboard tab button |
 | `#dashView` | `zone-panel` | Dashboard root. **Also the CSS scope for every dashboard rule** (CLAUDE.md §10) |
 | `#banner` | `zone-panel` | Active-filter banner; clicking it clears the filter |

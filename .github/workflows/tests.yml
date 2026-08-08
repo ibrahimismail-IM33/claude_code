@@ -161,3 +161,9 @@ jobs:
       # register would report as missing, and that reads as a lost hydrant.
       - name: V2 place search and add-hydrant modal
         run: npm run test:v2mapsearch
+
+      # The app shell: gate, header, tabs, role UI, phone menu. This is also
+      # the suite that would have caught the production bundle containing a
+      # CSP probe instead of an application, which it did for three phases.
+      - name: V2 app shell (login gate, role UI, tabs, phone menu)
+        run: npm run test:v2shell

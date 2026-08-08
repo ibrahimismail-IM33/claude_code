@@ -1,0 +1,65 @@
+<script setup>
+import { ref } from 'vue';
+
+/* The login gate.
+ *
+ * It sits at z-index 100000 — above modals (9999) and the record form (12000)
+ * — because a gate something can paint over is not a gate. That number lives
+ * in shell.css and is part of the ladder §4.8 was about.
+ *
+ * Two rules carry more weight than the markup:
+ *
+ *  - THE GATE IS NOT THE SECURITY CONTROL. Every read and every write is
+ *    authorised by RLS in the database, evaluated as the calling role. This
+ *    only decides what is worth showing. A V2 that "let someone in" by
+ *    flipping a ref would still be refused every row by Postgres — which is
+ *    the design, and why hiding the gate is never a vulnerability by itself.
+ *  - The error text stays vague about WHICH half was wrong. "Wrong email or
+ *    password" tells an attacker nothing about whether an account exists;
+ *    V1 does the same and it is worth not losing in translation.
+ *
+ * Accounts are created by the administrator — there is deliberately no sign-up
+ * and no password reset here. Officers each have their own login because
+ * signatures record who signed, which is meaningless on a shared account.
+ */
+defineProps({
+  busy: { type: Boolean, default: false },
+  error: { type: String, default: '' },
+});
+const emit = defineEmits(['signIn']);
+
+const email = ref('');
+const pass = ref('');
+
+function submit() {
+  emit('signIn', { email: email.value.trim(), password: pass.value, clear: () => { pass.value = ''; } });
+}
+</script>
+
+<template>
+  <div id="authGate">
+    <div class="authbox">
+      <div class="sub" style="text-align:center">BBP Kunak · Sabah</div>
+      <h2 style="text-align:center;margin-bottom:4px">Pili Bomba</h2>
+      <p style="text-align:center;color:rgba(255,255,255,.45);font-size:12px;margin-bottom:6px">Sign in to continue</p>
+
+      <label for="authEmail">Email</label>
+      <input id="authEmail" v-model="email" type="email" autocomplete="username" inputmode="email"
+             placeholder="nama@contoh.com" @keydown.enter="submit" />
+
+      <label for="authPass">Password</label>
+      <input id="authPass" v-model="pass" type="password" autocomplete="current-password"
+             placeholder="••••••••" @keydown.enter="submit" />
+
+      <button class="authbtn" id="authBtn" :disabled="busy" @click="submit">
+        {{ busy ? 'Signing in…' : 'Sign In' }}
+      </button>
+
+      <div class="autherr" :class="{ hide: !error }" id="authErr">{{ error }}</div>
+
+      <p style="margin-top:14px;font-size:11px;color:rgba(255,255,255,.3);text-align:center;line-height:1.5">
+        Accounts are created by the administrator.<br>Contact BBP Kunak if you need access.
+      </p>
+    </div>
+  </div>
+</template>

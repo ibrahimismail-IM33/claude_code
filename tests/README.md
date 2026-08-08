@@ -16,7 +16,7 @@ evidence. The selectors they depend on are written down in
 
 ```sh
 npm ci                       # once
-npm test                     # all twenty-one suites
+npm test                     # all twenty-two suites
 npm run test:wiring          # or one at a time
 npm run test:offline
 npm run test:clear
@@ -46,7 +46,7 @@ Exit code is 0 when everything passes, 1 otherwise.
 
 ## CI
 
-`.github/workflows/tests.yml` runs all twenty-one suites on **every push and pull
+`.github/workflows/tests.yml` runs all twenty-two suites on **every push and pull
 request**, and `publish-to-site.yml` calls the same workflow and will not
 publish until it passes:
 
@@ -92,6 +92,7 @@ bumping the `playwright` version in `package.json` needs no change here.
 | `v2-map-parity.js` | The map layer against V1's real source: the palette, the date badge, the marker HTML and icon geometry, the tooltip — and **the fit rule**, which is why the suite exists. "A background pull must never re-fit the map" (§3) is a rule about something *not* happening, so the failure is never an error: the map just jumps away from whatever an officer is reading, mid-read, on a phone. V1 expresses it inline in `renderMarkers` with a one-shot `noFitOnce` flag, so the transcription is guarded — edit that code and this throws rather than comparing against a stale copy. The rule is also asserted directly, not only by parity, because if V1 ever regressed a pure comparison would happily agree with it. Verified red on three mutations: a background pull that re-fits, an empty result that fits, and an order-sensitive key. |
 | `v2-map-view.js` | The V2 map components mounted in Chromium against a Leaflet stub that **records what the app asked it to do**. `v2-map-parity.js` proves the fit decision in isolation; this proves the component obeys it. The headline is a negative assertion — **`fitBounds` called 0 times during a background pull** — because "the map did not move" is not something any error will ever report. Also covers the three filter axes stacking with AND, the date badge and unsent "!" on the right pins, the registry counting the *view* while the pill counts stay over the *whole register*, and the banner naming every active filter and clearing all of them. Verified red on a `MapView` that ignores `noFitOnce`. |
 | `v2-map-search-add.js` | Place search and the **Tambah Pili Bomba** modal, mounted in Chromium. Two behaviours carry the suite. **A search ignores the Awam/Swasta pills** and says so in the result line — if it ever respected them, a pili sitting in the register would report as "Tiada pili dijumpai", which reads as a lost hydrant rather than as a filter. And **a search re-fits the map**: V1 clears `fittedKey` inside `applySearch`, and the only case that proves the reset is a search whose matches are the set already fitted — every narrowing search changes the key by itself, so the first version of this assertion was blind and the reset could be deleted with everything still green. Also: the ✕ and Escape (which must blur, or the phone keyboard stays up), admin-only add, the three validation axes with save disabled and reading "Fill Lat/Long", a map tap filling the coordinates live while the modal is open and being ignored when it is not, and the Bahasa Malaysia geolocation messages including the low-accuracy warning. Verified red on four mutations: a search that respects the pill, a missing `fittedKey` reset, a blank label accepted, and a dropped `box-sizing:border-box` (which overflows the phone widths sideways — §4.9). |
+| `v2-shell.js` | The V2 **app shell** mounted for real: login gate, header, tabs, role UI and the phone menu. It exists because writing the shell revealed there was no app — `App.vue` was a CSP probe, so the production bundle had carried no application for three phases while every component suite ran green. Asserts the z-index ladder by computed value (gate 100000 > header 1000 — §4.8), that an empty login never reaches the network, that a bad password reveals neither which field was wrong nor whether the account exists, that an unknown role fails **closed** to viewer, that both views stay mounted across a tab switch so an officer keeps their pan, that the header pills move the dashboard as well as the map (§4.2), and that the hamburger — the only route to Tambah Pili and sign-out below 640px — works end to end at 390px. Caught two real defects on its first run: the app rendering **two** sets of pills, and a sign-out check that read as failing because the deliberate page reload wiped what it recorded. Verified red on an unknown role failing open to admin, and on a gate that never shows. |
 
 ## Adding to this
 
