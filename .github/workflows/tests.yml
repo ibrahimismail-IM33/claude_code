@@ -182,3 +182,10 @@ jobs:
       # paths, and all three were found by an officer using the app.
       - name: V2 record sync (offline, contested rows, clears, failed flushes)
         run: npm run test:v2sync
+
+      # Signatures in V2 — signed links and capture. The signature IS the
+      # evidence (docs/KAD-REKOD.md §5): a signed row must be permanent, and a
+      # signature must never silently become unreachable. A blank T.T on a
+      # signed row reads as the signature having been lost.
+      - name: V2 signatures (signed links, capture, permanence)
+        run: npm run test:v2sig

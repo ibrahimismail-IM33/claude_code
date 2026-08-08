@@ -48,8 +48,10 @@ import { counts as countsOf } from './stores/filters-logic.js';
  * overwrite the cache. Overwriting is only safe because the flush parked
  * anything unsent — that is the whole of §4.10.
  *
- * Still not wired, and needed before cutover: signed-link resolution and
- * signature capture.
+ * Signed links and signature capture are wired too. The links are resolved
+ * ALONGSIDE the card rather than before it: making an officer wait on a second
+ * round trip to see a record they already have is the wrong trade, so the card
+ * paints from cache and the signatures appear when they land.
  */
 const SUPABASE_URL = 'https://isxfhocfkjamjchmicwq.supabase.co';
 // The PUBLISHABLE key, same one V1 ships in plain sight. It is not a secret:
@@ -145,6 +147,9 @@ async function addHydrant(h) {
 /* The open card. `openHydrant` non-null IS the open state — there is no second
  * boolean to fall out of step with it. */
 const openHydrant = ref(null);
+const signing = ref(null);          // {section,row} while the popup is open
+const signBusy = ref(false);
+const signError = ref('');
 
 async function openCard(h) {
   records.load(h.id);
@@ -162,6 +167,30 @@ async function openCard(h) {
   // A last row completed on ANOTHER device arrives here, not through a
   // keystroke, so the next card has to be offered on open too.
   if (records.needsNewCard(records.form)) records.grow(records.form);
+  // Signed links are a separate round trip and the officer must not wait on it.
+  await sync.resolveSignatures(sb.value, records.form);
+}
+
+/* Signing. Admin-only here AND in RLS — this component's check is courtesy. */
+function startSign(e) {
+  if (!auth.isAdmin) return;
+  const row = (records.form[e.section] || [])[e.row];
+  if (!row || row._signed) return;          // permanence: never offer to re-sign
+  signError.value = '';
+  signing.value = e;
+}
+async function confirmSign(dataUrl) {
+  const h = openHydrant.value;
+  if (!h || !signing.value || !dataUrl) return;
+  signBusy.value = true; signError.value = '';
+  const res = await sync.signRow(sb.value, h.id, records.form,
+    signing.value.section, signing.value.row, dataUrl, auth.email);
+  signBusy.value = false;
+  if (!res.ok) { signError.value = res.reason || 'Gagal.'; return; }
+  // Local copy second, and only once the server accepted it. A row marked
+  // signed here but not there would look permanent and not be.
+  records.saveLocal(h.id, records.form);
+  signing.value = null;
 }
 function closeCard() { openHydrant.value = null; }
 
@@ -295,7 +324,9 @@ onBeforeUnmount(() => {
     <KadRekod v-if="openHydrant && records.form"
               :hydrant="openHydrant" :form="records.form" :is-admin="auth.isAdmin"
               :last-edit="sync.lastEdit" :cloud-note="sync.note"
-              @close="closeCard" @save="saveCard" @edit="editCell" />
+              :signing="signing" :sign-busy="signBusy" :sign-error="signError"
+              @close="closeCard" @save="saveCard" @edit="editCell"
+              @sign="startSign" @sign-cancel="signing = null" @sign-confirm="confirmSign" />
 
     <AuthGate v-if="!auth.ready" :busy="authBusy" :error="authError" @sign-in="signIn" />
   </div>
