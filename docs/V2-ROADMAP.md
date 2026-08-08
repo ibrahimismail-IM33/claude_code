@@ -577,7 +577,37 @@ equivalent: `{` and `}` appear inside comments and `@keyframes` prose.
 The transcription rule that follows from it: **copy whole rules, never line
 ranges.**
 
-### Staging deploy
+### Staging deploy — how it actually ships (2026-08-08)
+
+Built by **Cloudflare Pages directly from `claude/epb-v2`**, not by a workflow.
+`.github/workflows/deploy-staging.yml` was written and then deleted: with Git
+integration Cloudflare does the building and deploying, and a second definition
+of that would be exactly the duplication §3 warns about.
+
+**Two trades were made knowingly and are recorded in `docs/STAGING.md`:**
+
+- **The suites do not gate the deploy.** Cloudflare ships every push, green or
+  red. The alternative — CI fast-forwarding a green-only branch for Cloudflare
+  to watch — was offered and declined in favour of simplicity. `tests.yml`
+  still runs on every push, so red is visible; it is just visible after the
+  deploy.
+- **Staging writes to the production Supabase project.** That is what makes it
+  worth testing on, and it means every save on staging is a real save against
+  the real register.
+
+What *is* gated is the **artefact**. `scripts/verify-bundle.js` is the last
+step of the build command, and a non-zero exit fails the deployment so the
+previous version stays up. Ten checks: `index.html` and `_headers` present,
+`script-src 'self'` with no `unsafe-inline`, `noindex`, `geolocation=(self)`,
+no `harness.html` or `harness-*` bundle, no `sql/`, no `tests/`, no CDN origin
+anywhere in the built JS/CSS/HTML. Verified by mutation before being trusted —
+a `V2_HARNESS=1` build, a removed `_headers` and a planted CDN string each
+produce exit code 1, checked as a real exit code rather than through a pipe,
+because the exit code *is* the mechanism.
+
+So: **a malformed bundle cannot reach staging; a logic regression can.**
+
+### Original staging notes
 
 `_headers` for the V2 bundle lives at `v2/public/_headers` (Vite copies it into
 `dist/`), and `.github/workflows/deploy-staging.yml` builds, verifies and

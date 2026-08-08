@@ -59,6 +59,8 @@ Live at **epilibomba.com**. UI language is Bahasa Malaysia.
 | `drafts/dashboard-draft-glass.html` | Standalone dashboard design draft (superseded by the real thing, kept for reference) |
 | `v2/`, `vite.config.mjs` | **V2 migration only** (Vue 3 + Vite + Pinia). Reaches no officer until cutover — `main` publishes V1 throughout. See `docs/V2-ROADMAP.md` |
 | `docs/V2-ROADMAP.md` | The V2 plan: why, the phase order and what it is ordered by, the branching model, and what is explicitly out of scope |
+| `docs/STAGING.md` | **How V2 staging is deployed and what it is safe to do on it.** Cloudflare Pages builds `claude/epb-v2` directly; the suites do **not** gate that deploy, and staging writes to the **production** database. Read it before pointing anyone at the staging URL |
+| `scripts/verify-bundle.js` | Runs as the last step of the Cloudflare build. A non-zero exit fails the deployment, so it is the gate on the built artefact — no harness page, no CDN origin, `script-src 'self'`, `noindex`, `geolocation=(self)` |
 | `docs/DOM-CONTRACT.md` | **The selectors the test suites depend on.** V2 must emit them exactly — they are an interface, not implementation detail |
 | `docs/FULL-ARCHITECTURE.md` | How the system is built — layers, data model, every RLS policy, the key flows, deploy pipeline, and §9 known defects |
 | `docs/PRD.md` | What it is for and where it goes — requirements, open issues, district-expansion analysis, non-technical risks, roadmap |
@@ -484,6 +486,16 @@ Watch items:
   signed in.
 - **Backup retention is 90 days** in GitHub artifacts, which vanish with the
   repo. Consider a copy held elsewhere.
+- **V2 staging is live on Cloudflare Pages** — `epilibomba-staging.pages.dev`,
+  built by Cloudflare straight from `claude/epb-v2`. See `docs/STAGING.md`.
+  **Two things about it are accepted trades, not oversights.** It points at the
+  **production Supabase project**, so every save made on staging is a real save
+  against the real register — that is what makes it worth testing on. And the
+  test suites do **not** gate the deploy: Cloudflare ships every push, green or
+  red. `scripts/verify-bundle.js` runs in the build command and fails the
+  deployment on a bad *artefact* (harness page, CDN origin, missing `_headers`,
+  `unsafe-inline`), so a malformed bundle cannot reach staging — but a logic
+  regression can. If `tests.yml` is red, assume staging is carrying it.
 - **Publishing is automatic** — `publish-to-site.yml` copies `index.html`,
   `_headers` and `vendor/` to the site repo on every push to main, using the
   `SITE_REPO_TOKEN` secret. Verified working 2026-08-03. Do not hand-copy.
