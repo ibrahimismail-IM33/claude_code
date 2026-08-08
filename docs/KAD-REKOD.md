@@ -171,7 +171,44 @@ partial alpha. Measured on a typical signature the darkest pixel is luminance
 beside it. A backlit screen flatters that. Paper does not, and the first real
 printout came out visibly faded.
 
-The print CSS therefore applies
+> **Superseded 2026-08-08.** The filter described below made the ink black and
+> also blackened the leftover paper, printing a **black box** around the
+> signature on hydrant C26. What ships now is a pre-rendered print copy —
+> `signatureForPrint()` in `index.html`. The original text is kept because the
+> measurements in it are still true and still explain why the obvious fixes do
+> not work.
+>
+> **What replaced it, and why it is not a filter at all.** `stripSignatureBg`
+> cannot always key the paper out: on a badly-lit photo it leaves the
+> background at low-but-non-zero alpha. Amplifying alpha — which is all a CSS
+> filter can do — necessarily amplifies that too. The answer is to
+> **threshold**: alpha at or above 0.65 **of the image's own strongest alpha**
+> becomes solid black, everything below becomes fully transparent, written into
+> a canvas and printed as a plain PNG.
+>
+> Three things about it are load-bearing:
+>
+> - **It is not a filter.** Measured: neither the CSS filter nor an equivalent
+>   inline SVG filter survives `page.pdf()` — the current one was tested as a
+>   control and came out of the PDF unfiltered, despite being confirmed black on
+>   a real printer. A pre-rendered image leaves the print pipeline nothing to
+>   drop.
+> - **The cutoff is relative, not absolute.** An absolute 0.65 erased a
+>   signature whose ink sat at alpha 158. **A signature missing from a printed
+>   legal record is far worse than a grey box.** Taking the cutoff as a fraction
+>   of the strongest alpha present keeps the ink at whatever level it was
+>   captured.
+> - **It is still render-side and print-only.** Signed rows are permanent, so a
+>   capture-side change repairs no filed record, and the screen must not change.
+>   The original `<img>` is never touched or reloaded; the print copy is built
+>   beside it, best-effort. If the canvas cannot read the image (a cross-origin
+>   host refusing CORS) the old filter still applies to that row — faded-but-
+>   present beats absent.
+>
+> 0.65 was measured: below it the residue survives (0.55 → 7.7% dark against
+> 5.3% of real ink), above it the strokes erode (0.70 → 5.2%).
+
+The print CSS **used to** apply
 `filter: brightness(0)` plus **three** `drop-shadow(0 0 0 #000)` passes.
 `brightness(0)` flattens the ink to black while keeping alpha as the stroke
 shape; the shadows do the real work, because **CSS filters cannot touch the
@@ -218,6 +255,13 @@ happened.
 - [ ] Does a signature still print **black**? Measure it — `darkest < 40` with
       real dark pixels present. It looked fine on screen when it was printing
       grey.
+- [ ] Is it still a **signature and not a black box**? Measure the *fraction*
+      of dark pixels: a signature is a few percent, a box is ~96%. Both defects
+      satisfy "the ink is black", which is why the first one was fixed into the
+      second without anything going red.
+- [ ] Is the signature **still there at all**? A threshold that is slightly too
+      high erases faint ink entirely, and a missing signature on a filed record
+      is the worst outcome of the three.
 
 Then run `npm run test:kad`, and the rest of `npm test`.
 

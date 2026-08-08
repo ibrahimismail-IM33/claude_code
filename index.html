@@ -565,13 +565,19 @@
        already-filed record. Print-only, because the screen rendering is correct
        and officers look at it all day.
 
-       brightness(0) flattens the ink to black while keeping alpha as the
-       stroke shape. The drop-shadows do the real work — CSS filters cannot
-       touch the alpha channel, so contrast() cannot rescue a semi-transparent
-       stroke; each shadow paints an opaque black copy behind it, compounding
-       effective alpha toward 1 while leaving faint edges graded. Measured
-       darkest/mean: none 137/187, 2x 5/85, 3x 0/54, 4x 0/41. Three passes reach
-       solid black on a badly-lit photo too (4/74); a fourth only thickens.
+       THAT FIX WAS THREE STACKED drop-shadow PASSES, AND IT IS NO LONGER WHAT
+       SHIPS — see §4.15. Compounding alpha toward 1 is what made the ink solid,
+       and it did exactly the same to any paper the stripper failed to key out,
+       printing a BLACK BOX around the signature (measured: 5.7% dark -> 95.8%).
+       The two defects are one defect seen from either side.
+
+       What ships now is signatureForPrint(): threshold the alpha in a canvas
+       and print a plain PNG. Not a filter, because neither a CSS nor an SVG
+       filter survives page.pdf() — the drop-shadow version was tested as a
+       control and came out of the PDF unfiltered despite being confirmed black
+       on a real printer. The old filter remains below as a FALLBACK only, for a
+       cross-origin image the canvas cannot read.
+
        Height was 6.6mm here and 30px in a later @media print block — same
        specificity, so the later one silently won. Consolidated to the value
        that was actually in effect, so the printed layout does not move. */
@@ -627,8 +633,23 @@
     background-image:linear-gradient(45deg,#e5e7eb 25%,transparent 25%),linear-gradient(-45deg,#e5e7eb 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e5e7eb 75%),linear-gradient(-45deg,transparent 75%,#e5e7eb 75%);
     background-size:14px 14px;background-position:0 0,0 7px,7px -7px,-7px 0}
   .sigacts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+  /* A pre-rendered, print-ready copy of each signature. Hidden on screen —
+     officers only ever see the original. See signatureForPrint(). */
+  .sigprint{display:none}
   @media print{
-    .sigimg{max-height:30px;
+    /* When a pre-rendered copy exists, print THAT and hide the original.
+       .has-print is set only after the canvas pass actually succeeded. */
+    .sigimg.has-print{display:none !important}
+    .sigprint{display:block;max-width:100%;max-height:30px;object-fit:contain;margin:0 auto}
+
+    /* Fallback, for a signature the canvas pass could not read (a cross-origin
+       image the storage host would not serve with CORS headers). This is the
+       old amplifying filter: it makes the ink black but can also blacken any
+       background residue the stripper left behind — the very defect
+       signatureForPrint() exists to remove. It stays only because the
+       alternative for those rows is a faded signature, which is worse, and it
+       applies to nothing once the canvas pass works. */
+    .sigimg:not(.has-print){max-height:30px;
       filter:brightness(0) drop-shadow(0 0 0 #000) drop-shadow(0 0 0 #000) drop-shadow(0 0 0 #000)}
     .sigmodal{display:none!important}
   }
@@ -1964,6 +1985,79 @@
       img.className="sigimg"; img.alt="T.T"; img.src=u;
       ph.parentNode.replaceChild(img, ph);
     });
+    addPrintSigs(el);      // signatures that arrived after the card was drawn
+  }
+  /* ---- printing a signature ------------------------------------------------
+     Signatures are photographed, so the stored ink is never black and
+     stripSignatureBg cannot always key the paper out cleanly: on a badly-lit
+     photo it leaves the background at low-but-non-zero alpha.
+
+     The first fix for the faded print amplified alpha with three stacked
+     drop-shadows. That made the ink solid — and did exactly the same to the
+     leftover paper, printing a black box around the signature (§4.15).
+
+     So threshold instead of amplify, and do it in a canvas rather than a CSS or
+     SVG filter. Measured: NEITHER filter survives PDF generation — the current
+     one was tested as a control and came out of page.pdf() unfiltered, despite
+     being confirmed black on a real printer. A pre-rendered image has nothing
+     for the print pipeline to drop.
+
+     Render-side on purpose: a signed row is permanent and its image can never
+     be re-uploaded, so a capture-side change would repair no filed record. */
+  /* The cutoff is RELATIVE to the image's own darkest ink, not an absolute
+     alpha. That matters: an absolute 0.65 erased a signature whose ink sat at
+     alpha 158, and a signature missing from a printed legal record is far worse
+     than a grey box. Taking it as a fraction of the strongest alpha present
+     keeps the ink whatever its level and still drops paper residue, which is
+     always much fainter than the strokes.
+
+     0.65 was measured, not chosen: sweeping cutoffs against the unfiltered ink
+     area, below 0.65 the residue survives (0.55 -> 7.7% dark vs 5.3% of real
+     ink) and above it the strokes themselves begin to erode (0.70 -> 5.2%). */
+  var SIG_PRINT_CUT = 0.65;
+  function signatureForPrint(img){
+    var w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+    if(!w || !h) return "";
+    var c=document.createElement("canvas");
+    c.width=w; c.height=h;
+    var x=c.getContext("2d");
+    x.drawImage(img,0,0);
+    // Throws SecurityError on a tainted (cross-origin, no CORS) canvas. The
+    // caller treats that as "no print copy" and leaves the fallback filter.
+    var im=x.getImageData(0,0,w,h), d=im.data, i, peak=0;
+    for(i=3;i<d.length;i+=4) if(d[i]>peak) peak=d[i];
+    if(!peak) return "";                       // nothing visible at all
+    var t=peak*SIG_PRINT_CUT;
+    for(i=0;i<d.length;i+=4){
+      if(d[i+3]>=t){ d[i]=0; d[i+1]=0; d[i+2]=0; d[i+3]=255; }
+      else { d[i+3]=0; }
+    }
+    x.putImageData(im,0,0);
+    return c.toDataURL("image/png");
+  }
+  /* Attach a print copy beside every signature on the card.
+     Best-effort by design: the on-screen <img> is never touched or reloaded, so
+     a failure here can only cost print quality, never the signature itself. */
+  function addPrintSigs(root){
+    if(!root) return;
+    root.querySelectorAll("img.sigimg").forEach(function(img){
+      if(img.getAttribute("data-printsrc")) return;      // already handled
+      img.setAttribute("data-printsrc","1");
+      var probe=new Image();
+      probe.crossOrigin="anonymous";                     // needed to read pixels
+      probe.onload=function(){
+        var url="";
+        try{ url=signatureForPrint(probe); }catch(e){ return; }   // tainted -> fallback
+        if(!url) return;
+        var out=document.createElement("img");
+        out.className="sigprint"; out.alt=""; out.setAttribute("aria-hidden","true");
+        out.src=url;
+        if(img.parentNode) img.parentNode.insertBefore(out, img.nextSibling);
+        img.classList.add("has-print");
+      };
+      probe.onerror=function(){ /* CORS refused or gone; fallback filter stands */ };
+      probe.src=img.src;
+    });
   }
   function cleanRow(r){ var o={}; Object.keys(r).forEach(function(k){ if(k.charAt(0)!=="_") o[k]=r[k]; }); return o; }
   /* ================= offline safety net =================================
@@ -2548,6 +2642,9 @@
     }
   }
   function wireForm(h,f,el){
+    // Every render passes through here — first open, and every re-render after
+    // a new card is added — so this is the one place that covers them all.
+    addPrintSigs(el);
     el.querySelector("#fClose").onclick=function(){ collectForm(el,f); saveForm(h.id,f); closeForm(); };
     el.querySelector("#fSave").onclick=function(){
       collectForm(el,f);
