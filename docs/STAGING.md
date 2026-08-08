@@ -55,18 +55,32 @@ No API token and no secret is needed. Cloudflare builds the branch itself.
    > If a Worker already exists under this name, **delete it first** — the name
    > cannot be reused while it is there.
 
-2. Name the project **`epilibomba-staging`**.
-   It must be a **new project**, separate from whatever serves epilibomba.com.
-   That separation is the only thing guaranteeing staging can never reach
-   officers' live app.
+2. **On the "Set up builds and deployments" screen, these three are the ones
+   that go wrong.** Cloudflare asks for the repository, the project name and
+   the production branch on one page:
 
-3. **Production branch: `claude/epb-v2`.**
-   Setting the branch as *production* is what gives the stable
-   `epilibomba-staging.pages.dev` address. Any other branch produces preview
-   deployments on per-commit URLs, and an address that changes is an address
-   officers cannot be given.
+   | Field | Value | Why it matters |
+   |---|---|---|
+   | Repository | **`ibrahimismail-IM33/claude_code`** | The **only** repo with the V2 app, `vite.config.mjs`, `scripts/verify-bundle.js` and the suites. Any other copy is a fork that will drift |
+   | Project name | `epilibomba-staging` | Gives `epilibomba-staging.pages.dev`. Cosmetic, but keep it matching this doc |
+   | Production branch | **`claude/epb-v2`** | `main` is V1 and has **no `v2/` and no `vite.config.mjs`** — it would build nothing. Setting this branch as *production* is also what gives a stable URL rather than per-commit preview addresses |
 
-4. **Build settings:**
+   > ### ⚠ Do not point this at a copy of the source
+   >
+   > If a repo like `epilibomba-v2` or `epilibomba-staging` exists holding an
+   > exported copy of `v2/`, **do not use it.** Such a copy typically has no
+   > `vite.config.mjs`, no `scripts/`, and a `package.json` with no
+   > dependencies, so it cannot build at all — and even if it could, it is a
+   > second source of truth. `CLAUDE.md` §3 records what that costs: this
+   > project already had two repos drift **7 commits apart**, and officers ran
+   > a live app missing fixes. There is one source of truth and it is
+   > `claude_code`.
+
+   The project must also be a **new** project, separate from whatever serves
+   epilibomba.com. That separation is the only thing guaranteeing staging can
+   never reach officers' live app.
+
+3. **Build settings:**
 
    | Field | Value |
    |---|---|
@@ -82,9 +96,9 @@ No API token and no secret is needed. Cloudflare builds the branch itself.
    | `NODE_VERSION` | `20` | `package.json` requires `>=20` |
    | `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` | `1` | `playwright` is a devDependency and `npm ci` runs its postinstall, which downloads **~150 MB of Chromium** that only the test suites use. Nothing on Cloudflare's builder suppresses it — this container only avoids it because `PLAYWRIGHT_BROWSERS_PATH` happens to be set here. Without this the build is slow at best, and can fail on Cloudflare's 25 MiB per-file limit |
 
-5. **Settings → Builds & deployments → Preview branch control → turn preview
+4. **Settings → Builds & deployments → Preview branch control → turn preview
    deployments OFF** (or restrict them to none), so **only `claude/epb-v2`
-   deploys.
+   deploys.**
 
    This is not tidiness. Cloudflare builds *every* branch by default, so each
    push to `claude/epb-v2-p5-kad` or any future phase branch would put a live
@@ -92,7 +106,7 @@ No API token and no secret is needed. Cloudflare builds the branch itself.
    project** (§3). One staging URL against the real register is an accepted
    risk; one per branch is not, and nobody would have chosen it.
 
-6. Deploy, then check **two** things — the second is the one people skip.
+5. Deploy, then check **two** things — the second is the one people skip.
 
    **a. Open the URL — you must get the login gate.** A page that loads but
    shows an empty map means the sign-in or RLS is the problem, not the hosting:
