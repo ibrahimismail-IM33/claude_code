@@ -24,9 +24,36 @@ No API token and no secret is needed. Cloudflare builds the branch itself.
 > created at all**. The two are opposite mechanisms and a project created as
 > Direct Upload cannot be converted — if one exists, delete it and start again.
 
-1. **Workers & Pages → Create → Pages → Connect to Git.**
+1. **Workers & Pages → Create → the PAGES tab → Connect to Git.**
    Authorise the Cloudflare GitHub App for `ibrahimismail-IM33/claude_code`.
    This is a click-through authorisation, not a token you generate.
+
+   > ### ⚠ Pick **Pages**, not Workers. They are different products.
+   >
+   > The Create button defaults to **Workers**, and Cloudflare has pushed Pages
+   > into a secondary tab. Choosing the default silently gives you a Worker,
+   > which **ignores the Build output directory below** — it has no such
+   > setting — and instead tries to upload the entire repository as its assets.
+   > That fails with a misleading error:
+   >
+   > ```
+   > ✗ [ERROR] Asset too large.
+   >   Read 2085 files from the assets directory /opt/buildhome/repo
+   > ```
+   >
+   > 2085 files is the whole repo including `node_modules`. `dist` is about ten
+   > files and 632 KB. **The size error is a symptom; the disease is the wrong
+   > product.**
+   >
+   > Two seconds to check what you actually created:
+   >
+   > | | Pages — correct | Worker — wrong |
+   > |---|---|---|
+   > | URL | `dash.cloudflare.com/…/**pages**/view/…` | `…/**workers/services**/view/…` |
+   > | Tabs | Deployments, Custom domains | **Bindings**, **Observability** |
+   >
+   > If a Worker already exists under this name, **delete it first** — the name
+   > cannot be reused while it is there.
 
 2. Name the project **`epilibomba-staging`**.
    It must be a **new project**, separate from whatever serves epilibomba.com.
@@ -48,8 +75,12 @@ No API token and no secret is needed. Cloudflare builds the branch itself.
    | Build output directory | `dist` |
    | Root directory | *(leave blank — the repo root)* |
 
-   Environment variable: **`NODE_VERSION` = `20`** (`package.json` requires
-   `>=20`).
+   Environment variables — **both are required**:
+
+   | Name | Value | Why |
+   |---|---|---|
+   | `NODE_VERSION` | `20` | `package.json` requires `>=20` |
+   | `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` | `1` | `playwright` is a devDependency and `npm ci` runs its postinstall, which downloads **~150 MB of Chromium** that only the test suites use. Nothing on Cloudflare's builder suppresses it — this container only avoids it because `PLAYWRIGHT_BROWSERS_PATH` happens to be set here. Without this the build is slow at best, and can fail on Cloudflare's 25 MiB per-file limit |
 
 5. **Settings → Builds & deployments → Preview branch control → turn preview
    deployments OFF** (or restrict them to none), so **only `claude/epb-v2`
@@ -61,10 +92,27 @@ No API token and no secret is needed. Cloudflare builds the branch itself.
    project** (§3). One staging URL against the real register is an accepted
    risk; one per branch is not, and nobody would have chosen it.
 
-6. Deploy. Open the URL — **you must get the login gate.** That is the
-   end-to-end proof. A page that loads but shows an empty map means the sign-in
-   or RLS is the problem, not the hosting: an unauthenticated visitor is
-   returned nothing by `select ... to authenticated`.
+6. Deploy, then check **two** things — the second is the one people skip.
+
+   **a. Open the URL — you must get the login gate.** A page that loads but
+   shows an empty map means the sign-in or RLS is the problem, not the hosting:
+   an unauthenticated visitor is returned nothing by
+   `select ... to authenticated`.
+
+   **b. Confirm `_headers` actually applied.** Devtools → Network → click the
+   document request → Response Headers. Both of these must be present:
+
+   - `Content-Security-Policy: … script-src 'self' …`
+   - `Permissions-Policy: … geolocation=(self) …`
+
+   The gate appearing proves the bundle runs. It proves **nothing** about the
+   headers — `_headers` is a separate mechanism and it either applied or it did
+   not. A missing `Permissions-Policy` is invisible until an officer stands
+   beside a hydrant, taps **Guna Lokasi Saya**, and nothing happens. A missing
+   CSP loses the security posture the whole self-hosting decision was for.
+
+   Also glance at the build log: it should read roughly **"Read 10 files"**. If
+   it says thousands, it is a Worker — see the warning in step 1.
 
 ---
 
@@ -157,6 +205,9 @@ one is the checklist that has caught every field bug so far.
 
 | Symptom | Cause |
 |---|---|
+| `[ERROR] Asset too large` **and** `Read 2085 files from the assets directory /opt/buildhome/repo` | **It is a Worker, not a Pages project.** It is uploading the whole repo instead of `dist`, so it hits `node_modules`. The size error is the symptom, not the disease — delete it and create a **Pages** project (step 1) |
+| Build is slow, or fails on a file over 25 MiB | `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` is not set, so `npm ci` is downloading ~150 MB of Chromium for a devDependency only the tests use |
+| Deployed, but no `Content-Security-Policy` or `Permissions-Policy` on the response | `_headers` did not apply. Check `dist/_headers` exists in the build log output, and that this is a Pages project — the header mechanism differs between products |
 | Build fails at `verify-bundle.js` | Read the `FAIL` lines — they name the property. A harness page means the build ran with `V2_HARNESS=1` |
 | Build fails at `npm ci` | `NODE_VERSION` is not set to 20 |
 | `dist/_headers is missing` | `v2/public/_headers` was moved or deleted; Vite copies `v2/public/` into `dist/` |
