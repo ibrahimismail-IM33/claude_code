@@ -4,9 +4,11 @@ import AppHeader from './components/AppHeader.vue';
 import AuthGate from './components/AuthGate.vue';
 import MapShell from './components/MapShell.vue';
 import DashView from './components/DashView.vue';
+import KadRekod from './components/KadRekod.vue';
 import { getClient } from './lib/supabase.js';
 import { useAuthStore } from './stores/auth.js';
 import { useHydrantsStore, PULL_EVERY } from './stores/hydrants.js';
+import { useRecordsStore } from './stores/records.js';
 import { counts as countsOf } from './stores/filters-logic.js';
 
 /* The app shell.
@@ -32,9 +34,18 @@ import { counts as countsOf } from './stores/filters-logic.js';
  *    event, which is why the poll exists (§3). Every one of these is a QUIET
  *    pull: it must never re-fit the map.
  *
- * Still to come in Phase 5: the Kad Rekod. Tapping a pin currently reports the
- * hydrant and nothing opens — deliberate, and the reason staging cannot yet be
- * anyone's daily driver.
+ * The Kad Rekod opens from a pin. What is wired here is the LOCAL round trip —
+ * open, edit, save to localStorage, and grow a new card when the last row of a
+ * section is complete. That growth fires on the LOCAL save, not on a successful
+ * upload, so an officer with no signal still gets their next card
+ * (docs/KAD-REKOD.md §2).
+ *
+ * NOT yet wired, and it must be before cutover: the cloud record round trip
+ * (`cloudFormLoad` / `cloudFormSave` / `deleteRows`), signed-link resolution,
+ * signature capture, and the offline pending queue on this view. Those are the
+ * paths §4.10, §4.13 and §4.14 all live in, and they are not to be reconstructed
+ * from memory — they get ported line by line with their parity suites, as
+ * Phase 1 did for the logic.
  */
 const SUPABASE_URL = 'https://isxfhocfkjamjchmicwq.supabase.co';
 // The PUBLISHABLE key, same one V1 ships in plain sight. It is not a secret:
@@ -46,6 +57,7 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || 'sb_publishable_T3MxpZ
 
 const auth = useAuthStore();
 const hydrants = useHydrantsStore();
+const records = useRecordsStore();
 
 const sb = ref(null);
 const tab = ref('map');
@@ -124,6 +136,43 @@ async function addHydrant(h) {
   }
 }
 
+/* The open card. `openHydrant` non-null IS the open state — there is no second
+ * boolean to fall out of step with it. */
+const openHydrant = ref(null);
+
+function openCard(h) {
+  records.load(h.id);
+  if (!records.form.header.lokasi && h.location) records.form.header.lokasi = h.location;
+  openHydrant.value = h;
+}
+function closeCard() { openHydrant.value = null; }
+
+function editCell(e) {
+  const f = records.form;
+  if (!f) return;
+  if (e.section === 'header') { f.header[e.key] = e.value; return; }
+  const row = (f[e.section] || [])[e.row];
+  // A signed row is permanent. The component disables its inputs, RLS refuses
+  // the write and a trigger blocks it — this is the fourth place, and it costs
+  // one line: never trust that a disabled input stayed disabled.
+  if (!row || row._signed) return;
+  row[e.key] = e.value;
+}
+
+function saveCard() {
+  const h = openHydrant.value;
+  if (!h || !records.form) return;
+  records.saveLocal(h.id, records.form);
+  // Growth is triggered from Save, never from a keystroke: a half-typed row is
+  // not a record, and a card conjured by one stray keypress is a card the
+  // officer then has to explain (docs/KAD-REKOD.md §2).
+  if (records.needsNewCard(records.form)) records.grow(records.form);
+  const d = records.lastInspected(records.form);
+  const hy = hydrants.list.find((x) => x.id === h.id);
+  if (hy) hy.lastInspected = d || '';
+  hydrants.persist();
+}
+
 function clearFilters() { statusFilter.value = null; inspFilter.value = null; zoneFilter.value = null; }
 
 function tickClock() {
@@ -194,6 +243,7 @@ onBeforeUnmount(() => {
         :adding="adding" :is-admin="auth.isAdmin" :draft="draft"
         :saving="saving" :add-error="addError"
         :insp-status-of="inspStatusOf" :has-pending="hasPending"
+        @pick="openCard"
         @pick-status="(s) => (statusFilter = s)"
         @clear-filters="clearFilters"
         @search="(v) => (query = v)"
@@ -213,6 +263,10 @@ onBeforeUnmount(() => {
       @pick-status="(k) => (inspFilter = inspFilter === k ? null : k)"
       @pick-zone="(z) => { zoneFilter = zoneFilter === z ? null : z; tab = 'map'; }"
     />
+
+    <KadRekod v-if="openHydrant && records.form"
+              :hydrant="openHydrant" :form="records.form" :is-admin="auth.isAdmin"
+              @close="closeCard" @save="saveCard" @edit="editCell" />
 
     <AuthGate v-if="!auth.ready" :busy="authBusy" :error="authError" @sign-in="signIn" />
   </div>

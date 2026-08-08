@@ -623,6 +623,64 @@ Its own branch, its own release, nothing else in it.
 rendered PDF page-counted by hand**, plus one card printed on the real printer
 before release. The screen has never been sufficient evidence for this view.
 
+### Phase 5 status — the card renders and is page-counted; the data paths are not ported
+
+**Done:** `v2/src/styles/kad-rekod.css` (index.html 396–655, copied whole),
+`KadRekod.vue`, `v2/src/lib/signature-print.js`, and the card wired into
+`App.vue` for the **local** round trip — open from a pin, edit, save to
+localStorage, and grow a new card when the last row of a section is complete.
+Growth fires on the local save, not on a successful upload, so an officer with
+no signal still gets their next card.
+
+Guarded by **`tests/v2-kad-rekod.js`, 39 assertions** — the only suite in this
+repo that **renders to PDF and counts the pages**.
+
+#### The defect that assertion existed for, found on its first run
+
+`#formOverlay` must be a **direct child of `<body>`**. V1's print rule is
+`body.form-open > *:not(#formOverlay){display:none!important}`, and in V2 the
+component naturally renders inside `#app` — so `#app` matched the rule and
+**the entire card was `display:none` on paper.** It printed one blank sheet.
+
+Nothing on screen changed. Nothing in the PDF looked wrong; the card simply was
+not in it. The only signal was the page count: 1 where 2 was required.
+
+Fixed with `<Teleport to="body">` — matching V1's DOM position rather than
+editing the print CSS to suit a new structure. **The CSS is the part that has
+been proven on paper; the component is not.** Whenever those two disagree, the
+component moves.
+
+#### What the PDF gate is actually sensitive to
+
+Worth writing down rather than assuming. Raising `.ftab.pengujian td` from
+8.3mm: 9.6mm and 11mm still produce 2 pages; **13mm produces 3** and the suite
+goes red on all three fixtures. So there is real headroom on Letter at an 8mm
+margin — the layout is not on a knife edge — but the gate does catch the
+failure mode it exists for. The millimetre difference between Pengujian rows
+and the rest is asserted separately, border-independently, because that is the
+part that would quietly vanish if someone normalised the heights to one value.
+
+Also verified red on: an overlay that is not a direct child of body (3
+failures), and a screen order that stops being newest-first (2).
+
+#### Still to port before cutover — and NOT to be reconstructed from memory
+
+The cloud record round trip (`cloudFormLoad`, `cloudFormSave`, `deleteRows`),
+signed-link resolution, signature capture, and the offline pending queue on
+this view. **§4.10 (offline data destroyed), §4.13 (a row that could never be
+cleared) and §4.14 (a failed flush discarding parked work) all live in exactly
+those paths.** They get ported line by line with parity suites, the way Phase 1
+did for the logic — and `p0-offline-sync.js` and `clear-row.js` still describe
+the behaviour they must produce.
+
+#### And the gate that no suite can give
+
+`docs/KAD-REKOD.md` §6 requires **a real printout before anything touching this
+card ships**, and this suite does not replace it. Three print defects have
+shipped on this card; every one was measurable, and every one still reached
+paper wrong. The page count is necessary evidence. It has never been
+sufficient.
+
 ---
 
 ## Branching and release

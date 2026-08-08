@@ -1,0 +1,297 @@
+/* KAD REKOD PILI BOMBA — the record card, screen and print.
+ *
+ * Copied VERBATIM and WHOLE from index.html lines 396-655. See
+ * docs/KAD-REKOD.md, which is BINDING: this is a mandatory record under
+ * MS ISO 9001:2015 procedure PS-8, and if a change alters what comes out of
+ * the printer it needs the officer's approval before it ships, not after.
+ *
+ * ────────────────────────────────────────────────────────────────────────
+ *  DO NOT SCOPE THIS. DO NOT REORDER IT. DO NOT SPLIT IT.
+ * ────────────────────────────────────────────────────────────────────────
+ *
+ * SOURCE ORDER IS LOAD-BEARING, not stylistic. There are four separate
+ * `@media print` blocks in here and they are interleaved with the screen
+ * rules on purpose. The signature print rule must come AFTER the screen
+ * `.sigimg{max-height:34px}` rule: they are the same specificity, so an
+ * earlier @media print block LOSES. A `6.6mm` height declared higher up was
+ * silently dead for exactly that reason. That is why this is one whole slice
+ * rather than rules gathered by topic.
+ *
+ * NEVER Vue `<style scoped>`. Scoped styles rewrite selectors into attribute
+ * form, and the bundler's minifier sits between this source and the paper.
+ * The millimetre row heights, the page-break rules and the print filter must
+ * arrive as one plain global stylesheet.
+ *
+ * The millimetres are not a preference: 22 rows plus ~75mm of header and
+ * section chrome has to land inside the 259mm usable height of Letter at an
+ * 8mm margin. `.ftab td{height:7.5mm}` and `.ftab.pengujian td{height:8.3mm}`
+ * are what make a card exactly TWO pages. Changing a row height, a font size
+ * or a capacity can silently push it onto a third sheet — and that is
+ * invisible on screen. Re-render to PDF and count the pages.
+ *
+ * `.fsheet{flex-direction:column-reverse}` flips CARDS on screen so the
+ * newest — the only one anyone writes on — is on top, while print restores
+ * `column` so the filed record reads forward in time. It reorders `.fcard`,
+ * never the two `.fpage` inside one. Do NOT reverse the render loop instead:
+ * that reverses the paper too and breaks `page-break-before`, invisibly.
+ */
+  /* ===================== KAD REKOD PILI BOMBA (record card) ===================== */
+  #formOverlay{position:fixed;inset:0;z-index:12000;background:rgba(5,6,8,.85);backdrop-filter:blur(4px);overflow:auto;display:flex;flex-direction:column}
+  #formOverlay.hide{display:none!important}
+  .ftoolbar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:10px 16px;background:linear-gradient(180deg,#16171b,#0c0d10);border-bottom:1px solid rgba(255,255,255,.1)}
+  .ftitle{font-family:var(--display);font-weight:700;font-size:15px;color:#fff}
+  .ftitle b{color:#f87171}
+  .factions{display:flex;gap:8px}
+  /* ---------- login gate ---------- */
+  #authGate{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;
+    background:#0a0b0d url("login-bg.jpg") center center / cover no-repeat}
+  /* scrim: keeps the white text readable wherever the smoke happens to be bright */
+  #authGate::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
+    background:radial-gradient(1100px 620px at 50% 48%,rgba(0,0,0,.18),rgba(0,0,0,.72))}
+  #authGate.hide{display:none}
+
+  /* frosted-glass login panel floating over the smoke */
+  .authbox{
+    /* noise is generated here rather than fetched from another site */
+    --filter-glass3d: blur(20px) brightness(1.1) saturate(2.6);
+    --color-glass3d: rgba(10,12,16,.42);
+    --noise-glass3d: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.28'/%3E%3C/svg%3E");
+    position:relative;z-index:4;
+    width:100%;max-width:360px;border-radius:18px;padding:26px 22px;
+    background:transparent;border:none;
+    box-shadow:
+      0 0 0.75px hsl(205 20% 10% / 0.2),
+      0.7px 0.8px 1.2px -0.4px hsl(205 20% 10% / 0.1),
+      1.3px 1.5px 2.2px -0.8px hsl(205 20% 10% / 0.1),
+      2.3px 2.6px 3.9px -1.2px hsl(205 20% 10% / 0.1),
+      3.9px 4.4px 6.6px -1.7px hsl(205 20% 10% / 0.1),
+      6.5px 7.2px 10.9px -2.1px hsl(205 20% 10% / 0.1),
+      8px 9px 14px -2.5px hsl(205 20% 10% / 0.2),
+      0 30px 70px rgba(0,0,0,.55);
+  }
+  .authbox::before{
+    content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;overflow:hidden;z-index:3;
+    -webkit-backdrop-filter:var(--filter-glass3d); backdrop-filter:var(--filter-glass3d);
+    background-color:var(--color-glass3d);
+    background-image:var(--noise-glass3d);
+    background-size:100px; background-repeat:repeat;
+  }
+  .authbox::after{
+    content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;overflow:hidden;z-index:5;
+    box-shadow:
+      inset 2px 2px 1px -3px hsl(205 20% 90% / 0.8),
+      inset 4px 4px 2px -6px hsl(205 20% 90% / 0.3),
+      inset 1.5px 1.5px 1.5px -0.75px hsl(205 20% 90% / 0.15),
+      inset 1.5px 1.5px 0.25px hsl(205 20% 90% / 0.03),
+      inset 0 0 0.25px 0.5px hsl(205 20% 90% / 0.03);
+  }
+  .authbox > *{position:relative;z-index:6}
+  /* fallback: if the browser cannot blur, fall back to a solid dark panel */
+  @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+    .authbox::before{background-color:rgba(12,14,18,.88)}
+  }
+  .authbox h2{font-family:var(--display);font-size:20px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:-.01em;line-height:1.1}
+  .authbox .sub{font-family:var(--mono);font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:rgba(252,165,165,.8);margin-bottom:14px}
+  .authbox label{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.2em;color:rgba(255,255,255,.45);margin:12px 0 6px}
+  .authbox input{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);border-radius:9px;
+    padding:11px 12px;color:#fff;font-size:15px;outline:none;font-family:var(--sans)}
+  .authbox input:focus{border-color:rgba(59,130,246,.65);box-shadow:0 0 0 3px rgba(59,130,246,.18)}
+  .authbtn{width:100%;margin-top:18px;padding:12px;border:none;border-radius:9px;background:#2563eb;color:#fff;
+    font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 10px 26px -10px #2563eb}
+  .authbtn:hover{background:#1d4ed8}
+  .authbtn:disabled{opacity:.6;cursor:not-allowed}
+  .autherr{margin-top:12px;font-size:12px;color:#fca5a5;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);
+    border-radius:8px;padding:9px 11px;line-height:1.45}
+  .autherr.hide{display:none}
+  .authlogo{width:52px;height:52px;object-fit:contain;display:block;margin:0 auto 12px}
+  .rolebadge{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:9999px;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
+  .rolebadge .r{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:rgba(255,255,255,.75)}
+  .rolebadge.admin{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35)}
+  .rolebadge.admin .r{color:#fca5a5}
+  .signout{background:none;border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.6);cursor:pointer;
+    font-size:11px;padding:4px 9px;border-radius:9999px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.12em}
+  .signout:hover{color:#fff;border-color:rgba(255,255,255,.3)}
+  .ro-hidden{display:none!important}
+  /* ---------- search row (below header, full width) ---------- */
+  .searchrow{position:relative;z-index:500;flex:0 0 auto;background:linear-gradient(180deg,rgba(14,15,18,.96),rgba(10,11,13,.96));
+    border-bottom:1px solid rgba(255,255,255,.08);padding:10px 20px 11px}
+  @media print{ .searchrow{display:none!important} }
+  .searchbox{display:flex;align-items:center;gap:10px;width:100%;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:9px 12px}
+  .searchbox:focus-within{border-color:rgba(239,68,68,.5);box-shadow:0 0 0 3px rgba(239,68,68,.12)}
+  .searchbox .sicon{font-size:14px;opacity:.6;line-height:1;flex:none}
+  .searchbox input{flex:1;min-width:0;background:transparent;border:none;outline:none;color:#fff;
+    font-family:var(--sans);font-size:14px;padding:0}
+  .searchbox input::placeholder{color:rgba(255,255,255,.35)}
+  .searchbox input::-webkit-search-cancel-button{display:none}
+  .sclear{flex:none;background:rgba(255,255,255,.08);border:none;color:rgba(255,255,255,.7);cursor:pointer;
+    width:22px;height:22px;border-radius:9999px;font-size:12px;line-height:1;display:grid;place-items:center}
+  .sclear:hover{background:rgba(255,255,255,.16);color:#fff}
+  .sclear.hide{display:none}
+  .sresult{margin-top:7px;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:rgba(255,255,255,.5);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .sresult.hide{display:none}
+  .sresult b{color:#fca5a5;font-weight:700}
+  .sresult .none{color:#fca5a5}
+  .sresult .note{color:rgba(255,255,255,.35);text-transform:none;letter-spacing:.02em;font-size:11px}
+  @media (max-width:760px){
+    .searchrow{padding:8px 12px 9px}
+    .searchbox{padding:10px 12px}
+    .searchbox input{font-size:16px}   /* 16px stops iOS zooming on focus */
+    .sresult{font-size:10px}
+  }
+  .fbtn{padding:7px 14px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;background:#fff;color:#000}
+  .fbtn.ghost{background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.8)}
+  .fbtn:hover{opacity:.92}
+  /* Cards are rendered oldest-first so the DOM order matches the printed record,
+     and flipped here so the newest — the only one anyone writes on — is on top.
+     column-reverse reorders .fcard, never the two .fpage inside one, and print
+     sets it back to column. Reversing the render loop instead would have
+     reversed the paper too. */
+  .fsheet{margin:18px auto 44px;width:860px;max-width:97vw;display:flex;flex-direction:column-reverse}
+  .fpage{background:#fff;color:#111;border-radius:4px;box-shadow:0 12px 40px rgba(0,0,0,.5);padding:22px 22px 30px;margin-bottom:22px;font-family:Arial,Helvetica,sans-serif}
+  .fpage-top{display:flex;justify-content:flex-end;gap:10px;font-size:11px;color:#333;font-weight:700}
+  .kadno{color:#b91c1c}
+  .terkini{color:#0a7d3f;letter-spacing:.06em}
+  .krpb{color:#c00}
+  .fcardtitle{text-align:center;font-size:15px;font-weight:700;text-decoration:underline;margin:2px 0 12px}
+  .fhdr{display:flex;gap:14px;margin-bottom:12px;align-items:flex-start}
+  .fhdr-l{flex:1.5 1 0;min-width:0}
+  .fhdr-r{flex:1 1 0;min-width:0;box-sizing:border-box;border:1px solid #111;border-radius:2px;padding:8px 10px;height:fit-content;overflow-wrap:break-word}
+  .frow{display:flex;align-items:center;gap:4px;margin-bottom:6px;font-size:12px}
+  .frow label{width:96px;color:#111;font-weight:600}
+  .fin-h{flex:1;border:none;border-bottom:1px dotted #555;font-size:12px;padding:2px;font-family:inherit;background:transparent;color:#111;min-width:0}
+  .fin-h:focus{outline:none;border-bottom:1px solid #c00}
+  .fteman-t{text-align:center;font-weight:700;font-size:12px;margin-bottom:8px}
+  .fteman-b{text-align:center;font-weight:700;font-size:11px;margin-top:6px;border-top:1px solid #111;padding-top:6px}
+  .fsec-title{background:#ffe600;border:1px solid #111;border-bottom:none;text-align:center;font-weight:700;font-size:11px;padding:4px;text-transform:uppercase;margin-top:6px}
+  .ftab{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:10px}
+  .ftab th,.ftab td{border:1px solid #111;font-size:10px;padding:0}
+  .ftab th{background:#f2f2f2;padding:3px 2px;font-weight:700;text-align:center;line-height:1.12}
+  .ftab td{height:22px}
+  .fin{width:100%;height:22px;border:none;background:transparent;font-size:10px;padding:1px 3px;font-family:inherit;color:#111;box-sizing:border-box}
+  .fin:focus{outline:2px solid rgba(200,0,0,.3);outline-offset:-2px}
+  .ftab.kompaun th,.ftab.kompaun td{font-size:8px}
+  .ftab.kompaun .fin{font-size:8px;padding:1px}
+  .sigbtn{width:100%;height:22px;border:1px dashed #aaa;background:#fafafa;color:#777;font-size:9px;cursor:pointer;border-radius:2px;box-sizing:border-box}
+  .sigbtn:hover{background:#f0f0f0;color:#333}
+  .ftoast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:13000;background:#111;color:#fff;
+    padding:10px 16px;border-radius:8px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.5);opacity:0;transition:opacity .2s;pointer-events:none;max-width:80vw;text-align:center}
+  .ftoast.show{opacity:1}
+  .cloudstat{font-size:11px;font-weight:600;padding:2px 8px;border-radius:9999px;background:rgba(255,255,255,.12);color:#fff;margin-left:8px;white-space:nowrap}
+  .fin-print{display:none}
+  @media print{
+    @page{margin:8mm}
+    /* Row height measured against a real Letter printout, which is the tighter
+       paper. Page 1 is the constraint: 22 rows + ~75mm of header/title chrome
+       must fit 259mm of usable height. 7.5mm leaves ~14mm spare so it stays
+       2 pages on Letter and A4. The form itself is unchanged. */
+    .ftab td{height:7.5mm}
+    .fin{height:7.5mm;font-size:10px}
+    /* Page 2 held less content than page 1, so its testing table was ending
+       ~12mm higher. Spread that across its 15 rows so both pages finish level. */
+    .ftab.pengujian td{height:8.3mm}
+    .ftab.pengujian .fin{height:8.3mm}
+    .ftab.kompaun .fin{font-size:8.5px}
+    /* Signatures printed faded — found on the first real printout, 2026-08-07.
+       They are PHOTOGRAPHED, so stripSignatureBg never yields black ink: it
+       keeps the pen's own colour at *0.72 and ramps stroke mid-tones to partial
+       alpha. Measured, the darkest pixel in a typical signature is luminance
+       137 and NOT ONE pixel falls below 128, against ~0 for the table rules
+       beside it. A backlit screen flatters that; paper does not.
+
+       Fixed at render time, not at capture: signed rows are permanent and the
+       image can never be re-uploaded, so a capture-side change would help no
+       already-filed record. Print-only, because the screen rendering is correct
+       and officers look at it all day.
+
+       THAT FIX WAS THREE STACKED drop-shadow PASSES, AND IT IS NO LONGER WHAT
+       SHIPS — see §4.15. Compounding alpha toward 1 is what made the ink solid,
+       and it did exactly the same to any paper the stripper failed to key out,
+       printing a BLACK BOX around the signature (measured: 5.7% dark -> 95.8%).
+       The two defects are one defect seen from either side.
+
+       What ships now is signatureForPrint(): threshold the alpha in a canvas
+       and print a plain PNG. Not a filter, because neither a CSS nor an SVG
+       filter survives page.pdf() — the drop-shadow version was tested as a
+       control and came out of the PDF unfiltered despite being confirmed black
+       on a real printer. The old filter remains below as a FALLBACK only, for a
+       cross-origin image the canvas cannot read.
+
+       Height was 6.6mm here and 30px in a later @media print block — same
+       specificity, so the later one silently won. Consolidated to the value
+       that was actually in effect, so the printed layout does not move. */
+    /* .sigimg is set in the later @media print block — it HAS to come after the
+       screen rule (.sigimg{max-height:34px}), which sits below this one at the
+       same specificity and would otherwise win even in print. That is why the
+       6.6mm once declared here was silently dead. */
+    html,body{height:auto !important;overflow:visible !important}
+    .app{height:auto !important;overflow:visible !important;display:block !important;position:static !important}
+    body.form-open>*:not(#formOverlay){display:none!important}
+    #formOverlay{position:static;background:#fff;backdrop-filter:none;overflow:visible;display:block;height:auto;margin:0;padding:0}
+    #formOverlay, #formOverlay *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+    .ftoolbar,.ftoast{display:none!important}
+    /* Paper reads forward in time: Kad 1, then Kad 2. Only the screen is flipped. */
+    .fsheet{margin:0;width:auto;max-width:none;flex-direction:column}
+    .fpage{box-shadow:none;border-radius:0;margin:0;padding:0}
+    .fpage.pb{page-break-before:always}
+    .terkini{display:none !important}
+    .fsec-title{background:#ffe600 !important;color:#000 !important}
+    .ftab th{background:#f2f2f2 !important;color:#000 !important}
+    .fin,.fin-h{color:#000}
+    .fin-date{display:none !important}
+    .fin-print{display:inline-block !important;font-size:10px;color:#000;text-align:center;width:100%}
+    .fin-print-h{width:auto;text-align:left}
+    .sigbtn{border:none;background:transparent;color:transparent}
+  }
+
+  /* ---------- signatures ---------- */
+  .sigimg{max-width:100%;max-height:34px;object-fit:contain;display:block;margin:0 auto}
+  .sigwait{display:block;margin:0 auto;font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;
+    color:rgba(120,120,120,.65);text-align:center;line-height:34px;opacity:.65}
+  .flastedit{display:inline-block;margin-left:10px;font-family:var(--mono);font-size:10px;
+    letter-spacing:.04em;color:rgba(255,255,255,.45);font-weight:400}
+  @media print{ .flastedit{display:none} }
+  .fpending{margin:0 0 12px;padding:12px 14px;border-radius:10px;
+    background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.42);
+    color:#fde68a;font-size:13px;line-height:1.5}
+  .fpending ul{margin:8px 0 10px;padding-left:20px}
+  .fpending li{margin:3px 0}
+  .fpending b{color:#fff}
+  @media print{ .fpending{display:none} }
+  tr.rowsigned td{background:rgba(22,163,74,.06)}
+  tr.rowsigned .fin{color:#111;font-weight:600}
+  .sigmodal{position:fixed;inset:0;z-index:120000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(4,5,7,.7)}
+  .sigbox{width:100%;max-width:340px;background:#15161a;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:20px;box-shadow:0 24px 60px rgba(0,0,0,.6)}
+  .sightitle{font-family:var(--display);font-weight:800;font-size:16px;color:#fff;text-transform:uppercase;letter-spacing:-.01em}
+  .sigsub{font-size:12px;color:rgba(255,255,255,.55);margin:6px 0 14px;line-height:1.5}
+  .sigpick{display:block;text-align:center;padding:11px;border-radius:9px;background:rgba(255,255,255,.06);border:1px dashed rgba(255,255,255,.25);color:#fff;font-size:13px;font-weight:600;cursor:pointer}
+  .sigpick:hover{background:rgba(255,255,255,.1)}
+  .sigprev{margin-top:12px;min-height:0}
+  .sigprev img{display:block;max-width:100%;max-height:150px;margin:0 auto;border-radius:8px;padding:8px;
+    background-color:#fff;
+    background-image:linear-gradient(45deg,#e5e7eb 25%,transparent 25%),linear-gradient(-45deg,#e5e7eb 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e5e7eb 75%),linear-gradient(-45deg,transparent 75%,#e5e7eb 75%);
+    background-size:14px 14px;background-position:0 0,0 7px,7px -7px,-7px 0}
+  .sigacts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+  /* A pre-rendered, print-ready copy of each signature. Hidden on screen —
+     officers only ever see the original. See signatureForPrint(). */
+  .sigprint{display:none}
+  @media print{
+    /* When a pre-rendered copy exists, print THAT and hide the original.
+       .has-print is set only after the canvas pass actually succeeded. */
+    .sigimg.has-print{display:none !important}
+    .sigprint{display:block;max-width:100%;max-height:30px;object-fit:contain;margin:0 auto}
+
+    /* Fallback, for a signature the canvas pass could not read (a cross-origin
+       image the storage host would not serve with CORS headers). This is the
+       old amplifying filter: it makes the ink black but can also blacken any
+       background residue the stripper left behind — the very defect
+       signatureForPrint() exists to remove. It stays only because the
+       alternative for those rows is a faded signature, which is worse, and it
+       applies to nothing once the canvas pass works. */
+    .sigimg:not(.has-print){max-height:30px;
+      filter:brightness(0) drop-shadow(0 0 0 #000) drop-shadow(0 0 0 #000) drop-shadow(0 0 0 #000)}
+    .sigmodal{display:none!important}
+  }

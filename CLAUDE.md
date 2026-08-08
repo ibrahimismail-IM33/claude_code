@@ -353,6 +353,15 @@ Draw order: caps → walls → top faces (painter's algorithm).
   signature metric and the clean signature fixture: **a fixture that cannot
   reproduce the defect proves nothing, however many assertions it carries.**
   Mutate the code and watch the test go red, every time, before trusting it.
+- **Moved the record card into a component and it stopped printing.** V1's
+  print rule is `body.form-open > *:not(#formOverlay){display:none!important}`.
+  In V2 the card renders inside `#app`, so `#app` matched that rule and the
+  **entire card was `display:none` on paper** — one blank sheet. Nothing on
+  screen changed and nothing in the PDF looked wrong; the card simply was not
+  in it. Found only by counting pages in a rendered PDF. Fixed by teleporting
+  the overlay to `<body>` so it sits where V1 puts it. **When the print CSS and
+  a new component structure disagree, the component moves** — the CSS is the
+  part that has been proven on paper.
 - **Cut a CSS rule in half and lost a whole stylesheet, silently.** Copying
   V1's mobile block into `map.css` I sliced through `.cards .card`, leaving the
   file one `}` short. **An unbalanced stylesheet does not fail and does not

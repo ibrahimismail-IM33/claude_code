@@ -167,3 +167,11 @@ jobs:
       # CSP probe instead of an application, which it did for three phases.
       - name: V2 app shell (login gate, role UI, tabs, phone menu)
         run: npm run test:v2shell
+
+      # The Kad Rekod in V2. The only suite in this repo that RENDERS TO PDF
+      # AND COUNTS THE PAGES — one card is exactly two, and a row height or a
+      # capacity changed by a few percent pushes it onto a third sheet with
+      # nothing visible on screen. It is still not a substitute for printing a
+      # card; docs/KAD-REKOD.md §6 requires a real printout before this ships.
+      - name: V2 Kad Rekod (rendered to PDF and page-counted)
+        run: npm run test:v2kad

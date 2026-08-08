@@ -16,7 +16,7 @@ evidence. The selectors they depend on are written down in
 
 ```sh
 npm ci                       # once
-npm test                     # all twenty-two suites
+npm test                     # all twenty-three suites
 npm run test:wiring          # or one at a time
 npm run test:offline
 npm run test:clear
@@ -46,7 +46,7 @@ Exit code is 0 when everything passes, 1 otherwise.
 
 ## CI
 
-`.github/workflows/tests.yml` runs all twenty-two suites on **every push and pull
+`.github/workflows/tests.yml` runs all twenty-three suites on **every push and pull
 request**, and `publish-to-site.yml` calls the same workflow and will not
 publish until it passes:
 
@@ -93,6 +93,7 @@ bumping the `playwright` version in `package.json` needs no change here.
 | `v2-map-view.js` | The V2 map components mounted in Chromium against a Leaflet stub that **records what the app asked it to do**. `v2-map-parity.js` proves the fit decision in isolation; this proves the component obeys it. The headline is a negative assertion — **`fitBounds` called 0 times during a background pull** — because "the map did not move" is not something any error will ever report. Also covers the three filter axes stacking with AND, the date badge and unsent "!" on the right pins, the registry counting the *view* while the pill counts stay over the *whole register*, and the banner naming every active filter and clearing all of them. Verified red on a `MapView` that ignores `noFitOnce`. |
 | `v2-map-search-add.js` | Place search and the **Tambah Pili Bomba** modal, mounted in Chromium. Two behaviours carry the suite. **A search ignores the Awam/Swasta pills** and says so in the result line — if it ever respected them, a pili sitting in the register would report as "Tiada pili dijumpai", which reads as a lost hydrant rather than as a filter. And **a search re-fits the map**: V1 clears `fittedKey` inside `applySearch`, and the only case that proves the reset is a search whose matches are the set already fitted — every narrowing search changes the key by itself, so the first version of this assertion was blind and the reset could be deleted with everything still green. Also: the ✕ and Escape (which must blur, or the phone keyboard stays up), admin-only add, the three validation axes with save disabled and reading "Fill Lat/Long", a map tap filling the coordinates live while the modal is open and being ignored when it is not, and the Bahasa Malaysia geolocation messages including the low-accuracy warning. Verified red on four mutations: a search that respects the pill, a missing `fittedKey` reset, a blank label accepted, and a dropped `box-sizing:border-box` (which overflows the phone widths sideways — §4.9). |
 | `v2-shell.js` | The V2 **app shell** mounted for real: login gate, header, tabs, role UI and the phone menu. It exists because writing the shell revealed there was no app — `App.vue` was a CSP probe, so the production bundle had carried no application for three phases while every component suite ran green. Asserts the z-index ladder by computed value (gate 100000 > header 1000 — §4.8), that an empty login never reaches the network, that a bad password reveals neither which field was wrong nor whether the account exists, that an unknown role fails **closed** to viewer, that both views stay mounted across a tab switch so an officer keeps their pan, that the header pills move the dashboard as well as the map (§4.2), and that the hamburger — the only route to Tambah Pili and sign-out below 640px — works end to end at 390px. Caught two real defects on its first run: the app rendering **two** sets of pills, and a sign-out check that read as failing because the deliberate page reload wiped what it recorded. Verified red on an unknown role failing open to admin, and on a gate that never shows. |
+| `v2-kad-rekod.js` | The **Kad Rekod** in V2, and the only suite here that **renders to PDF and counts the pages**. One card is exactly two — a row height, a font size or a capacity changed by a few percent pushes it onto a third sheet with nothing visible on screen. Also guards the deliberate inversion (screen newest-first via `column-reverse`, paper oldest-first from a chronological render loop), permanent chronological card numbers with `TERKINI` hidden in print, the four row capacities, signed rows disabled with no way to re-sign, an unresolved signature showing a placeholder rather than a broken image, Kompaun having no T.T column at all, and no overflow at 360px. **Caught a print defect on its first run**: `#formOverlay` was nested inside `#app`, so V1's `body.form-open > *:not(#formOverlay)` rule hid the whole card and it printed one blank sheet — invisible on screen, invisible in the PDF's appearance, visible only in the page count. Verified red on that nesting (3), on a screen order that stops being newest-first (2), and on a 13mm row height that spills to a third page (3). **It does not replace printing a card** — `docs/KAD-REKOD.md` §6 still requires one. |
 
 ## Adding to this
 
