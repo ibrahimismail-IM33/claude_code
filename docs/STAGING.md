@@ -219,12 +219,13 @@ one is the checklist that has caught every field bug so far.
 **See `docs/CUTOVER.md` — it is the ordered checklist.**
 
 This section used to say cutover was "one merge of `claude/epb-v2` to `main`".
-**That was wrong, and wrong in the silent direction.** `publish-to-site.yml`
-only triggers on `index.html`, `_headers` and `vendor/**` — none of which V2
-touches, since they are kept byte-identical to `main` — and it copies files
-verbatim with no build step. So the merge fires no workflow, publishes nothing,
-and leaves officers on V1 while every indicator reports success. The publish
-pipeline has to be taught to build V2 *before* the merge happens.
+**That was wrong.** `publish-to-site.yml` copies `index.html`, `_headers` and
+`vendor/` verbatim with no build step, and V2's app is none of those — it is a
+Vite bundle built from `v2/`. The merge does fire the workflow (via a change
+under `vendor/**`) and it does go green; what it publishes is V1's
+`index.html`, unchanged. So officers stay on V1 while the merge, the suites,
+the publish run and a fresh commit in the site repo all report success. The
+publish pipeline has to be taught to build V2 *before* the merge happens.
 
 Two things here remain true and are repeated in `CUTOVER.md`:
 

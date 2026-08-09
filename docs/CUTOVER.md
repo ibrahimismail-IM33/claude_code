@@ -34,11 +34,19 @@ This is the part that makes cutover more than a merge, and it fails **silently**
 (`ibrahimismail-IM33/e-pili-bomba`), which is what Cloudflare actually serves.
 Four things about it are V1-shaped:
 
-1. **Its trigger cannot fire.** It runs on pushes to `main` touching
-   `index.html`, `_headers`, `vendor/**`, or itself. **`claude/epb-v2` does not
-   modify any of those** — `index.html` and `_headers` are deliberately
-   byte-identical to `main`, and all V2 code lives in `v2/`. So merging V2 to
-   `main` triggers **nothing**.
+1. **It publishes V1 and reports success.** It runs on pushes to `main`
+   touching `index.html`, `_headers`, `vendor/**`, or itself. V2's code all
+   lives in `v2/`, and `index.html` and `_headers` are deliberately
+   byte-identical to `main` — but `claude/epb-v2` *does* change
+   `vendor/README.md`, which matches `vendor/**`. So the workflow **fires**,
+   the suites pass, it copies V1's `index.html` to the site repo unchanged, and
+   the run goes **green**.
+
+   That is worse than not firing. A successful publish is exactly the signal
+   someone would read as "cutover done", and what reached officers is still V1.
+   Note also how incidental it is: whether this workflow runs at all currently
+   depends on whether a README happened to change. Either way no V2 is
+   published — the paths it copies contain none.
 2. **There is no build step.** It copies files verbatim. V2 is a Vite bundle
    that has to be built into `dist/`.
 3. **It copies the wrong paths.** `index.html` at the repo root is V1. V2's
@@ -50,7 +58,8 @@ Four things about it are V1-shaped:
    tree. A V2 `dist/` has none of them — everything is bundled.
 
 **So a merge with no workflow change leaves officers on V1 while every
-indicator says cutover succeeded.** That is precisely the failure this project
+indicator — the merge, the suites, the publish run, the new commit in the site
+repo — says cutover succeeded.** That is precisely the failure this project
 has already had once: the site repo sat 7 commits behind and officers used a
 live app missing fixes (CLAUDE.md §3). The publish workflow exists *because* of
 that incident, so re-creating it during cutover would be a poor way to repay it.
