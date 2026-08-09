@@ -55,6 +55,11 @@ const props = defineProps({
   lastEdit: { type: Object, default: null },      // { at, by } — stamped by the database
   cloudNote: { type: String, default: '' },
   pending: { type: Object, default: null },
+  /* '' | 'saving' | 'ok' | 'local' — drives the Save button's label, ported
+   * from V1. A static label meant an officer could not tell a save from a
+   * no-op, which on a field connection is the difference between filed and
+   * lost. */
+  saveState: { type: String, default: '' },
 });
 const emit = defineEmits(['close', 'save', 'edit', 'sign', 'signCancel', 'signConfirm', 'dropPending']);
 
@@ -98,6 +103,11 @@ const editedLine = computed(() => {
 
 function onCell(sec, i, k, v) { emit('edit', { section: sec, row: i, key: k, value: v }); }
 function onHeader(k, v) { emit('edit', { section: 'header', key: k, value: v }); }
+
+/* V1's exact strings, including the ⚠ and the ✓ — an officer already reads
+ * these on the live app and they should not change wording mid-migration. */
+const SAVE_LABEL = { saving: 'Saving…', ok: 'Saved to cloud \u2713', local: '\u26A0 Local only' };
+const saveLabel = computed(() => SAVE_LABEL[props.saveState] || 'Save');
 
 /* The print copy is built AFTER the DOM settles, and again on every redraw,
  * because a card can gain a signature from another device while it is open. */
@@ -154,7 +164,8 @@ watch(() => props.form, refreshPrintSigs, { deep: true });
         <span v-if="editedLine" class="flastedit">{{ editedLine }}</span>
       </div>
       <div class="factions">
-        <button class="fbtn" id="fSave" @click="emit('save')">Save</button>
+        <button class="fbtn" id="fSave" :disabled="saveState === 'saving'"
+                @click="emit('save')">{{ saveLabel }}</button>
         <button class="fbtn" id="fPrint" @click="doPrint">Print</button>
         <button class="fbtn ghost" id="fClose" @click="emit('close')">Close</button>
       </div>

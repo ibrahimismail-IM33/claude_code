@@ -30,6 +30,7 @@ const props = defineProps({
   noFitOnce: { type: Boolean, default: false },
   adding: { type: Boolean, default: false },
   active: { type: Boolean, default: true },   // the map tab is showing
+  redraw: { type: Number, default: 0 },       // marker appearance changed
   isAdmin: { type: Boolean, default: false },
   draft: { type: Object, default: null },
   saving: { type: Boolean, default: false },
@@ -84,6 +85,7 @@ function mapTouched() { if (mobOpen.value) setSheet(false); }
       :no-fit-once="noFitOnce"
       :active="active"
       :remeasure="remeasure"
+      :redraw="redraw"
       :adding="adding"
       @pick="(h) => emit('pick', h)"
       @pick-lat-lng="(p) => emit('pickLatLng', p)"

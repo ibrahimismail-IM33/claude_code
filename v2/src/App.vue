@@ -134,6 +134,20 @@ async function onJadualAdd(row) {
 }
 async function onJadualUpdate(row) { await jadual.update(sb.value, jadualRange(), row); }
 async function onJadualDelete(id) { await jadual.remove(sb.value, jadualRange(), id); }
+/* V1's `refresh()`, as a signal. Bumped whenever a marker's APPEARANCE changes
+ * without the visible SET changing — a saved or cleared inspection date, a
+ * pending badge appearing or clearing. Without it the pin kept the old date
+ * until a pull or a tab switch rebuilt the list. See MapView's `redraw` prop. */
+const mapRedraw = ref(0);
+const refreshMap = () => { mapRedraw.value++; };
+
+/* The Save button's state, ported from V1: Saving… → Saved to cloud ✓ / ⚠ Local
+ * only → Save. V2's button was a static label, so an officer could not tell a
+ * save from a no-op — which on a field connection is the difference between
+ * filed and lost. */
+const saveState = ref('');
+let saveStateTimer = null;
+
 const hasPending = (id) => pending.has(id);
 
 async function signIn({ email, password, clear }) {
@@ -304,7 +318,17 @@ async function saveCard() {
     hydrants.persist();
     if (changed) hydrants.saveOne(sb.value, hy);   // fire and forget, as V1 is
   }
-  await sync.save(sb.value, h.id, records.form, auth.isAdmin);
+  // The pin's badge follows the rows that now exist — redraw it immediately
+  // rather than waiting for the next pull (V1 calls refresh() here).
+  refreshMap();
+
+  saveState.value = 'saving';
+  if (saveStateTimer) { clearTimeout(saveStateTimer); saveStateTimer = null; }
+  const res = await sync.save(sb.value, h.id, records.form, auth.isAdmin);
+  saveState.value = (res && res.ok) ? 'ok' : 'local';
+  // A parked save shows the amber ! on the pin, so the map has to follow that too.
+  refreshMap();
+  saveStateTimer = setTimeout(() => { saveState.value = ''; saveStateTimer = null; }, 4000);
 }
 
 /* Clicking the ACTIVE pill clears it — V1 does `activeFilter = activeFilter === s
@@ -329,11 +353,18 @@ function tickClock() {
 /* Anything parked from an earlier offline session goes up automatically when
  * the connection returns — the officer should not have to open every pili to
  * find what has not synced. */
+/* Returns a promise so callers can redraw AFTER the flush settles — a pushed
+ * row clears the amber `!` on its pin, and that badge has the same staleness
+ * problem the date badge had. */
 function flushAll() {
-  if (!sb.value || !auth.ready) return;
-  pending.ids().forEach((id) => sync.flush(sb.value, id));
+  if (!sb.value || !auth.ready) return Promise.resolve();
+  return Promise.all(pending.ids().map((id) => sync.flush(sb.value, id)));
 }
-const quiet = () => { if (auth.ready) { hydrants.pullFresh(sb.value); flushAll(); } };
+const quiet = () => {
+  if (!auth.ready) return;
+  hydrants.pullFresh(sb.value);
+  flushAll().then(refreshMap, refreshMap);
+};
 const onVisible = () => { if (!document.hidden) quiet(); };
 let clockTimer = null, pollTimer = null;
 
@@ -386,7 +417,7 @@ onBeforeUnmount(() => {
       <MapShell
         :hydrants="hydrants.list"
         :status-filter="statusFilter" :insp-filter="inspFilter" :zone-filter="zoneFilter"
-        :query="query" :no-fit-once="hydrants.noFitOnce"
+        :query="query" :no-fit-once="hydrants.noFitOnce" :redraw="mapRedraw"
         :adding="adding" :is-admin="auth.isAdmin" :draft="draft"
         :active="tab === 'map'"
         :saving="saving" :add-error="addError"
@@ -424,7 +455,7 @@ onBeforeUnmount(() => {
 
     <KadRekod v-if="openHydrant && records.form"
               :hydrant="openHydrant" :form="records.form" :is-admin="auth.isAdmin"
-              :last-edit="sync.lastEdit" :cloud-note="sync.note"
+              :last-edit="sync.lastEdit" :cloud-note="sync.note" :save-state="saveState"
               :signing="signing" :sign-busy="signBusy" :sign-error="signError"
               @close="closeCard" @save="saveCard" @edit="editCell"
               @sign="startSign" @sign-cancel="signing = null" @sign-confirm="confirmSign" />

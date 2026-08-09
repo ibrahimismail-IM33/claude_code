@@ -79,7 +79,7 @@ const JADUAL = [
   const b = await chromium.launch({ executablePath: CHROMIUM });
 
   async function mount(opts) {
-    const o = Object.assign({ role: 'admin', rows: REG, records: RECORDS, failScan: false, bigScan: 0, noSession: false, jadual: [], jadualError: null }, opts);
+    const o = Object.assign({ role: 'admin', rows: REG, records: RECORDS, failScan: false, bigScan: 0, noSession: false, jadual: [], jadualError: null, saveFails: false }, opts);
     const p = await b.newPage({ viewport: { width: 1280, height: 950 } });
     p.on('pageerror', (e) => { console.log('  PAGEERROR ' + e.message); fail++; });
     await p.addInitScript((cfg) => {
@@ -112,6 +112,13 @@ const JADUAL = [
               lte() { return this; },
               upsert(arg) {
                 window.__upserts.push({ table, arg });
+                /* The record write fails — the offline/flaky case. The work is
+                 * parked locally and the Save button must SAY so rather than
+                 * claiming the cloud: §4.10 is what happens when an officer
+                 * believes a save landed and it did not. */
+                if (cfg.saveFails && table === 'hydrant_records') {
+                  return Promise.resolve({ error: { message: 'network' }, data: null });
+                }
                 // The database keeps what it is given: a later scan must see the
                 // officer's edit, which is the whole point of T14.
                 if (table === 'hydrant_records') {
@@ -169,9 +176,10 @@ const JADUAL = [
        * below this point is the stub the other cases run against. */
       if (cfg.realLeaflet) return;
       const noop = () => {};
-      const layer = () => ({ addTo() { return this; }, clearLayers() { window.__markers = []; },
-        addLayer(m) { window.__markers.push(m); } });
+      const layer = () => ({ addTo() { return this; }, clearLayers() { window.__markers = []; window.__icons = []; },
+        addLayer(m) { window.__markers.push(m); window.__icons.push(m.__html || ''); } });
       window.__markers = [];
+      window.__icons = [];
       // invalidateSize is COUNTED, not a no-op: "the map re-measured itself" is
       // not something any error reports, and its absence looks like broken
       // tiles rather than a missing call.
@@ -183,7 +191,11 @@ const JADUAL = [
                    invalidateSize: () => { window.__invalidates++; } }; },
         control: { zoom: () => ({ addTo: noop }) }, tileLayer: () => ({ addTo: noop }),
         layerGroup: layer, markerClusterGroup: layer, divIcon: (x) => x, latLngBounds: (x) => x,
-        marker: () => { const m = { bindTooltip() { return m; },
+        // The icon HTML is kept so a test can see WHAT a marker was drawn with,
+        // not merely how many exist — the stale date badge (§4.25) is invisible
+        // to a count.
+        marker: (ll, opt) => { const m = { __html: (opt && opt.icon && opt.icon.html) || '',
+          bindTooltip() { return m; },
           on(e, fn) { if (e === 'click') m._click = fn; return m; } }; return m; },
       };
       window.__tapPin = (i) => window.__markers[i]._click();
@@ -730,6 +742,83 @@ const JADUAL = [
   await p.waitForTimeout(700);
   check('Belum di-sign shows exactly the pili awaiting a signature',
     await p.evaluate(() => window.__markers.length), 1);
+  await p.close();
+
+  /* ---------- T16: the pin badge updates WITHOUT a refresh ----------
+   *
+   * Reported as "the date is late to appear, needed refresh". `draw()` renders
+   * markerHtml(status, lastInspected, hasPending) but only runs when `visible`
+   * changes IDENTITY — and `visible` filters on status/insp/zone/query, never
+   * on lastInspected, so with no filter active it is the same array and the
+   * deep:false watcher sees nothing. The badge stayed stale until a pull or a
+   * tab switch rebuilt the list.
+   *
+   * NOTE WHAT THIS TEST MUST NOT DO: switch tabs, reload, or trigger a pull.
+   * Any of those IS the "refresh" that hides the defect. The whole assertion is
+   * that the marker is redrawn with nothing else happening.
+   *
+   * Also asserts the map does not re-fit: a fit here would jump an officer's
+   * pan away every time they save (the §3 guarantee for background pulls). */
+  console.log('T16  saving a card redraws the pin immediately, without a refit');
+  p = await mount({ records: [] });
+  await p.waitForTimeout(500);
+  const badge = () => p.evaluate(() => {
+    const h = (window.__icons || [])[0] || '';
+    const m = h.match(/>(\d{2}\/\d{2}\/\d{2,4})</);
+    return m ? m[1] : (h ? '(no date)' : '(no marker)');
+  });
+  check('the pin starts with no date', await badge(), '(no date)');
+  const fitBefore = await p.evaluate(() => window.__fitCount || 0);
+
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  const ob4 = await p.$('#dOpenForm');
+  if (ob4) { await ob4.click(); await p.waitForTimeout(700); }
+  await p.evaluate((t) => {
+    const e = document.querySelector('#formOverlay input[data-sec="pengujian"][data-row="0"][data-k="tarikh"]');
+    if (e) { e.value = t; e.dispatchEvent(new Event('input', { bubbles: true })); }
+  }, TODAY);
+  await p.waitForTimeout(200);
+  await p.click('#fSave');
+  await p.waitForTimeout(900);
+  await p.click('#fClose');
+  await p.waitForTimeout(500);
+
+  check('the pin carries the date with NO tab switch or reload',
+    (await badge()) !== '(no date)', true);
+  check('and the map did not re-fit — the officer keeps their pan',
+    (await p.evaluate(() => window.__fitCount || 0)) - fitBefore, 0);
+  await p.close();
+
+  /* ---------- T17: Save says what it did ----------
+   *
+   * V1 cycles Saving… → Saved to cloud ✓ / ⚠ Local only → Save. V2's button was
+   * a static label, so an officer could not tell a save from a no-op — which on
+   * a field connection is the difference between filed and lost. */
+  console.log('T17  the Save button reports the outcome');
+  p = await mount();
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  const ob5 = await p.$('#dOpenForm');
+  if (ob5) { await ob5.click(); await p.waitForTimeout(700); }
+  await p.click('#fSave');
+  await p.waitForTimeout(900);
+  check('a successful save says so', await p.$eval('#fSave', (n) => n.textContent.trim()),
+    'Saved to cloud ✓');
+  await p.close();
+
+  /* With no cloud the work is parked locally, and the button must say THAT
+   * rather than claiming success — §4.10 is what happens when an officer
+   * believes a save reached the server and it did not. */
+  p = await mount({ saveFails: true });
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  const ob6 = await p.$('#dOpenForm');
+  if (ob6) { await ob6.click(); await p.waitForTimeout(700); }
+  await p.click('#fSave');
+  await p.waitForTimeout(900);
+  check('a local-only save does NOT claim the cloud',
+    await p.$eval('#fSave', (n) => n.textContent.trim()), '⚠ Local only');
   await p.close();
 
   await b.close(); server.close();

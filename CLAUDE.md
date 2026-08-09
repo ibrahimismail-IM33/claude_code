@@ -628,6 +628,46 @@ Draw order: caps → walls → top faces (painter's algorithm).
       on. A stub that is wrong in the permissive direction invents defects;
       check the harness before reporting what it shows.
 
+25. **The pin's date badge went stale after a save, and Save said nothing.**
+    Reported 2026-08-09: *"the date … is late to appear, needed refresh"* and
+    *"no 'saving' like V1, don't know if it saved"*.
+
+    **The badge.** `MapView.draw()` renders
+    `markerHtml(status, lastInspected, hasPending)` but only runs from
+    `watch(() => [props.visible, props.refit], …, { deep: false })`.
+    `props.visible` comes from `filters-logic.visible()`, which reads
+    **status, insp, zone and query** — never `lastInspected`. So with no filter
+    active it returns *the same array reference*, the watcher is shallow, and
+    mutating `hy.lastInspected` redrew **nothing**. The badge only caught up
+    when a pull, a filter change or a tab switch happened to rebuild the array.
+
+    V1 has no such problem because `syncLastInspected` ends in an explicit
+    `refresh()`. V2 now has the same thing as a `redraw` counter prop. Rejected
+    alternatives, both worse: `deep: true` on `visible` walks the whole register
+    on every unrelated change, and adding `lastInspected` to the filter's read
+    set would misdescribe what the filter does to buy reactivity as a side
+    effect.
+
+    **The same staleness applied to the amber `!` pending badge**, for the same
+    reason — `hasPending` is a function prop. Not reported, fixed with it, and
+    `flushAll()` now returns a promise so the redraw happens after it settles.
+
+    Three things worth carrying:
+
+    - **A test that switches tabs would have passed over this.** The tab switch
+      IS the refresh that hides it. T16 asserts the marker's rendered HTML with
+      nothing else happening — no tab switch, no reload, no pull.
+    - **My first mutation of it passed, and the mutation was wrong.** `saveCard`
+      bumps `redraw` twice; I commented out one and concluded the test was weak.
+      It was not — the other bump still did the job. **Check the mutation
+      actually removes the behaviour before believing a green.** Same family as
+      §4.16's build that never rebuilt.
+    - **Save now reports what it did** — `Saving…` → `Saved to cloud ✓` /
+      `⚠ Local only` → `Save`, V1's exact strings, driven off the `{ ok }` that
+      `sync.save()` already returned. A button that looks identical whether the
+      work reached the server or was parked locally is the §4.10 failure mode
+      wearing a friendlier face.
+
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"

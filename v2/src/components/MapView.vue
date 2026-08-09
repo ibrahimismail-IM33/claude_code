@@ -38,6 +38,21 @@ const props = defineProps({
    * the same hazard as §4.16 and §4.17: Leaflet believing a size it no longer
    * has, and tiles landing against the wrong viewport. */
   remeasure: { type: Number, default: 0 },
+  /* Bumped when a marker's APPEARANCE changes without the visible SET changing
+   * — a saved inspection date, a cleared one, a pending badge appearing or
+   * clearing. This is V1's explicit `refresh()` call, and it is needed because
+   * `draw()` only runs when `visible` changes identity: that array comes from
+   * filters-logic.visible(), which reads status/insp/zone/query and never
+   * `lastInspected`, so with no filter active it is the SAME array and the
+   * `deep:false` watcher sees nothing. The badge then stayed stale until a
+   * pull or a tab switch happened to rebuild it — "late to appear, needed
+   * refresh".
+   *
+   * Deliberately not `deep:true` on `visible`: that walks the whole register on
+   * every unrelated change. Deliberately not making `lastInspected` a filter
+   * input either — it is not one, and pretending otherwise to buy reactivity
+   * would misdescribe what the filter does. */
+  redraw: { type: Number, default: 0 },
 });
 const emit = defineEmits(['pick', 'pickLatLng', 'fitted']);
 
@@ -127,6 +142,11 @@ watch(() => props.active, (on) => {
     setTimeout(() => { if (map) map.invalidateSize(); }, 200);
   });
 });
+
+/* Redraw the markers without re-fitting. `draw()` consults fitDecision(), and
+ * the key is unchanged here, so no fit happens — the officer's pan survives a
+ * save, which is the same guarantee §3 gives background pulls. */
+watch(() => props.redraw, () => { if (map) draw(); });
 
 /* Re-measure without re-fitting. The sheet animates for 350ms (map.css), so a
  * single immediate call would measure mid-slide — hence the settle. Deliberately
