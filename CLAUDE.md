@@ -633,6 +633,19 @@ Watch items:
 - Dashboard → Peta Pili returns a full map, no grey sliver
 - Zoom buttons at 34px are fine in the field
 
+**Confirmed on V2 staging (2026-08-09)** — the first deployment carrying the
+real app, after staging spent days serving a commit six behind (docs/STAGING.md
+§1 step 5c). Sign-in, the map rendering as a continuous tile grid, the
+dashboard, and **the Kad Rekod opening and working** — all on the assembled V2
+bundle against the production database.
+
+**What this does NOT cover, and it is the part that matters:** the card was
+confirmed **on screen**. Every print-facing property of the Kad Rekod is
+invisible until it reaches paper — three print defects, three found on paper,
+none found by any other means — and V2 *moved the card into a component*, which
+already broke printing once (the `#formOverlay` teleport). **A real printout is
+still required before cutover.**
+
 **Confirmed on a real phone in the field (2026-08-04)** — the first time any of
 this was checked outside a headless browser:
 - **The offline round trip.** Aeroplane mode: the app opens and is fully usable
