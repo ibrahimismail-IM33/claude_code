@@ -86,6 +86,7 @@ const JADUAL = [
       window.__scanCalls = [];
       window.__jadualCalls = [];
       window.__upserts = [];
+      window.__saved = [];   // rows the app has written, seen by later scans
       const ok = (data) => Promise.resolve({ data, error: null });
       window.supabase = {
         createClient: () => ({
@@ -109,7 +110,15 @@ const JADUAL = [
               range(f, t) { this._range = [f, t]; return this; },
               gte() { return this; },
               lte() { return this; },
-              upsert(arg) { window.__upserts.push({ table, arg }); return ok([]); },
+              upsert(arg) {
+                window.__upserts.push({ table, arg });
+                // The database keeps what it is given: a later scan must see the
+                // officer's edit, which is the whole point of T14.
+                if (table === 'hydrant_records') {
+                  (Array.isArray(arg) ? arg : [arg]).forEach((r) => window.__saved.push(r));
+                }
+                return ok([]);
+              },
               insert(arg) {
                 if (table === 'jadual_pemeriksaan') window.__jadualCalls.push({ op: 'insert', arg });
                 return ok([]);
@@ -142,6 +151,7 @@ const JADUAL = [
                     for (let i = 0; i < 1000; i++) rows.push({ hydrant_id: 99, section: 'pengujian', row_index: i, data: { tarikh: '2000-01-01', penguji: 'x' }, signed: false });
                     cfg.rows.forEach((h) => rows.push({ hydrant_id: h.id, section: 'pengujian', row_index: 0, data: { tarikh: cfg.today, penguji: 'P' }, signed: true }));
                   }
+                  if (!cfg.bigScan) rows = rows.concat(window.__saved.filter((r) => r.section === 'pengujian'));
                   const [f, t] = this._range || [0, 999];
                   return ok(rows.slice(f, t + 1)).then(res, rej);
                 }
@@ -620,6 +630,71 @@ const JADUAL = [
   const up2 = await p.evaluate(() => (window.__upserts || []).filter((u) => u.table === 'hydrants'));
   check('a blank Lokasi never overwrites the registered address',
     up2.every((u) => u.arg.location !== '' && u.arg.location !== null), true);
+  await p.close();
+
+  /* ---------- T14: the officer's actual workflow, end to end ----------
+   *
+   * Edit a Kad Rekod — a Pengujian date, no signature — and the hydrant must
+   * move into "Belum di-sign": the dashboard figure, the map filter behind it,
+   * and the pin's date badge. Reported as "when edit kad rekod pili bomba it
+   * dont appear on belum di sign".
+   *
+   * Nothing covered this. T10 checks the figures are stable, T13 checks the
+   * write reaches the server, the dashboard suites prove the counting in
+   * isolation — but no test had ever driven the sequence an officer actually
+   * performs, which is edit → save → look. That sequence crosses the record
+   * store, the sync store, the dashboard scan and the map filter, and a break
+   * anywhere in it looks identical from the outside: the figure does not move. */
+  console.log('T14  editing a card moves the hydrant into Belum di-sign');
+  p = await mount({ records: [] });                 // nothing inspected yet
+  await p.click('#tabDash');
+  await p.waitForTimeout(1300);
+  check('every hydrant starts as Belum diperiksa',
+    await figures(p), ['0', '0', String(REG.length)]);
+
+  await p.click('#tabMap');
+  await p.waitForTimeout(300);
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  const ob3 = await p.$('#dOpenForm');
+  if (ob3) { await ob3.click(); await p.waitForTimeout(700); }
+  await p.evaluate((today) => {
+    const set = (sel, v) => {
+      const e = document.querySelector(sel);
+      if (e) { e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); }
+    };
+    set('#formOverlay input[data-sec="pengujian"][data-row="0"][data-k="tarikh"]', today);
+    set('#formOverlay input[data-sec="pengujian"][data-row="0"][data-k="penguji"]', 'Ismail');
+  }, TODAY);
+  await p.waitForTimeout(200);
+  await p.click('#fSave');
+  await p.waitForTimeout(900);
+  await p.click('#fClose');
+  await p.waitForTimeout(300);
+
+  await p.click('#tabDash');
+  await p.waitForTimeout(1400);
+  check('the edited pili is now Belum di-sign, not Belum diperiksa',
+    await figures(p), ['0', '1', String(REG.length - 1)]);
+
+  // The figure and the map must agree — they read the same index, and the whole
+  // point of that decision is that they cannot disagree (CLAUDE.md §2).
+  const cards2 = await p.$$('#dashView .dstat');
+  await cards2[1].click();
+  await p.waitForTimeout(700);
+  check('and tapping it shows exactly that one pili on the map',
+    await p.evaluate(() => window.__markers.length), 1);
+
+  /* The pin's badge follows the same rows. Guarded: if the filter above found
+   * nothing there is no pin to tap, and a bare __tapPin would throw and kill
+   * the run before it reports — which is exactly what the mutation did. */
+  const anyPin = await p.evaluate(() => window.__markers.length > 0);
+  if (anyPin) {
+    await p.evaluate(() => window.__tapPin(0));
+    await p.waitForTimeout(400);
+  }
+  check('the pin now carries the inspection date',
+    anyPin && await p.$eval('#dLastInsp', (n) => n.textContent.includes('/')).catch(() => false), true);
   await p.close();
 
   await b.close(); server.close();
