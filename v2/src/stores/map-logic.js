@@ -1,0 +1,170 @@
+/* The map layer, as pure functions. Ported from index.html.
+ *
+ * Leaflet itself stays imperative behind v2/src/lib/leaflet.js — 187 markers
+ * plus clustering driven through Vue's reactivity is slower than Leaflet's own
+ * handling and buys nothing (docs/V2-ROADMAP.md, Phase 3). What lives here is
+ * everything around it that can be decided without a map: the marker HTML, the
+ * tooltip, and the fit rule.
+ *
+ * The fit rule is the one with consequence. Everything else here is markup.
+ */
+
+export const STATUS = {
+  kerajaan: { label: 'Awam',   short: 'GOV', hex: '#ef4444', icon: '🏛️', blurb: 'Public / government-maintained unit' },
+  swasta:   { label: 'Swasta', short: 'PVT', hex: '#facc15', icon: '🏢', blurb: 'Privately-maintained unit' },
+};
+export const ORDER = ['kerajaan', 'swasta'];
+
+const pad = (n) => String(n).padStart(2, '0');
+
+export function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
+}
+
+export function fmtBadge(d) {
+  if (!d) return '';
+  const x = new Date(d);
+  if (isNaN(x.getTime())) return d.slice(0, 10);
+  return pad(x.getDate()) + '/' + pad(x.getMonth() + 1) + '/' + String(x.getFullYear()).slice(-2);
+}
+
+/* ---- the fit rule ----------------------------------------------------------
+ *
+ * The map re-fits its bounds when the set of visible hydrants CHANGES, keyed by
+ * the sorted list of ids. Two things make this subtle, and both are decisions
+ * rather than accidents (CLAUDE.md §3):
+ *
+ *  - A BACKGROUND pull must never re-fit. A pull that brings in a hydrant
+ *    someone else just added changes the key, and re-fitting would jump the map
+ *    away from whatever an officer is reading. `noFitOnce` is armed by the
+ *    quiet path and consumed here: the key is recorded WITHOUT fitting, so the
+ *    next genuine change still fits normally.
+ *  - An empty result never fits. Fitting to nothing has no meaning, and the
+ *    key is deliberately not recorded either, so the view is still correct once
+ *    hydrants come back.
+ *
+ * Returned rather than performed, so the decision can be tested without a map.
+ */
+export function keyOf(visible) {
+  return visible.map((h) => h.id).sort((a, b) => a - b).join(',');
+}
+
+export function fitDecision(visible, fittedKey, noFitOnce) {
+  const key = keyOf(visible);
+  if (noFitOnce) return { fit: false, fittedKey: key, noFitOnce: false };
+  if (key !== fittedKey && visible.length) return { fit: true, fittedKey: key, noFitOnce: false };
+  return { fit: false, fittedKey, noFitOnce: false };
+}
+
+/* ---- marker and tooltip markup ----
+ * Copied from V1. The badge carries the last inspection date and the amber "!"
+ * marks a card on this device that has not reached the server — an officer
+ * should not have to open every pili to find what has not synced (§3). */
+export function markerHtml(status, last, pending) {
+  const color = STATUS[status].hex;
+  const badge = last ? '<div class="hydrant-date-badge ' + status + '">' + fmtBadge(last) + '</div>' : '';
+  const pend = pending ? '<div class="hydrant-pending" title="Belum dihantar ke pelayan">!</div>' : '';
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="42" height="52" viewBox="0 0 42 52" style="position:absolute;left:0;top:0">'
+    + '<ellipse cx="21" cy="50" rx="10" ry="3" fill="rgba(0,0,0,0.35)"/>'
+    + '<rect x="14" y="34" width="14" height="10" rx="3" fill="' + color + '" stroke="white" stroke-width="1.5"/>'
+    + '<rect x="11" y="18" width="20" height="18" rx="5" fill="' + color + '" stroke="white" stroke-width="1.5"/>'
+    + '<rect x="13" y="12" width="16" height="8" rx="4" fill="' + color + '" stroke="white" stroke-width="1.5"/>'
+    + '<rect x="4" y="22" width="8" height="5" rx="2.5" fill="' + color + '" stroke="white" stroke-width="1.5"/>'
+    + '<rect x="30" y="22" width="8" height="5" rx="2.5" fill="' + color + '" stroke="white" stroke-width="1.5"/>'
+    + '<circle cx="21" cy="10" r="4" fill="' + color + '" stroke="white" stroke-width="1.5"/>'
+    + '<rect x="17" y="20" width="8" height="14" rx="3" fill="rgba(255,255,255,0.18)"/>'
+    + '<ellipse cx="16" cy="22" rx="2" ry="4" fill="rgba(255,255,255,0.25)"/></svg>';
+  return '<div class="hydrant-marker" style="--c:' + color + '">' + svg + '<span class="hydrant-beacon"></span>' + badge + pend + '</div>';
+}
+
+export const ICON_OPTS = { className: '', iconSize: [42, 74], iconAnchor: [21, 52], popupAnchor: [0, -62] };
+
+export function tipHtml(h, pending) {
+  const c = STATUS[h.status];
+  return '<div style="display:flex;flex-direction:column;gap:2px"><div style="display:flex;align-items:center;gap:6px">'
+    + '<span style="width:8px;height:8px;border-radius:9999px;background:' + c.hex + ';box-shadow:0 0 8px ' + c.hex + '"></span>'
+    + '<span style="font-weight:800;letter-spacing:.02em">' + esc(h.label) + '</span>'
+    + '<span style="font-family:\'JetBrains Mono\',monospace;font-size:10px;opacity:.6;margin-left:4px">' + c.short + '</span></div>'
+    + '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;opacity:.7">' + (h.lastInspected ? 'Inspected: ' + esc(h.lastInspected) : 'No inspection date') + '</div>'
+    + (pending ? '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#fbbf24">! Belum dihantar ke pelayan</div>' : '') + '</div>';
+}
+
+/* ---- adding a hydrant ------------------------------------------------------
+ *
+ * Ported from V1's openAdd(). The validation is the whole point of the modal:
+ * a hydrant with a bad coordinate is a pin in the sea, and the officer who
+ * typed it is standing next to the real one with no way to tell.
+ *
+ * Kept pure and separate so the rules can be asserted without a map, a modal
+ * or a geolocation prompt — none of which a headless browser gives honestly.
+ */
+export function nextId(hydrants) {
+  return hydrants.length ? Math.max.apply(null, hydrants.map((h) => h.id)) + 1 : 1;
+}
+
+// V1's default label for a new unit: "PILI 07". Deliberately NOT a zone label —
+// zones are derived from what the officer types, never invented here.
+export function defaultLabel(hydrants) {
+  return 'PILI ' + pad(nextId(hydrants));
+}
+
+export function today() { return new Date().toISOString().split('T')[0]; }
+
+// A future inspection date is not a record of anything, so it is pulled back
+// to today rather than rejected — the officer keeps typing either way.
+export function clampDate(v) { return (v && v > today()) ? today() : v; }
+
+export function validAdd(lat, lng, label) {
+  const a = parseFloat(lat), b = parseFloat(lng);
+  return {
+    la: !isNaN(a) && a >= -90 && a <= 90,
+    lo: !isNaN(b) && b >= -180 && b <= 180,
+    lb: String(label == null ? '' : label).trim().length > 0,
+  };
+}
+
+export function canAdd(lat, lng, label) {
+  const v = validAdd(lat, lng, label);
+  return v.la && v.lo && v.lb;
+}
+
+// V1 stamps every new pili with the station's district. Left as one literal in
+// one place: docs/PRD.md §7 rules that district becomes a COLUMN if a second
+// district ever arrives, and a hard-coded string in a single spot is a
+// one-line change then. Do not spread it.
+export const NEW_LOCATION = 'Kunak, Sabah';
+
+export function newHydrant(hydrants, { label, lat, lng, status, insp }) {
+  return {
+    id: nextId(hydrants),
+    label: String(label).trim(),
+    lat: parseFloat(lat),
+    lng: parseFloat(lng),
+    status,
+    location: NEW_LOCATION,
+    lastInspected: clampDate(insp),
+  };
+}
+
+/* The geolocation failure messages, in Bahasa Malaysia, keyed by the
+ * PositionError code. Field-facing text: each one says what to DO, because an
+ * officer standing beside a hydrant cannot act on "error 2". */
+export function geoMessage(err) {
+  if (!err) return 'Tidak dapat mengambil lokasi.';
+  if (err.code === 1) return 'Kebenaran lokasi ditolak. Benarkan akses lokasi dalam tetapan pelayar.';
+  if (err.code === 2) return 'Isyarat GPS tidak dijumpai. Cuba di kawasan lapang.';
+  if (err.code === 3) return 'Terlalu lama menunggu isyarat GPS. Sila cuba lagi.';
+  return 'Tidak dapat mengambil lokasi.';
+}
+
+// Accuracy is reported rather than hidden, and 30 m is the line V1 draws: a
+// pin that vague is worth re-taking in the open.
+export function geoAccuracyMessage(accuracy) {
+  const acc = Math.round(accuracy || 0);
+  return {
+    text: 'Lokasi diambil — ketepatan lebih kurang ' + acc + ' meter.'
+      + (acc > 30 ? ' Ketepatan rendah; cuba di kawasan lapang.' : ''),
+    colour: acc > 30 ? '#fcd34d' : '#86efac',
+    low: acc > 30,
+  };
+}

@@ -17,6 +17,11 @@ Last updated: 2026-08-02 · branch `claude/epilibomba-build-compile-3hhuqp`
   in a screenshot and only showed up when measured.
 - Ask before changing anything in §7 (open questions) — those are the user's
   calls, not yours.
+- **A V2 migration is under way on `claude/epb-v2`** (Vue 3 + Vite + Pinia,
+  `docs/V2-ROADMAP.md`). It changes nothing an officer sees and it is held back
+  from `main` until cutover. If you are fixing V1, keep working in `index.html`
+  as before — but merge that fix **down** into `claude/epb-v2` afterwards, never
+  the other way, or the cutover will quietly revert it.
 
 ---
 
@@ -52,15 +57,36 @@ Live at **epilibomba.com**. UI language is Bahasa Malaysia.
 | `.github/workflows/tests.yml` | Runs all seven suites on every push/PR. Also `workflow_call`, so the publish gate can reuse it |
 | `.github/workflows/publish-to-site.yml` | Copies `index.html`, `_headers`, `vendor/` to the **site repo** on every push to main — **but only after `tests.yml` passes** (`needs: test`) |
 | `drafts/dashboard-draft-glass.html` | Standalone dashboard design draft (superseded by the real thing, kept for reference) |
+| `v2/`, `vite.config.mjs` | **V2 migration only** (Vue 3 + Vite + Pinia). Reaches no officer until cutover — `main` publishes V1 throughout. See `docs/V2-ROADMAP.md` |
+| `docs/V2-ROADMAP.md` | The V2 plan: why, the phase order and what it is ordered by, the branching model, and what is explicitly out of scope |
+| `docs/STAGING.md` | **How V2 staging is deployed and what it is safe to do on it.** Cloudflare Pages builds `claude/epb-v2` directly; the suites do **not** gate that deploy, and staging writes to the **production** database. Read it before pointing anyone at the staging URL |
+| `docs/CUTOVER.md` | **The ordered checklist for putting V2 in front of officers**, with the rollback. Read §1 first: `publish-to-site.yml` is V1-shaped and **cannot publish V2** — it does not even trigger on a V2 change, so merging alone leaves officers on V1 while everything reports success |
+| `scripts/verify-bundle.js` | Runs as the last step of the Cloudflare build. A non-zero exit fails the deployment, so it is the gate on the built artefact — no harness page, no CDN origin, `script-src 'self'`, `noindex`, `geolocation=(self)` |
+| `docs/DOM-CONTRACT.md` | **The selectors the test suites depend on.** V2 must emit them exactly — they are an interface, not implementation detail |
 | `docs/FULL-ARCHITECTURE.md` | How the system is built — layers, data model, every RLS policy, the key flows, deploy pipeline, and §9 known defects |
 | `docs/PRD.md` | What it is for and where it goes — requirements, open issues, district-expansion analysis, non-technical risks, roadmap |
 | `docs/KAD-REKOD.md` | **Binding spec for the record card.** MANDATORY under MS ISO — 2 pages, row capacities, how a new card is created, numbering, screen-vs-print order, signature permanence. **Read this before touching the card or the print CSS** |
 | `docs/epilibomba-spec.md` | Earlier design spec |
 
 ### Data
-- **187 hydrants** — 170 Awam (`status='kerajaan'`) + 17 Swasta (`status='swasta'`:
-  A26 and A92–A107, all at Kilang T.S.H Wilmar).
-- Labels zoned: `A**` Kunak town, `B**`, `C**`, `D**` Madai, `E**` Pangi.
+**No live count is written here.** It changes every time an officer taps Tambah
+Pili, and a number copied into a document goes stale without anyone noticing —
+this section claimed 187 for weeks while the register held 188, then 203.
+`docs/PRD.md` §5 does the same thing for the same reason. Read it instead:
+
+```sql
+select status, count(*) from public.hydrants group by status;
+```
+
+Facts that do **not** drift:
+- `sql/supabase-setup.sql` **seeds 187 rows** — 170 Awam (`status='kerajaan'`)
+  + 17 Swasta (`status='swasta'`). A fact about the file, not a claim about
+  today. **Do not "correct" it to match the register** — that script is what a
+  recovery actually applies.
+- **Swasta** are A26 and A92–A107, all at Kilang T.S.H Wilmar.
+- Labels zoned by leading letter: `A**` Kunak town, `B**`, `C**`, `D**` Madai,
+  `E**` Pangi. Zones are **derived from the label**, never stored (§3), so they
+  cannot go stale the way this line did.
 
 ### Security model
 - Any signed-in user **reads**; only `admin` **writes**. Enforced by RLS.
@@ -122,7 +148,11 @@ Draw order: caps → walls → top faces (painter's algorithm).
 
 | Decision | Choice | Why |
 |---|---|---|
-| Two repos | `claude_code` builds, **`ibrahimismail-IM33/e-pili-bomba` is what Cloudflare publishes** | They drifted 7 commits apart once and officers used a live app missing fixes. A workflow now copies the three published paths on every push to main, and refuses to publish if a CDN tag reappears or `sql/`/`tests/` would go public |
+| Two repos | `claude_code` builds, **`ibrahimismail-IM33/e-pili-bomba` is what Cloudflare publishes** | They drifted 7 commits apart once and officers used a live app missing fixes. A workflow now copies the three published paths on every push to main, and refuses to publish if a CDN tag reappears or `sql/`/`tests/` would go public. **Applies to V1. At V2 cutover this is superseded — see the next row** |
+| V2 publishing | **Cloudflare Pages builds `claude_code` directly** and serves `dist/`, like staging. The site repo is no longer the source for epilibomba.com | `publish-to-site.yml` cannot publish V2 at all: no build step, and V2's app is a Vite bundle under `v2/` rather than the three paths it copies. Teaching it to build was the alternative and was declined for the simpler route. **The cost is real and was accepted knowingly: `tests.yml` stops gating what officers receive** — Cloudflare deploys every push, green or red. `verify-bundle.js` still fails the deployment on a bad artefact, so a malformed bundle cannot ship; a logic regression can. `docs/CUTOVER.md` §7 is how to take the gate back (build a `release` branch that CI fast-forwards only when the suites pass) |
+| Rollback from V2 | **Move the custom domain back to the old Pages project.** So the old project, the `e-pili-bomba` repo and `publish-to-site.yml` all stay | No build, no revert, no deploy — the site repo still holds V1 exactly as officers used it, and the workflow keeps it current. A git revert would need a rebuild and a redeploy while officers wait |
+| `X-Robots-Tag` | **Branch-aware at build time** (`scripts/finalize-headers.js`), and `v2/public/_headers` **keeps** the `noindex` line | One file now feeds two environments: staging must stay unindexed (real data, real logins), production must not be. The line stays in the source so the safe default is what you get by doing nothing — any future branch or preview is private unless told otherwise. Production is identified by `CF_PAGES_BRANCH`, which Cloudflare sets itself, so there is no dashboard variable to forget. `verify-bundle.js` re-checks the outcome independently: one script decides, the other refuses to ship the wrong answer |
+| `login-bg.jpg` | **Lives in `v2/public/`, referenced as `url("/login-bg.jpg")` — root-absolute** | It used to exist only in the site repo, copied separately, so a Cloudflare build of this repo shipped without it. And the leading slash is load-bearing: the built stylesheet is `/assets/style-*.css`, and a relative `url()` resolves against the **stylesheet**, so `url("login-bg.jpg")` requests `/assets/login-bg.jpg`. Both failures are **invisible** — `#authGate` declares `#0a0b0d` too, so a missing image degrades to a dark panel that looks deliberate |
 | CI | `tests.yml` runs every suite on every push, and `publish-to-site.yml` **calls it and depends on it** (`needs: test`) rather than duplicating the steps | The suites existed for months and nothing ran them, while publishing was automatic — so the guarantee was "these bugs won't come back if someone remembers". The gate, not the workflow, is the deliverable: a CI job that reports red while the broken build ships anyway is decoration. Reusing the workflow via `workflow_call` means there is one definition of how tests run, so the gate cannot drift from the thing it is gating |
 | Audit identity | Taken from the **JWT inside the database**, never from the request body, no fallback | A first version had `coalesce(jwt_email, new.updated_by)`, which let a modified page write any name it liked. Caught in testing. An audit column the client can set is decorative |
 | Third-party libraries | **Self-hosted in `vendor/`**, no CDN, no SRI needed | A script from unpkg/jsdelivr runs with full access to the signed-in session and every record card, and `@supabase/supabase-js@2` floated — whatever the CDN called "latest 2.x" reached every officer with no review. Self-hosting removes the path entirely and lets CSP `script-src` drop to `'self'`. Versions pinned in `vendor/README.md` |
@@ -134,6 +164,7 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Figure ink | Green `#4ADE80` / blue `#60A5FA` / red `#F87171` on the **card numbers and the chart percentages only** | Status reads at a glance: pass / pending / outstanding. Measured on the card base `#121419` — 10.6 : 7.3 : 6.7, all above 4.5:1. The donut fill and the word under each percentage keep the cream/steel/`#9CAAB6` ink, so a label still matches the slice its leader line points at |
 | Figure glow | Subtle. `text-shadow` on the cards, `filter:drop-shadow` on the SVG | SVG text does not take `text-shadow` reliably across engines; `drop-shadow` does. Kept low so digits stay crisp on a phone in sun |
 | Chart form | Flat-shaded 3D donut, upright, depth right, 50% depth | Matches supplied reference |
+| Charting library | **None — the donut stays hand-built.** Chart.js considered and declined 2026-08-07 | Chart.js has no 3D doughnut in v4 and no maintained plugin for one, so adopting it means shipping a flat 2D chart — a **redesign**, which V2 excludes. The generator is 8.4 KB, dependency-free, frozen, and proven character-for-character identical to what officers see; Chart.js is ~70 KB gzip and nothing comparable could be proven about it. Reconsider for **new** charts in V2.1 (trends, per-zone bars), where there is no design to preserve and no parity to lose. See `docs/V2-ROADMAP.md` |
 | Glass / glassmorphism | **Removed** | User asked for flat |
 | Chart background stage | **Removed** | Card matches the rest |
 | Card wrappers (chart + status) | **Removed** | User asked |
@@ -180,7 +211,7 @@ Draw order: caps → walls → top faces (painter's algorithm).
 ## 4. Bugs found and fixed (worth remembering)
 
 1. **Unbounded query** — Supabase caps a request at 1000 rows. The dashboard
-   scan pulled every Pengujian row in one go; past 1000 rows (187 hydrants ×
+   scan pulled every Pengujian row in one go; past 1000 rows (the register ×
    15/page reaches it easily) the extras were dropped and those hydrants
    silently counted as "Belum diperiksa". Would have read ~67 hydrants and
    reported 120 as never inspected. **Now pages through, ordered by
@@ -298,6 +329,87 @@ Draw order: caps → walls → top faces (painter's algorithm).
     a grey-based check also passed on the bug. Verified red on the pre-fix code
     before being trusted: 6 assertions fail.
 
+16. **The map would have tiled itself wrong after a tab switch.** A real parity
+    gap, closed 2026-08-09 — but **latent, and not the defect seen on staging
+    that day. See §4.17 for what actually caused those scattered tiles; this
+    entry was originally written claiming that symptom and the claim was
+    wrong.** **Leaflet mis-measures itself while hidden.** The map is
+    deliberately kept mounted behind `v-show` so an officer keeps their pan,
+    which means its container collapses to zero on the dashboard and Leaflet
+    goes on believing that size when it returns.
+
+    V1 already knew this — `setTab` calls `map.invalidateSize()` on the way
+    back, with a comment saying why. V2 ported the mount-time calls and the
+    resize listener but **not that one line**, so it was a parity miss rather
+    than a new bug. MapView now watches an `active` prop and re-measures twice,
+    because the container regains its size a frame or two after `v-show` clears
+    `display:none`.
+
+    Two things worth carrying, both about the *verification* rather than the
+    fix:
+
+    - **The mutation test lied, because the build had failed.** Deleting the
+      watcher with a crude text slice broke the syntax; `vite build` exited
+      non-zero, `dist/` kept the OLD bundle, and the suite happily passed
+      against it. A mutation is only real if the artefact under test actually
+      changed — **check the build succeeded before believing a green
+      mutation**. Same family as `| tail` swallowing an exit code.
+    - **The edit that "applied" did nothing.** The first attempt to insert the
+      watcher replaced a line that no longer existed (it had been rewritten
+      earlier into the combined `[visible, refit]` watcher), so the change
+      silently vanished and only the failing test revealed it. Verify an edit
+      landed; do not assume a string replace matched.
+
+17. **Leaflet's own stylesheet was never imported, and the map was broken from
+    first paint.** Found on staging 2026-08-09. The map rendered as scattered
+    tiles with black gaps between them — *not* after a tab switch, but
+    immediately on load, and **panning did not repair it**.
+
+    V1 loads three stylesheets as `<link>` tags in `index.html`:
+    `vendor/leaflet.css`, `vendor/MarkerCluster.css`,
+    `vendor/MarkerCluster.Default.css`. **V2 imported none of them** — it
+    bundles Leaflet's JavaScript and had done so since Phase 1, but nothing
+    ever pulled in the CSS. Without it the panes and tiles never receive
+    `position:absolute`, so the tiles are laid out in normal document flow.
+    That also explains the second symptom exactly: panning applies a transform
+    to a pane that was never positioned, so it moves nothing.
+
+    Fixed by importing all three in `v2/src/main.js` and `v2/src/harness.js`.
+    **They must sit before `map.css`** — `cssCodeSplit:false` concatenates in
+    import order and `map.css` overrides `.leaflet-container`,
+    `.leaflet-control-zoom a` and `.leaflet-tooltip`. Get the order wrong and
+    the app silently reverts to Leaflet's light `#ddd` map background; that is
+    a separate assertion in T8 and it was mutation-verified separately.
+
+    Four things worth carrying:
+
+    - **I mis-diagnosed it, and shipped the wrong fix first.** My first answer
+      was the missing `invalidateSize` on tab return (§4.16). That gap was real
+      and the fix is worth keeping, but it was **latent** and I presented it as
+      the cause. The two facts that should have ruled it out were already in
+      hand: broken *from first paint*, and *unchanged by dragging*. Stale
+      measurement produces neither. **Before theorising about a library's
+      internal state, check whether the library's own assets are present at
+      all** — it is the cheapest question available and it was never asked.
+    - **The whole suite was blind because the stub needs no CSS.** Every V2 map
+      suite stubs `window.L`; the only suite booting the real library
+      (`csp-and-vendor.js`) tests **V1**, where the `<link>` tags are right
+      there. Same family as every other seam defect here: *the thing being
+      stubbed was the thing that was broken*. `tests/v2-app-live.js` T8 now
+      boots real Leaflet and asserts `getComputedStyle('.leaflet-pane').position
+      === 'absolute'`.
+    - **A dependency's stylesheet can vanish with nothing to show for it.** The
+      build was green, the bundle well-formed, every assertion passed. Only a
+      browser with the real library in it could tell. `scripts/verify-bundle.js`
+      now fails the deployment if the built CSS carries no `.leaflet-pane`,
+      `.leaflet-tile`, `.leaflet-cluster-anim` or `.marker-cluster-small` rule.
+      The probes are deliberately selectors that exist **only** in the library
+      files — `.marker-cluster` and `.leaflet-container` were rejected as
+      probes because `map.css` defines them itself, so they would have passed
+      on the bug.
+    - **§4.16's lesson applied again, and paid.** Both mutations here were
+      checked for `BUILD EXIT=0` before their red was believed.
+
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"
@@ -335,6 +447,67 @@ Draw order: caps → walls → top faces (painter's algorithm).
   `authenticated` **must keep EXECUTE**; revoke from `public, anon` only.
   `handle_new_user()` is different and can be closed to everyone, because it is
   only ever invoked by the trigger, as the trigger's owner.
+- **Wrote a fourth test that was blind at exactly the boundary it guarded.**
+  V2's search suite asserted that a search re-fits the map. Deleting the
+  `fittedKey` reset it existed to protect left it entirely green — every
+  *narrowing* search changes the visible set, so the map fits for an unrelated
+  reason. The reset only matters when the matches are the set already fitted.
+  Same shape as the donut band, the §4.14 flush path, the grey-vs-dark
+  signature metric and the clean signature fixture: **a fixture that cannot
+  reproduce the defect proves nothing, however many assertions it carries.**
+  Mutate the code and watch the test go red, every time, before trusting it.
+- **Declared six phases complete while two whole features were broken.** The
+  dashboard read all zeros (`inspStatusOf` was still a `() => 'none'` stub and
+  the index was `{}`), and **tapping any pin crashed the app** —
+  `records.load()` returns a form and never assigns `this.form`, so `openCard`
+  read `records.form.header` and threw. Neither was a logic bug: both were
+  **the join**, the code between the stores and the components. Nothing covered
+  it, because the component suites mount through the harness with fixtures
+  already supplied and the store suites call the stores directly — and between
+  those two is where the app lives. Third time this shape has appeared (the CSP
+  probe standing in for an app; `MapShell`'s duplicate pills). **A phase gate
+  proves a layer; an app is the seams between layers.** `tests/v2-app-live.js`
+  now drives the assembled app, and found a third defect on its first run.
+- **Relied on an in-memory flag to protect a permanent record.** V2's
+  `deadRows` refused to delete a row carrying `_signed`, which is what V1 does
+  and is sufficient *there* — V1 always writes into the existing row object, so
+  the flag survives. V2 can **replace** a row with a fresh blank one, and a
+  blank row carries no `_signed`. An admin clearing a signed row produced a
+  DELETE for it. The trigger would have refused it, but **a client that has to
+  be caught by the trigger will eventually find a path around it.** Permanence
+  is now also read from the server's own `signed` column, snapshotted at open.
+  The wider point: when a rule is enforced in several layers, the client's copy
+  of it must not depend on state a UI action can quietly drop.
+- **Moved the record card into a component and it stopped printing.** V1's
+  print rule is `body.form-open > *:not(#formOverlay){display:none!important}`.
+  In V2 the card renders inside `#app`, so `#app` matched that rule and the
+  **entire card was `display:none` on paper** — one blank sheet. Nothing on
+  screen changed and nothing in the PDF looked wrong; the card simply was not
+  in it. Found only by counting pages in a rendered PDF. Fixed by teleporting
+  the overlay to `<body>` so it sits where V1 puts it. **When the print CSS and
+  a new component structure disagree, the component moves** — the CSS is the
+  part that has been proven on paper.
+- **Cut a CSS rule in half and lost a whole stylesheet, silently.** Copying
+  V1's mobile block into `map.css` I sliced through `.cards .card`, leaving the
+  file one `}` short. **An unbalanced stylesheet does not fail and does not
+  warn** — the parser NESTS everything after the unclosed block inside it, so
+  those rules just stop applying. Because `main.js` imports `dashboard.css`
+  after `map.css`, the entire dashboard lost its styling while the build stayed
+  green and the app still rendered. Two things worth carrying: **transcribe
+  whole rules, never line ranges**, and counting braces in the *sources* is not
+  a check — `{` and `}` appear inside comments and `@keyframes` prose, which
+  gives false answers in both directions. The built file is what the browser
+  parses, and `tests/v2-dashboard-css.js` now checks its balance there.
+- **Recommended a deploy off an app that did not exist.** I described V2 as
+  "done minus login and the record card" and proposed a staging deploy on that
+  basis. `v2/src/App.vue` was still the **CSP probe** written as scaffolding in
+  Phase 0 — the production bundle had contained no application for three
+  phases, while every component suite ran green, because they all mount
+  components through the test harness rather than through the app. One command
+  against the built bundle would have shown it, and I ran that command only
+  after recommending the deploy. **A green suite says the parts work, never
+  that the whole exists** — and "I know what this builds" is a claim about an
+  artefact, so check the artefact.
 - **Recommended work I could not finish.** I proposed creating a scratch
   Supabase project for a restore test "then deleting it" without first checking
   that I had a way to delete it, or a token to download the backup artifact. I
@@ -426,6 +599,16 @@ Watch items:
   signed in.
 - **Backup retention is 90 days** in GitHub artifacts, which vanish with the
   repo. Consider a copy held elsewhere.
+- **V2 staging is live on Cloudflare Pages** — `epilibomba-staging.pages.dev`,
+  built by Cloudflare straight from `claude/epb-v2`. See `docs/STAGING.md`.
+  **Two things about it are accepted trades, not oversights.** It points at the
+  **production Supabase project**, so every save made on staging is a real save
+  against the real register — that is what makes it worth testing on. And the
+  test suites do **not** gate the deploy: Cloudflare ships every push, green or
+  red. `scripts/verify-bundle.js` runs in the build command and fails the
+  deployment on a bad *artefact* (harness page, CDN origin, missing `_headers`,
+  `unsafe-inline`), so a malformed bundle cannot reach staging — but a logic
+  regression can. If `tests.yml` is red, assume staging is carrying it.
 - **Publishing is automatic** — `publish-to-site.yml` copies `index.html`,
   `_headers` and `vendor/` to the site repo on every push to main, using the
   `SITE_REPO_TOKEN` secret. Verified working 2026-08-03. Do not hand-copy.
@@ -470,6 +653,24 @@ Watch items:
 - Dashboard → Peta Pili returns a full map, no grey sliver
 - Zoom buttons at 34px are fine in the field
 
+**Confirmed on V2 staging (2026-08-09)** — the first deployment carrying the
+real app, after staging spent days serving a commit six behind (docs/STAGING.md
+§1 step 5c). Sign-in, the map rendering as a continuous tile grid, the
+dashboard, and **the Kad Rekod opening and working** — all on the assembled V2
+bundle against the production database.
+
+**And confirmed ON PAPER from V2 (2026-08-09)** — the Kad Rekod printed from
+the V2 bundle on the real printer, and it works. This was the last mandatory
+gate in `docs/KAD-REKOD.md` and the one most likely to fail: every print-facing
+property of this card is invisible until it reaches paper (three print defects,
+three found on paper, none found by any other means), and V2 *moved the card
+into a component*, which already broke printing once — the `#formOverlay`
+teleport, which produced a single blank sheet while nothing on screen changed.
+
+Note what the staging run alone would have proved: nothing about paper. The
+card "opening and working" is a screen claim. Keep printing one after any change
+that touches the card, the print CSS, or the component structure around it.
+
 **Confirmed on a real phone in the field (2026-08-04)** — the first time any of
 this was checked outside a headless browser:
 - **The offline round trip.** Aeroplane mode: the app opens and is fully usable
@@ -510,8 +711,11 @@ printout as the gate it is.
 **Committed regression tests** (`tests/`, see `tests/README.md`):
 - `csp-and-vendor.js` — 21 assertions: no CDN tag or CDN origin left anywhere,
   every vendor file present, and the app booted under the **real CSP read from
-  `_headers`** with the real Leaflet — 187 pins in 7 clusters, zoom control,
-  Supabase client, zero CSP violations, zero page errors
+  `_headers`** with the real Leaflet — pins rendered on the map, the
+  markercluster plugin and the zoom control present, Supabase client loaded,
+  zero CSP violations, zero page errors. (It asserts pins **exist**, not how
+  many: a suite tied to a hydrant count would go red every time an officer adds
+  a pili, which is a passing build reporting a failure.)
 - `clear-row.js` — 27 assertions over 7 scenarios: a cleared row is actually
   deleted, signed rows are never touched, clearing works offline and warns on
   a contested removal, the pin's date badge follows the rows that remain, and

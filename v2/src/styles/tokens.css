@@ -1,0 +1,33 @@
+/* Design tokens — copied VERBATIM from index.html's :root block.
+ *
+ * dashboard.css references var(--mono) and var(--sans). Without these the
+ * rules still apply and nothing errors — the fonts just silently fall back to
+ * the UA default, which is precisely the kind of failure that looks fine in a
+ * screenshot and wrong on a phone. §4.6 was this shape: a .stat button not
+ * inheriting page colour and washing out against the card.
+ *
+ * --display, --gov and --pvt are carried too even though the dashboard does
+ * not use them yet: they belong to the same token set, the map and header will
+ * need them in Phase 3, and splitting a palette across two files is how the
+ * two halves drift.
+ */
+:root{
+  --sans:"DM Sans",ui-sans-serif,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,monospace;
+  --display:"Bricolage Grotesque","DM Sans",sans-serif;
+  --gov:#ef4444; --pvt:#facc15;
+}
+
+/* The reset, copied VERBATIM from index.html. It is a token in the sense that
+ * matters here: without `box-sizing:border-box` every padded element measures
+ * wider than its box, and the phone widths overflow sideways — §4.9, which is
+ * the failure this project has already shipped once. */
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;width:100%;overflow:hidden;overscroll-behavior:none}
+  body{font-family:var(--sans);color:#e7e5e4;-webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(1100px 520px at 88% -12%, rgba(239,68,68,.16), transparent 60%),
+      radial-gradient(820px 460px at -5% 115%, rgba(250,204,21,.08), transparent 60%),
+      linear-gradient(180deg,#0e0f12 0%,#0a0b0d 100%);}
+  .mono{font-family:var(--mono)} .disp{font-family:var(--display)}
+  .tab{font-variant-numeric:tabular-nums}

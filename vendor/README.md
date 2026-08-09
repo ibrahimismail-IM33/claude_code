@@ -37,3 +37,15 @@ cp package/dist/<file> vendor/
 
 Then bump the version in this table, run `node tests/csp-and-vendor.js`, and
 re-publish. Do **not** point the tags in `index.html` back at a CDN.
+
+## During the V2 migration, bump BOTH
+
+V2 (`docs/V2-ROADMAP.md`) gets these same three libraries from npm instead of
+from this folder, pinned in `package.json` to **the exact versions in the table
+above**. They are held together on purpose: if the two drift, a defect found in
+V2 could be the rewrite or could be a library bump, and no amount of reading the
+diff separates those two.
+
+`tests/v2-csp.js` parses the versions out of this table and compares them with
+`package.json`, so updating one and forgetting the other fails the suite rather
+than going unnoticed. Update the table and the pin in the same commit.

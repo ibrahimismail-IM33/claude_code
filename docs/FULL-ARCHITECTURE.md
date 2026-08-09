@@ -530,7 +530,7 @@ real Chromium.
 | Suite | Guards | Assertions |
 |---|---|---|
 | `p0-offline-sync.js` | Offline field data survives and reaches the server; conflicts warn instead of overwriting; signed rows untouched; reconnect pushes without the card being opened | 20 |
-| `csp-and-vendor.js` | No CDN tag or origin anywhere; every vendor file present; the app boots under the real CSP with real Leaflet — 187 pins, 7 clusters, zero violations | 21 |
+| `csp-and-vendor.js` | No CDN tag or origin anywhere; every vendor file present; the app boots under the real CSP with real Leaflet — pins on the map, clustering and zoom control present, zero violations. Asserts pins **exist**, not how many, so it does not go red when an officer adds a pili | 21 |
 | `clear-row.js` | An officer can withdraw a wrong entry; signed rows stay untouchable; clearing works offline and survives a contested sync; the pin's date badge follows the rows that remain; a failed flush changes nothing | 27 |
 | `kad-rekod.js` | The Kad Rekod is 2 pages with its pages together and in order; screen shows the newest card first while **print stays oldest-first**; card numbers are permanent and chronological; a new card needs the last row complete **and saved**, offline included | 27 |
 | `zone-panel.js` | "Nombor pili terkini" matches the register: zones derived from the label prefix, ranges and counts correct, the panel ignoring the Awam/Swasta pills while the zone filter stacks with them, and both silent-lie paths (a gap in a range, an unparseable label) reported rather than hidden | 29 |

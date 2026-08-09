@@ -1,0 +1,138 @@
+/* The dashboard's data layer, as pure functions. Ported from index.html.
+ *
+ * The key architectural decision (CLAUDE.md §2): the dashboard stores NO
+ * numbers of its own. Every figure is derived from the same Pengujian rows the
+ * Kad Rekod already writes —
+ *
+ *   Diperiksa        a row in the period, signed
+ *   Belum di-sign    a row in the period, not yet signed
+ *   Belum diperiksa   no row in the period at all
+ *
+ * One source of truth, nothing to drift. Keep it that way: a stored counter
+ * here would be a second version of the truth that nobody reconciles.
+ */
+
+/* ---- period: rolling 6-month halves ---- */
+export function halfOf(d) { return d.getMonth() < 6 ? 1 : 2; }
+
+export function halfList(now) {
+  const n = now || new Date();
+  let y = n.getFullYear(), h = halfOf(n);
+  const out = [];
+  for (let i = 0; i < 4; i++) { out.push({ y, h }); if (h === 1) { h = 2; y--; } else { h = 1; } }
+  return out;
+}
+
+export function halfRange(o) {
+  return o.h === 1 ? [o.y + '-01-01', o.y + '-06-30'] : [o.y + '-07-01', o.y + '-12-31'];
+}
+
+export function halfLabel(o) { return (o.h === 1 ? 'Jan – Jun ' : 'Jul – Dis ') + o.y; }
+
+/* ---- the index of Pengujian rows, by hydrant ---- */
+export function pushRow(idx, id, date, signed, penguji) {
+  if (!date) return;
+  const k = String(id);
+  (idx[k] = idx[k] || []).push({ d: String(date).slice(0, 10), s: !!signed, p: penguji || '' });
+}
+
+export const SCAN_PAGE = 1000;
+export const SCAN_MAX = 50;     // hard stop so a bad response cannot loop forever
+
+/* Page through every Pengujian row.
+ *
+ * Supabase caps one request at 1000 rows and reports NO error. 187 hydrants ×
+ * 15 rows per page passes that easily once the register fills, and the failure
+ * is silent — the missing rows simply read as "Belum diperiksa". An earlier
+ * unbounded version would have scanned ~67 hydrants and reported 120 as never
+ * inspected (CLAUDE.md §4.1).
+ *
+ * Ordered by hydrant_id then row_index at the call site so range() cannot
+ * repeat or skip a row between pages.
+ *
+ * Returns null only if the FIRST page failed. A later failure keeps what has
+ * been read so far, which is V1's behaviour: partial cloud data still beats
+ * falling back to this device alone.
+ */
+export async function scanPages(fetchPage) {
+  const idx = {};
+  let from = 0, pages = 0;
+  for (;;) {
+    let res;
+    try { res = await fetchPage(from, from + SCAN_PAGE - 1); }
+    catch (e) { return pages ? idx : null; }
+    if (!res || res.error || !Array.isArray(res.data)) return pages ? idx : null;
+    res.data.forEach((r) => {
+      const dt = r.data && r.data.tarikh;
+      pushRow(idx, r.hydrant_id, dt, r.signed, r.data && r.data.penguji);
+    });
+    pages++;
+    if (res.data.length === SCAN_PAGE && pages < SCAN_MAX) { from += SCAN_PAGE; continue; }
+    return idx;
+  }
+}
+
+/* Local cache first (synchronous, so the dashboard has figures immediately),
+ * cloud merged in when it arrives. A device that has never opened a card still
+ * shows real totals. */
+export function scanLocal(hydrants, readForm) {
+  const idx = {};
+  hydrants.forEach((h) => {
+    const f = readForm(h.id);
+    if (!f || !Array.isArray(f.pengujian)) return;
+    f.pengujian.forEach((r) => { if (r) pushRow(idx, h.id, r.tarikh, r._signed, r.penguji); });
+  });
+  return idx;
+}
+
+/* Merge, treating (date, penguji) as the identity of a row.
+ *
+ * A row present in both wins its SIGNED flag from either side — a signature
+ * seen anywhere is real, and signatures are permanent, so this can only ever
+ * move a row from unsigned to signed and never back.
+ */
+export function mergeIndex(a, b) {
+  const out = {};
+  for (const k in a) if (Object.prototype.hasOwnProperty.call(a, k)) out[k] = a[k].slice();
+  for (const k in b) {
+    if (!Object.prototype.hasOwnProperty.call(b, k)) continue;
+    if (!out[k]) { out[k] = b[k].slice(); continue; }
+    b[k].forEach((r) => {
+      const dup = out[k].some((x) => x.d === r.d && x.p === r.p);
+      if (dup) { out[k].forEach((x) => { if (x.d === r.d && x.p === r.p && r.s) x.s = true; }); }
+      else out[k].push(r);
+    });
+  }
+  return out;
+}
+
+export function rowsInPeriod(idx, id, range) {
+  const rows = idx[String(id)] || [];
+  return rows.filter((r) => r.d >= range[0] && r.d <= range[1]);
+}
+
+export function inspStatusOf(idx, h, range) {
+  const rows = rowsInPeriod(idx, h.id, range);
+  if (!rows.length) return 'none';
+  return rows.some((r) => r.s) ? 'ok' : 'wait';
+}
+
+/* Dashboard scope follows the map's Awam/Swasta pill, INCLUDING the cleared
+ * state: no pill selected means the map shows everything, so the dashboard
+ * covers all 187 too. An earlier version only asked "is it swasta?" and let
+ * everything else fall through, so a cleared filter silently reported "Awam"
+ * (CLAUDE.md §4.3). */
+export function dashList(hydrants, activeFilter) {
+  return activeFilter ? hydrants.filter((h) => h.status === activeFilter) : hydrants;
+}
+
+export function dashScopeLabel(activeFilter) {
+  return activeFilter === 'swasta' ? 'Swasta' : (activeFilter === 'kerajaan' ? 'Awam' : 'Semua');
+}
+
+export function dashData(hydrants, activeFilter, idx, range) {
+  const list = dashList(hydrants, activeFilter);
+  const d = { total: list.length, ok: 0, wait: 0, none: 0 };
+  list.forEach((h) => { d[inspStatusOf(idx, h, range)]++; });
+  return d;
+}

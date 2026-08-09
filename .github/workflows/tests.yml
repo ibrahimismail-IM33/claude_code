@@ -66,6 +66,14 @@ jobs:
       # Each suite is its own step so a failure names itself in the Actions
       # list instead of hiding inside one combined run. Every suite exits 1
       # on any failed assertion, so no extra reporting is needed.
+
+      # This one runs first, because a suite that quietly drops out of the
+      # chain is indistinguishable from one that passes. It exists because that
+      # happened: test:v2dash is a SUBSTRING of test:v2dashdata, so a
+      # string-replace edit to the chain mangled two entries at once.
+      - name: Suite wiring (every suite actually runs, here and in npm test)
+        run: npm run test:wiring
+
       - name: Offline sync (P0 — field data must survive with no signal)
         run: npm run test:offline
 
@@ -86,3 +94,106 @@ jobs:
 
       - name: Signature links (short-lived, and must fall back)
         run: npm run test:signatures
+
+      # The only step here that tests V2 rather than V1. It builds the Vite
+      # bundle and runs it under the deployed CSP with 'unsafe-inline' stripped
+      # from script-src. If a bundler change ever needs an inline script or an
+      # eval, this is where the migration stops — see docs/V2-ROADMAP.md.
+      - name: V2 CSP (the build must survive script-src 'self')
+        run: npm run test:v2csp
+
+      # These two run V1's real logic and the V2 port over the same inputs and
+      # require identical decisions. The offline queue has lost field data three
+      # times (§4.10, §4.13, §4.14); a port proved only by careful reading is
+      # how a fourth one arrives.
+      - name: V2 offline queue parity (V1 and the port must agree)
+        run: npm run test:v2pending
+
+      - name: V2 filter and zone parity (V1 and the port must agree)
+        run: npm run test:v2filters
+
+      - name: V2 register paging parity (no silent truncation, no re-fit)
+        run: npm run test:v2hydrants
+
+      # The Kad Rekod is a controlled record under MS ISO PS-8. This compares
+      # the ported column keys, per-card capacities and growth rule against
+      # V1's real config — a mistyped column key drops that column's data on
+      # every save and looks perfectly fine on screen.
+      - name: V2 Kad Rekod parity (config and growth rules)
+        run: npm run test:v2records
+
+      # Whole-SVG comparison against V1. Face visibility in the donut is
+      # derived, never guessed — guessing produces phantom faces at particular
+      # data splits, which only appear with real inspection data.
+      - name: V2 donut geometry parity (exact SVG, every animation frame)
+        run: npm run test:v2donut
+
+      - name: V2 dashboard data parity (period, paged scan, merge, scope)
+        run: npm run test:v2dashdata
+
+      - name: V2 dashboard components (mounted in Chromium)
+        run: npm run test:v2dash
+
+      # The dashboard stylesheet is a verbatim copy of V1's #dashView block.
+      # This compares computed styles against V1 in the same browser rather
+      # than diffing CSS text — a missed rule does not throw, it just renders
+      # differently, and on a phone in sunlight that can mean unreadable.
+      - name: V2 dashboard styles match V1 (computed, not eyeballed)
+        run: npm run test:v2css
+
+      - name: V2 Jadual parity (period filter, sort order, date formatting)
+        run: npm run test:v2jadual
+
+      # The fit rule is a rule about something NOT happening: a background pull
+      # must never re-fit the map. The failure is not an error — the map simply
+      # jumps away from what an officer is reading, on a phone, mid-read.
+      - name: V2 map parity (markers, tooltip, and the fit rule)
+        run: npm run test:v2map
+
+      # The end-to-end half: the component must actually OBEY the fit rule.
+      # fitBounds is counted, because "the map did not move" is not something
+      # any error will ever report.
+      - name: V2 map components (fitBounds counted during a background pull)
+        run: npm run test:v2mapview
+
+      # Search and the add modal. The headline is that a search IGNORES the
+      # Awam/Swasta pills — if it ever respected them, a pili sitting in the
+      # register would report as missing, and that reads as a lost hydrant.
+      - name: V2 place search and add-hydrant modal
+        run: npm run test:v2mapsearch
+
+      # The app shell: gate, header, tabs, role UI, phone menu. This is also
+      # the suite that would have caught the production bundle containing a
+      # CSP probe instead of an application, which it did for three phases.
+      - name: V2 app shell (login gate, role UI, tabs, phone menu)
+        run: npm run test:v2shell
+
+      # The Kad Rekod in V2. The only suite in this repo that RENDERS TO PDF
+      # AND COUNTS THE PAGES — one card is exactly two, and a row height or a
+      # capacity changed by a few percent pushes it onto a third sheet with
+      # nothing visible on screen. It is still not a substitute for printing a
+      # card; docs/KAD-REKOD.md §6 requires a real printout before this ships.
+      - name: V2 Kad Rekod (rendered to PDF and page-counted)
+        run: npm run test:v2kad
+
+      # The record card's cloud round trip in V2 — the counterpart of
+      # p0-offline-sync.js and clear-row.js, which test V1 only. Every
+      # data-loss defect this app has had (§4.10, §4.13, §4.14) lives in these
+      # paths, and all three were found by an officer using the app.
+      - name: V2 record sync (offline, contested rows, clears, failed flushes)
+        run: npm run test:v2sync
+
+      # Signatures in V2 — signed links and capture. The signature IS the
+      # evidence (docs/KAD-REKOD.md §5): a signed row must be permanent, and a
+      # signature must never silently become unreachable. A blank T.T on a
+      # signed row reads as the signature having been lost.
+      - name: V2 signatures (signed links, capture, permanence)
+        run: npm run test:v2sig
+
+      # THE JOIN — the assembled app, driven as an officer drives it. It exists
+      # because two whole features were broken while every other suite was
+      # green: the dashboard read all zeros, and tapping any pin crashed. The
+      # component suites mount with fixtures and the store suites call stores
+      # directly; between them is where the app actually lives.
+      - name: V2 assembled app (dashboard figures, paging, opening a card)
+        run: npm run test:v2app

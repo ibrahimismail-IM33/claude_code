@@ -2,21 +2,50 @@
   "name": "e-pili-bomba-kunak",
   "version": "1.0.0",
   "private": true,
-  "description": "Build and test tooling for e-Pili Bomba Kunak. The app itself is one static index.html with no build step — nothing here is shipped to officers.",
+  "description": "Build and test tooling for e-Pili Bomba Kunak. V1 — what officers run today — is still one static index.html with no build step. The Vite/Vue/Pinia dependencies belong to the V2 migration (docs/V2-ROADMAP.md) and reach nobody until cutover.",
   "scripts": {
-    "test": "npm run test:offline && npm run test:clear && npm run test:kad && npm run test:zones && npm run test:paging && npm run test:csp && npm run test:signatures",
+    "test": "npm run test:wiring && npm run test:offline && npm run test:clear && npm run test:kad && npm run test:zones && npm run test:paging && npm run test:csp && npm run test:signatures && npm run test:v2csp && npm run test:v2pending && npm run test:v2filters && npm run test:v2hydrants && npm run test:v2records && npm run test:v2donut && npm run test:v2dashdata && npm run test:v2dash && npm run test:v2css && npm run test:v2jadual && npm run test:v2map && npm run test:v2mapview && npm run test:v2mapsearch && npm run test:v2shell && npm run test:v2kad && npm run test:v2sync && npm run test:v2sig && npm run test:v2app",
     "test:offline": "node tests/p0-offline-sync.js",
     "test:clear": "node tests/clear-row.js",
     "test:kad": "node tests/kad-rekod.js",
     "test:zones": "node tests/zone-panel.js",
     "test:paging": "node tests/hydrant-paging.js",
     "test:csp": "node tests/csp-and-vendor.js",
-    "test:signatures": "node tests/signature-links.js"
+    "test:signatures": "node tests/signature-links.js",
+    "test:v2csp": "node tests/v2-csp.js",
+    "build:v2": "vite build",
+    "test:v2pending": "node tests/v2-pending-parity.js",
+    "test:v2filters": "node tests/v2-filters-parity.js",
+    "test:v2hydrants": "node tests/v2-hydrants-parity.js",
+    "test:v2records": "node tests/v2-records-parity.js",
+    "test:v2donut": "node tests/v2-donut-parity.js",
+    "test:v2dashdata": "node tests/v2-dashboard-parity.js",
+    "test:v2dash": "node tests/v2-dashboard-view.js",
+    "test:v2css": "node tests/v2-dashboard-css.js",
+    "test:v2jadual": "node tests/v2-jadual-parity.js",
+    "test:wiring": "node tests/suite-wiring.js",
+    "test:v2map": "node tests/v2-map-parity.js",
+    "test:v2mapview": "node tests/v2-map-view.js",
+    "test:v2mapsearch": "node tests/v2-map-search-add.js",
+    "test:v2shell": "node tests/v2-shell.js",
+    "test:v2kad": "node tests/v2-kad-rekod.js",
+    "test:v2sync": "node tests/v2-record-sync.js",
+    "test:v2sig": "node tests/v2-signatures.js",
+    "test:v2app": "node tests/v2-app-live.js"
   },
   "devDependencies": {
-    "playwright": "1.56.1"
+    "@vitejs/plugin-vue": "6.0.8",
+    "playwright": "1.56.1",
+    "vite": "8.2.1"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.112.0",
+    "leaflet": "1.9.4",
+    "leaflet.markercluster": "1.5.3",
+    "pinia": "3.0.3",
+    "vue": "3.5.41"
   }
 }

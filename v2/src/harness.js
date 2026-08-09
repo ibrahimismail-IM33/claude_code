@@ -1,0 +1,124 @@
+import { createApp, reactive, h } from 'vue';
+import { createPinia } from 'pinia';
+import DashView from './components/DashView.vue';
+import MapShell from './components/MapShell.vue';
+import Pills from './components/Pills.vue';
+import KadRekod from './components/KadRekod.vue';
+import './styles/tokens.css';
+import './styles/dashboard.css';
+// Before map.css, for the reason spelled out in main.js — the overrides there
+// must land after the library's own rules.
+import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import './styles/map.css';
+import './styles/kad-rekod.css';
+
+/* Component test harness. NOT shipped — built only under V2_HARNESS=1.
+ *
+ * It mounts a real component with fixtures injected on `window.__fixture`, so
+ * the suites can drive the actual components in a real browser and assert
+ * against the frozen selectors in docs/DOM-CONTRACT.md.
+ *
+ * Emitted events are recorded rather than acted on. What matters at this phase
+ * is that a click reports the right thing; wiring it to the rest of the app is
+ * the job of the shell that replaces index.html.
+ */
+const fixture = reactive(Object.assign({
+  view: 'dash',
+  // dashboard
+  hydrants: [],
+  index: {},
+  statusFilter: null,
+  inspFilter: null,
+  zoneFilter: null,
+  periodIx: 0,
+  source: '',
+  sweep: 1,
+  jadual: [],
+  jadualSource: '',
+  isAdmin: false,
+  cloudNote: '',
+  // map
+  query: '',
+  noFitOnce: false,
+  adding: false,
+  draft: null,
+  saving: false,
+  addError: '',
+  pending: [],          // hydrant ids with unsent work
+  insp: {},             // id -> 'ok' | 'wait' | 'none'
+  // kad rekod
+  hydrant: null,
+  form: null,
+  lastEdit: null,
+}, window.__fixture || {}));
+
+window.__events = [];
+window.__setFixture = (patch) => { Object.assign(fixture, patch); };
+
+const record = (name) => (v) => window.__events.push([name, v]);
+
+createApp({
+  render() {
+    if (fixture.view === 'kad') {
+      return h(KadRekod, {
+        hydrant: fixture.hydrant, form: fixture.form,
+        isAdmin: fixture.isAdmin, lastEdit: fixture.lastEdit,
+        cloudNote: fixture.cloudNote, pending: fixture.pending && fixture.pending.items ? fixture.pending : null,
+        onClose: record('close'), onSave: record('save'),
+        onEdit: record('edit'), onSign: record('sign'),
+      });
+    }
+    if (fixture.view === 'map') {
+      // Pills sit beside MapShell, not inside it — that is where the real app
+      // puts them (AppHeader). Mounting them here keeps the Phase 3 assertions
+      // driving the same component the header uses, without MapShell carrying
+      // a branch that exists only for tests.
+      const c = { kerajaan: 0, swasta: 0 };
+      fixture.hydrants.forEach((x) => { c[x.status]++; });
+      return h('div', {}, [
+        h(Pills, {
+          counts: c, active: fixture.statusFilter,
+          onPick: (s) => { window.__events.push(['status', s]); fixture.statusFilter = s; },
+          onClear: () => { window.__events.push(['status', null]); fixture.statusFilter = null; },
+        }),
+        h(MapShell, {
+        hydrants: fixture.hydrants,
+        statusFilter: fixture.statusFilter,
+        inspFilter: fixture.inspFilter,
+        zoneFilter: fixture.zoneFilter,
+        query: fixture.query,
+        noFitOnce: fixture.noFitOnce,
+        adding: fixture.adding,
+        isAdmin: fixture.isAdmin,
+        draft: fixture.draft,
+        saving: fixture.saving,
+        addError: fixture.addError,
+        inspStatusOf: (hy) => fixture.insp[hy.id] || 'none',
+        hasPending: (id) => fixture.pending.indexOf(id) >= 0,
+        onPick: record('pick'),
+        onPickLatLng: record('latlng'),
+        onPickStatus: (s) => { window.__events.push(['status', s]); fixture.statusFilter = s; },
+        onClearFilters: () => {
+          window.__events.push(['clear', null]);
+          fixture.statusFilter = null; fixture.inspFilter = null; fixture.zoneFilter = null;
+        },
+        onFitted: record('fitted'),
+        onSearch: (v) => { window.__events.push(['search', v]); fixture.query = v; },
+        onCloseAdd: () => { window.__events.push(['close-add', null]); fixture.adding = false; },
+        onAddHydrant: record('add'),
+        }),
+      ]);
+    }
+    return h(DashView, {
+      ...fixture,
+      onPickStatus: (k) => window.__events.push(['status', k]),
+      onPickZone: (z) => window.__events.push(['zone', z]),
+      onPickPeriod: (i) => { window.__events.push(['period', i]); fixture.periodIx = i; },
+      onJadualAdd: (r) => window.__events.push(['jadual-add', r]),
+      onJadualUpdate: (r) => window.__events.push(['jadual-update', r]),
+      onJadualDelete: (id) => window.__events.push(['jadual-delete', id]),
+    });
+  },
+}).use(createPinia()).mount('#app');
