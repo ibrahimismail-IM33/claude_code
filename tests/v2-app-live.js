@@ -123,6 +123,9 @@ const RECORDS = []
           },
         }),
       };
+      /* Leave `window.L` alone so the REAL library loads (see T8). Everything
+       * below this point is the stub the other cases run against. */
+      if (cfg.realLeaflet) return;
       const noop = () => {};
       const layer = () => ({ addTo() { return this; }, clearLayers() { window.__markers = []; },
         addLayer(m) { window.__markers.push(m); } });
@@ -251,6 +254,40 @@ const RECORDS = []
   check('and closing it returns to the map',
     await (async () => { await p.click('#fClose'); await p.waitForTimeout(300);
       return p.$$eval('#formOverlay', (n) => n.length); })(), 0);
+  await p.close();
+
+  /* ---------- T8: the REAL Leaflet, with its own stylesheet ----------
+   *
+   * Every other case here stubs `window.L`, and every V2 map suite does the
+   * same — which is exactly why V2 shipped for five phases with Leaflet's
+   * stylesheet never imported at all. A stub needs no CSS. The real library
+   * does: without leaflet.css the panes and tiles never receive
+   * `position:absolute`, so the tiles lay out in normal flow and the map is
+   * scattered squares with black gaps. From first paint, and panning cannot
+   * repair it — panning transforms a pane that was never positioned.
+   *
+   * The build was green, the bundle well-formed, and every assertion passed.
+   * Only a browser with the real library in it could tell. So this case boots
+   * one.
+   *
+   * No network is needed: the tile requests are aborted below and the
+   * positioning under test is pure CSS. */
+  console.log('T8  the real Leaflet gets its own stylesheet (panes are positioned)');
+  p = await mount({ realLeaflet: true });
+  await p.route('**://*.tile.openstreetmap.org/**', (r) => r.abort());
+  await p.reload({ waitUntil: 'load' });
+  await p.waitForTimeout(1200);
+
+  check('the real library mounted (not the stub)',
+    await p.$$eval('.leaflet-container', (n) => n.length), 1);
+  check('leaflet.css is applied — panes are absolutely positioned',
+    await p.$eval('.leaflet-pane', (n) => getComputedStyle(n).position), 'absolute');
+  check('and so is the tile container',
+    await p.$eval('.leaflet-tile-container', (n) => getComputedStyle(n).position), 'absolute');
+  /* map.css must still WIN over the library — the imports sit before it on
+   * purpose, and swapping that order silently loses the dark map. */
+  check('map.css still overrides the library background',
+    await p.$eval('.leaflet-container', (n) => getComputedStyle(n).backgroundColor), 'rgb(10, 11, 13)');
   await p.close();
 
   await b.close(); server.close();

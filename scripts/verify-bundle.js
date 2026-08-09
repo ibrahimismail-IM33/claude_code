@@ -97,6 +97,32 @@ check(offenders.length === 0,
   'a CDN origin reappeared in the bundle: ' + offenders.join(', '),
   'no CDN origin');
 
+/* A dependency's stylesheet can silently not ship, and nothing complains.
+ *
+ * V2 imported Leaflet's JS but never its CSS, so the panes and tiles had no
+ * `position:absolute` and the map rendered as scattered tiles with black gaps
+ * — from first paint, on staging, unfixable by panning. The build was green,
+ * the bundle was well-formed, and every suite passed because they all stub
+ * `window.L`. Only the browser knew.
+ *
+ * Each probe below is chosen to appear ONLY in the library's own file — none
+ * is written in v2/src/styles — so it cannot be satisfied by our overrides.
+ * `.marker-cluster` would be useless here: map.css styles it, so the check
+ * would pass with the library's stylesheet entirely absent. One probe per
+ * stylesheet, so losing any one of the three is caught. */
+const cssFiles = assets.filter((f) => /\.css$/.test(f))
+  .map((f) => fs.readFileSync(path.join(assetsDir, f), 'utf8'));
+const allCss = cssFiles.join('\n');
+[['.leaflet-pane', 'leaflet.css'],
+  ['.leaflet-tile', 'leaflet.css'],
+  ['.leaflet-cluster-anim', 'MarkerCluster.css'],
+  ['.marker-cluster-small', 'MarkerCluster.Default.css']].forEach(([sel, src]) => {
+  check(allCss.includes(sel),
+    'the built CSS has no ' + sel + ' rule — ' + src + ' is not in the bundle, '
+    + 'so the map renders as scattered tiles with gaps',
+    sel + ' rules present');
+});
+
 // --- report ------------------------------------------------------------------
 ok.forEach((m) => console.log('  ok    ' + m));
 if (fail.length) {

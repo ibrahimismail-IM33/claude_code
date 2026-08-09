@@ -134,7 +134,7 @@ No API token and no secret is needed. Cloudflare builds the branch itself.
 
 `scripts/verify-bundle.js` runs as the last step of the build command. **A
 non-zero exit fails the Cloudflare deployment and the previous version stays
-up**, so it is a real gate, not a report. It checks ten properties of the
+up**, so it is a real gate, not a report. It checks these properties of the
 artefact:
 
 - `index.html` and `_headers` are present — without `_headers` the CSP, the
@@ -146,9 +146,13 @@ artefact:
 - no `harness.html` and no `harness-*` bundle
 - no `sql/`, no `tests/`
 - no CDN origin anywhere in the built JS/CSS/HTML
+- the built CSS carries Leaflet's and markercluster's own rules — without them
+  the map renders as scattered tiles with black gaps from first paint, and
+  nothing else in the pipeline notices (CLAUDE.md §4.17)
 
 Verified by mutation before being trusted: a `V2_HARNESS=1` build, a missing
-`_headers`, and a CDN string planted in an asset each produce exit code 1.
+`_headers`, a CDN string planted in an asset, and a dropped Leaflet stylesheet
+import each produce exit code 1.
 
 ### What it deliberately does not do
 

@@ -6,6 +6,11 @@ import Pills from './components/Pills.vue';
 import KadRekod from './components/KadRekod.vue';
 import './styles/tokens.css';
 import './styles/dashboard.css';
+// Before map.css, for the reason spelled out in main.js — the overrides there
+// must land after the library's own rules.
+import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import './styles/map.css';
 import './styles/kad-rekod.css';
 

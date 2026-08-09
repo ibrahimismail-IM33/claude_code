@@ -309,12 +309,14 @@ Draw order: caps → walls → top faces (painter's algorithm).
     a grey-based check also passed on the bug. Verified red on the pre-fix code
     before being trusted: 6 assertions fail.
 
-16. **The map tiled itself wrong after a tab switch.** Found on staging on the
-    first day of real use, 2026-08-09: Dashboard → Peta Pili and the map came
-    back as scattered tiles with black gaps. **Leaflet mis-measures itself
-    while hidden.** The map is deliberately kept mounted behind `v-show` so an
-    officer keeps their pan, which means its container collapses to zero on the
-    dashboard and Leaflet goes on believing that size when it returns.
+16. **The map would have tiled itself wrong after a tab switch.** A real parity
+    gap, closed 2026-08-09 — but **latent, and not the defect seen on staging
+    that day. See §4.17 for what actually caused those scattered tiles; this
+    entry was originally written claiming that symptom and the claim was
+    wrong.** **Leaflet mis-measures itself while hidden.** The map is
+    deliberately kept mounted behind `v-show` so an officer keeps their pan,
+    which means its container collapses to zero on the dashboard and Leaflet
+    goes on believing that size when it returns.
 
     V1 already knew this — `setTab` calls `map.invalidateSize()` on the way
     back, with a comment saying why. V2 ported the mount-time calls and the
@@ -337,6 +339,56 @@ Draw order: caps → walls → top faces (painter's algorithm).
       earlier into the combined `[visible, refit]` watcher), so the change
       silently vanished and only the failing test revealed it. Verify an edit
       landed; do not assume a string replace matched.
+
+17. **Leaflet's own stylesheet was never imported, and the map was broken from
+    first paint.** Found on staging 2026-08-09. The map rendered as scattered
+    tiles with black gaps between them — *not* after a tab switch, but
+    immediately on load, and **panning did not repair it**.
+
+    V1 loads three stylesheets as `<link>` tags in `index.html`:
+    `vendor/leaflet.css`, `vendor/MarkerCluster.css`,
+    `vendor/MarkerCluster.Default.css`. **V2 imported none of them** — it
+    bundles Leaflet's JavaScript and had done so since Phase 1, but nothing
+    ever pulled in the CSS. Without it the panes and tiles never receive
+    `position:absolute`, so the tiles are laid out in normal document flow.
+    That also explains the second symptom exactly: panning applies a transform
+    to a pane that was never positioned, so it moves nothing.
+
+    Fixed by importing all three in `v2/src/main.js` and `v2/src/harness.js`.
+    **They must sit before `map.css`** — `cssCodeSplit:false` concatenates in
+    import order and `map.css` overrides `.leaflet-container`,
+    `.leaflet-control-zoom a` and `.leaflet-tooltip`. Get the order wrong and
+    the app silently reverts to Leaflet's light `#ddd` map background; that is
+    a separate assertion in T8 and it was mutation-verified separately.
+
+    Four things worth carrying:
+
+    - **I mis-diagnosed it, and shipped the wrong fix first.** My first answer
+      was the missing `invalidateSize` on tab return (§4.16). That gap was real
+      and the fix is worth keeping, but it was **latent** and I presented it as
+      the cause. The two facts that should have ruled it out were already in
+      hand: broken *from first paint*, and *unchanged by dragging*. Stale
+      measurement produces neither. **Before theorising about a library's
+      internal state, check whether the library's own assets are present at
+      all** — it is the cheapest question available and it was never asked.
+    - **The whole suite was blind because the stub needs no CSS.** Every V2 map
+      suite stubs `window.L`; the only suite booting the real library
+      (`csp-and-vendor.js`) tests **V1**, where the `<link>` tags are right
+      there. Same family as every other seam defect here: *the thing being
+      stubbed was the thing that was broken*. `tests/v2-app-live.js` T8 now
+      boots real Leaflet and asserts `getComputedStyle('.leaflet-pane').position
+      === 'absolute'`.
+    - **A dependency's stylesheet can vanish with nothing to show for it.** The
+      build was green, the bundle well-formed, every assertion passed. Only a
+      browser with the real library in it could tell. `scripts/verify-bundle.js`
+      now fails the deployment if the built CSS carries no `.leaflet-pane`,
+      `.leaflet-tile`, `.leaflet-cluster-anim` or `.marker-cluster-small` rule.
+      The probes are deliberately selectors that exist **only** in the library
+      files — `.marker-cluster` and `.leaflet-container` were rejected as
+      probes because `map.css` defines them itself, so they would have passed
+      on the bug.
+    - **§4.16's lesson applied again, and paid.** Both mutations here were
+      checked for `BUILD EXIT=0` before their red was believed.
 
 ## 5. Things I got wrong (so they aren't repeated)
 
