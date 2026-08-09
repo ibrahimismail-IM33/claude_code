@@ -111,10 +111,35 @@ export function rowsInPeriod(idx, id, range) {
   return rows.filter((r) => r.d >= range[0] && r.d <= range[1]);
 }
 
+/* Which bucket a pili falls in for the selected period.
+ *
+ * ⚠ THIS DIVERGES FROM V1 ON PURPOSE. See CLAUDE.md §3.
+ *
+ * V1 asked "is ANY row in the period signed?" and called the pili Diperiksa if
+ * so. That reads reasonably until an officer starts the next inspection: C22
+ * had a signed row from 08/08 and a fresh unsigned row from 09/08, so it
+ * counted as Diperiksa while an inspection sat waiting for a signature — and
+ * the card's own words are "Belum di-sign — Pengujian sudah diisi, tandatangan
+ * belum", which was true of it. It also made "Pemeriksaan terkini" look broken:
+ * that table lists ROWS, so it showed three unsigned rows while the counter,
+ * counting PILI, said one. Both were right and they could not be reconciled.
+ *
+ * THE LATEST INSPECTION DECIDES. Rows on the newest date in the period: if
+ * every one of them is signed the pili is Diperiksa, otherwise it is Belum
+ * di-sign. So "Belum di-sign" is now a complete list of what still needs
+ * signing, which is the question it is asked.
+ *
+ * Same-date rows are resolved together rather than by row order: the index
+ * carries no row_index, and an unsigned row on the latest date needs a
+ * signature whatever order it was typed in.
+ */
 export function inspStatusOf(idx, h, range) {
   const rows = rowsInPeriod(idx, h.id, range);
   if (!rows.length) return 'none';
-  return rows.some((r) => r.s) ? 'ok' : 'wait';
+  let latest = '';
+  rows.forEach((r) => { if (String(r.d) > latest) latest = String(r.d); });
+  const onLatest = rows.filter((r) => String(r.d) === latest);
+  return onLatest.every((r) => r.s) ? 'ok' : 'wait';
 }
 
 /* Dashboard scope follows the map's Awam/Swasta pill, INCLUDING the cleared

@@ -697,6 +697,41 @@ const JADUAL = [
     anyPin && await p.$eval('#dLastInsp', (n) => n.textContent.includes('/')).catch(() => false), true);
   await p.close();
 
+  /* ---------- T15: the C22 case — a new inspection under a signed one --------
+   *
+   * From the live register: C22 had a SIGNED Pengujian row from 08/08 and a
+   * fresh UNSIGNED one from 09/08. V1's rule ("any signed row wins") called it
+   * Diperiksa, so it was missing from "Belum di-sign" — the list an officer
+   * uses to find what still needs signing — while Pemeriksaan terkini, which
+   * lists ROWS, showed its unsigned row. The counter counts PILI, so the two
+   * appeared to contradict each other and both were right.
+   *
+   * V2 diverges deliberately: THE LATEST INSPECTION DECIDES (CLAUDE.md §3).
+   * Note the second hydrant here — an OLD unsigned row under a NEW signed one
+   * is finished work and must stay Diperiksa. Without that half, "any unsigned
+   * row anywhere" would pass this test and be wrong. */
+  console.log('T15  a new unsigned inspection under a signed one reads Belum di-sign');
+  const older = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  p = await mount({ records: [
+    // like C22: signed yesterday, unsigned today  → Belum di-sign
+    { hydrant_id: 1, section: 'pengujian', row_index: 0, data: { tarikh: older, penguji: '16857' }, signed: true },
+    { hydrant_id: 1, section: 'pengujian', row_index: 1, data: { tarikh: TODAY, penguji: '' }, signed: false },
+    // the reverse: unsigned yesterday, signed today → Diperiksa
+    { hydrant_id: 2, section: 'pengujian', row_index: 0, data: { tarikh: older, penguji: '' }, signed: false },
+    { hydrant_id: 2, section: 'pengujian', row_index: 1, data: { tarikh: TODAY, penguji: '16857' }, signed: true },
+  ] });
+  await p.click('#tabDash');
+  await p.waitForTimeout(1400);
+  check('one Diperiksa, one Belum di-sign, the rest never inspected',
+    await figures(p), ['1', '1', String(REG.length - 2)]);
+
+  const cards3 = await p.$$('#dashView .dstat');
+  await cards3[1].click();
+  await p.waitForTimeout(700);
+  check('Belum di-sign shows exactly the pili awaiting a signature',
+    await p.evaluate(() => window.__markers.length), 1);
+  await p.close();
+
   await b.close(); server.close();
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

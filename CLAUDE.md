@@ -159,6 +159,7 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Signature links | Card requests a **1-hour signed link** when it opens; falls back to the stored value if signing is unavailable | Lets the bucket be locked down without a moment where signatures fail to display — which matters because the change was made while officers were using the app. New signatures store the **path**; rows signed earlier hold a full public URL and the path is extracted from it |
 | Card redraw | Only when the cloud copy **differs** from what is on screen (`formFingerprint`) | The card drew twice on every open — once from cache, once from the cloud — which reads as a blink on a phone. The two copies are usually identical, so the second draw was pure flicker |
 | Bucket flip | **Client first, bucket second** | Flipping the bucket while officers are on the old build would break every signature on screen. The client change is backwards compatible, so it can go out on its own and the bucket follows once it is live |
+| **Inspection status: the LATEST inspection decides** ⚠ **V2 DIVERGES FROM V1** | Rows on the newest Pengujian date in the period: all signed → **Diperiksa**, otherwise → **Belum di-sign**. V1 asked "is *any* row signed?" | User's call, 2026-08-09, with the live data in front of us. C22 and C25 each had a signed row from 08/08 and a fresh **unsigned** row from 09/08, so V1 called them Diperiksa while an inspection sat waiting for a signature — and the card's own words are *"Belum di-sign — Pengujian sudah diisi, tandatangan belum"*, which was true of them. It also made **Pemeriksaan terkini look broken**: that table lists **rows**, the counter counts **pili**, so it showed three unsigned rows beside a count of 1. Both were correct and could not be reconciled. Under the new rule "Belum di-sign" is a **complete list of what still needs signing**, which is the question it is asked. On the real register it moved 3 pili: 24/1/178 → **21/4/178**. An **older** unsigned row under a **newer** signed one stays Diperiksa — that is finished work, and `tests/v2-app-live.js` T15 asserts both halves so "any unsigned row" cannot creep in. The divergence is pinned in `tests/v2-dashboard-parity.js`, which asserts **V1's answer and V2's**, so neither can change unnoticed |
 | Chart palette | Cream `#FDF0D5` / steel `#669BBC` / navy `#003049` | User-supplied. Ordered lightest = most complete |
 | Navy as text | **Never** — substitute `#9CAAB6` | Navy is 1.42:1 on dark, unreadable. Fill-only colour |
 | Figure ink | Green `#4ADE80` / blue `#60A5FA` / red `#F87171` on the **card numbers and the chart percentages only** | Status reads at a glance: pass / pending / outstanding. Measured on the card base `#121419` — 10.6 : 7.3 : 6.7, all above 4.5:1. The donut fill and the word under each percentage keep the cream/steel/`#9CAAB6` ink, so a label still matches the slice its leader line points at |
@@ -594,6 +595,38 @@ Draw order: caps → walls → top faces (painter's algorithm).
     existed. The Save button existed. Both were wired to nothing useful. A
     structural guard cannot answer "does pressing this do anything", and it was
     treated as though it could.
+
+24. **"Pemeriksaan terkini doesn't match Belum di-sign" — and nothing was
+    broken.** Reported 2026-08-09: the table listed three rows tagged *Belum
+    di-sign* while the counter said **1**.
+
+    Both were right. The **table lists ROWS**; the **counter counts PILI**. The
+    live data settled it in one query — C14 had a single unsigned row (the 1),
+    while C22 and C25 each had a signed row from 08/08 **and** a fresh unsigned
+    row from 09/08, so V1's rule ("any signed row in the period → Diperiksa")
+    counted them as inspected. V2 was reproducing V1 exactly.
+
+    So this was not a defect. It was a **rule that stopped answering its own
+    question**: "Belum di-sign" is the list an officer uses to find what still
+    needs signing, and it was silently incomplete. Changed by the user's
+    decision — see §3, *the latest inspection decides*.
+
+    Three things worth carrying:
+
+    - **Query the production data before theorising.** One `select` against
+      `hydrant_records` explained a report that two rounds of code-reading had
+      not. The rows were right there.
+    - **The parity suites did not notice a deliberate behaviour change.**
+      Changing `inspStatusOf` broke **nothing** — because every fixture gave a
+      hydrant exactly ONE row, so V1 and V2 could never disagree. A suite whose
+      whole purpose is proving equivalence was blind to the case the rule
+      turns on. Same shape as §5's blind fixtures, and the reason the
+      divergence is now pinned with **both** answers asserted.
+    - **My probe reported a bug that was mine.** The first run showed cards
+      inheriting each other's rows — alarming, and caused by my stub returning
+      every record row regardless of `hydrant_id`, which the real query filters
+      on. A stub that is wrong in the permissive direction invents defects;
+      check the harness before reporting what it shows.
 
 ## 5. Things I got wrong (so they aren't repeated)
 

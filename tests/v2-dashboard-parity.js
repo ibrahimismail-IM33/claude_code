@@ -110,6 +110,42 @@ HYD.forEach((h, i) => {
     }
   });
 
+  /* ---- A DELIBERATE DIVERGENCE FROM V1, pinned here ----
+   *
+   * Every fixture above gives a hydrant exactly ONE row, so V1 and V2 could
+   * never disagree about a pili that has a signed inspection AND a newer
+   * unsigned one. That case is not hypothetical — C22 and C25 were both in it
+   * on the live register — and it is the case the rule changed for.
+   *
+   * V1: any signed row in the period → Diperiksa.
+   * V2: THE LATEST INSPECTION DECIDES (CLAUDE.md §3).
+   *
+   * V1's answer made "Belum di-sign" an incomplete list of what needs signing,
+   * and made Pemeriksaan terkini — which lists ROWS — appear to contradict the
+   * counter, which counts PILI. Both were right and could not be reconciled.
+   *
+   * This asserts BOTH behaviours, so V1's is on the record and V2's cannot be
+   * reverted by accident. The suites either side of it still prove parity
+   * everywhere the two agree. */
+  const MIXED = { 1: [
+    { d: (new Date().getFullYear()) + (new Date().getMonth() < 6 ? '-03-01' : '-08-08'), s: true, p: '16857' },
+    { d: (new Date().getFullYear()) + (new Date().getMonth() < 6 ? '-03-02' : '-08-09'), s: false, p: '' },
+  ] };
+  const ONE = [{ id: 1, label: 'C22', status: 'kerajaan' }];
+  const nowRange = port.halfRange(port.halfList()[0]);
+  check('DIVERGENCE · V1 calls a signed-then-unsigned pili Diperiksa',
+    v1(ONE, null, MIXED, 0).dashData(), { total: 1, ok: 1, wait: 0, none: 0 });
+  check('DIVERGENCE · V2 calls it Belum di-sign — the latest inspection decides',
+    port.dashData(ONE, null, MIXED, nowRange), { total: 1, ok: 0, wait: 1, none: 0 });
+  // The reverse order must NOT flip it: an OLD unsigned row under a NEW signed
+  // one is finished work, and the pili is Diperiksa.
+  const MIXED2 = { 1: [
+    { d: (new Date().getFullYear()) + (new Date().getMonth() < 6 ? '-03-01' : '-08-08'), s: false, p: '' },
+    { d: (new Date().getFullYear()) + (new Date().getMonth() < 6 ? '-03-02' : '-08-09'), s: true, p: '16857' },
+  ] };
+  check('DIVERGENCE · an older unsigned row under a newer signed one is Diperiksa',
+    port.dashData(ONE, null, MIXED2, nowRange), { total: 1, ok: 1, wait: 0, none: 0 });
+
   // ---- mergeIndex ----
   const MERGES = {
     'cloud adds a hydrant the device has never opened': [{ 1: [{ d: '2026-03-01', s: false, p: 'A' }] }, { 2: [{ d: '2026-03-02', s: true, p: 'B' }] }],
