@@ -216,14 +216,25 @@ one is the checklist that has caught every field bug so far.
 
 ## 5. At cutover
 
+**See `docs/CUTOVER.md` — it is the ordered checklist.**
+
+This section used to say cutover was "one merge of `claude/epb-v2` to `main`".
+**That was wrong, and wrong in the silent direction.** `publish-to-site.yml`
+only triggers on `index.html`, `_headers` and `vendor/**` — none of which V2
+touches, since they are kept byte-identical to `main` — and it copies files
+verbatim with no build step. So the merge fires no workflow, publishes nothing,
+and leaves officers on V1 while every indicator reports success. The publish
+pipeline has to be taught to build V2 *before* the merge happens.
+
+Two things here remain true and are repeated in `CUTOVER.md`:
+
 - Remove **`X-Robots-Tag: noindex`** from `v2/public/_headers`. Nothing else in
   that file changes — `tests/v2-csp.js` asserts that the staging and production
-  policies differ in `script-src` alone, so any other drift fails there.
+  policies differ in `script-src` alone, so any other drift fails there. Note
+  that `scripts/verify-bundle.js` currently *requires* that line, so it needs
+  to become environment-aware in the same change or the build fails.
 - The staging Pages project can stay. It costs nothing and is where the next
   change gets tried.
-- Cutover itself is one merge of `claude/epb-v2` to `main`; rollback is one
-  revert of that merge. Keep it that way by never mixing an unrelated change
-  into the cutover commit.
 
 ---
 

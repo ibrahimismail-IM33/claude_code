@@ -60,6 +60,7 @@ Live at **epilibomba.com**. UI language is Bahasa Malaysia.
 | `v2/`, `vite.config.mjs` | **V2 migration only** (Vue 3 + Vite + Pinia). Reaches no officer until cutover — `main` publishes V1 throughout. See `docs/V2-ROADMAP.md` |
 | `docs/V2-ROADMAP.md` | The V2 plan: why, the phase order and what it is ordered by, the branching model, and what is explicitly out of scope |
 | `docs/STAGING.md` | **How V2 staging is deployed and what it is safe to do on it.** Cloudflare Pages builds `claude/epb-v2` directly; the suites do **not** gate that deploy, and staging writes to the **production** database. Read it before pointing anyone at the staging URL |
+| `docs/CUTOVER.md` | **The ordered checklist for putting V2 in front of officers**, with the rollback. Read §1 first: `publish-to-site.yml` is V1-shaped and **cannot publish V2** — it does not even trigger on a V2 change, so merging alone leaves officers on V1 while everything reports success |
 | `scripts/verify-bundle.js` | Runs as the last step of the Cloudflare build. A non-zero exit fails the deployment, so it is the gate on the built artefact — no harness page, no CDN origin, `script-src 'self'`, `noindex`, `geolocation=(self)` |
 | `docs/DOM-CONTRACT.md` | **The selectors the test suites depend on.** V2 must emit them exactly — they are an interface, not implementation detail |
 | `docs/FULL-ARCHITECTURE.md` | How the system is built — layers, data model, every RLS policy, the key flows, deploy pipeline, and §9 known defects |
