@@ -85,6 +85,7 @@ const JADUAL = [
     await p.addInitScript((cfg) => {
       window.__scanCalls = [];
       window.__jadualCalls = [];
+      window.__upserts = [];
       const ok = (data) => Promise.resolve({ data, error: null });
       window.supabase = {
         createClient: () => ({
@@ -108,7 +109,7 @@ const JADUAL = [
               range(f, t) { this._range = [f, t]; return this; },
               gte() { return this; },
               lte() { return this; },
-              upsert: () => ok([]),
+              upsert(arg) { window.__upserts.push({ table, arg }); return ok([]); },
               insert(arg) {
                 if (table === 'jadual_pemeriksaan') window.__jadualCalls.push({ op: 'insert', arg });
                 return ok([]);
@@ -551,6 +552,74 @@ const JADUAL = [
   if (closeBtn) { await closeBtn.click(); await p.waitForTimeout(300); }
   check('the × closes it', await p.$$eval('#hydrantDetail', (n) => n.length), 0);
   check('...and opens no card', await p.$$eval('#formOverlay', (n) => n.length), 0);
+  await p.close();
+
+  /* ---------- T13: the Print button, and the card's write-back ----------
+   *
+   * PRINT had never worked in any V2 build. The handler was an inline template
+   * expression — `@click="() => { …; setTimeout(…) }"` — and Vue compiles those
+   * against the COMPONENT CONTEXT, so a bare `setTimeout` resolves to
+   * `_ctx.setTimeout` and throws `TypeError: t.setTimeout is not a function`.
+   * The error goes to the console; the officer sees a button that does nothing.
+   * That is why this asserts window.print() was CALLED rather than that the
+   * button exists — the button existed the whole time.
+   *
+   * THE WRITE-BACK: V1's saveForm calls syncLocation + syncLastInspected, and
+   * each ends in cloudSave(), which upserts the hydrants row. V2 updated memory
+   * and localStorage only, so Last Inspected never left the device — invisible
+   * where it was typed (mapRows preserves the local value) and blank on every
+   * other device. */
+  console.log('T13  Print fires, and saving a card writes back to the hydrant');
+  p = await mount();
+  await p.evaluate(() => { window.__print = 0; window.print = () => { window.__print++; }; });
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  const ob = await p.$('#dOpenForm');
+  if (ob) { await ob.click(); await p.waitForTimeout(700); }
+  check('the card is open', await p.$$eval('#formOverlay', (n) => n.length), 1);
+
+  await p.click('#fPrint');
+  await p.waitForTimeout(500);
+  check('Print actually calls window.print()', await p.evaluate(() => window.__print), 1);
+
+  // Type a Pengujian date and a Lokasi, then save.
+  await p.evaluate(() => {
+    const d = document.querySelector('#formOverlay input[data-sec="pengujian"][data-row="0"][data-k="tarikh"]');
+    if (d) { d.value = '2026-08-01'; d.dispatchEvent(new Event('input', { bubbles: true })); }
+    const l = document.querySelector('#formOverlay [data-hk="lokasi"]');
+    if (l) { l.value = 'Balai Bomba Kunak'; l.dispatchEvent(new Event('input', { bubbles: true })); }
+  });
+  await p.waitForTimeout(200);
+  await p.click('#fSave');
+  await p.waitForTimeout(900);
+
+  const up = await p.evaluate(() => (window.__upserts || []).filter((u) => u.table === 'hydrants'));
+  check('saving upserts the HYDRANT row, not just the record', up.length, 1);
+  /* The date and the address both have to reach the server. A same-device check
+   * cannot see this failing: mapRows falls back to the value already in memory,
+   * so the pin looks right locally while the server holds nothing. */
+  check('...carrying last_inspected', up[0] && up[0].arg.last_inspected, '2026-08-01');
+  check('...and the Kad Rekod Lokasi, which is the address of record',
+    up[0] && up[0].arg.location, 'Balai Bomba Kunak');
+  await p.close();
+
+  /* A BLANK Lokasi must NOT overwrite — clearing the field cannot be allowed to
+   * wipe the registered address. Note the asymmetry with the date below: these
+   * two rules differ on purpose (CLAUDE.md §3). */
+  p = await mount();
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  const ob2 = await p.$('#dOpenForm');
+  if (ob2) { await ob2.click(); await p.waitForTimeout(700); }
+  await p.evaluate(() => {
+    const l = document.querySelector('#formOverlay [data-hk="lokasi"]');
+    if (l) { l.value = '   '; l.dispatchEvent(new Event('input', { bubbles: true })); }
+  });
+  await p.click('#fSave');
+  await p.waitForTimeout(900);
+  const up2 = await p.evaluate(() => (window.__upserts || []).filter((u) => u.table === 'hydrants'));
+  check('a blank Lokasi never overwrites the registered address',
+    up2.every((u) => u.arg.location !== '' && u.arg.location !== null), true);
   await p.close();
 
   await b.close(); server.close();

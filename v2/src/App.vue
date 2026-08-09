@@ -278,10 +278,32 @@ async function saveCard() {
   // not a record, and a card conjured by one stray keypress is a card the
   // officer then has to explain (docs/KAD-REKOD.md §2).
   if (records.needsNewCard(records.form)) records.grow(records.form);
-  const d = records.lastInspected(records.form);
+  /* Push the card's two outward-facing fields back onto the hydrant, then to
+   * the SERVER. V1 does both in `saveForm` via syncLocation + syncLastInspected,
+   * each ending in `cloudSave(t)`. V2 updated memory and localStorage only, so
+   * neither ever left the device — see stores/hydrants.js `saveOne`.
+   *
+   * The two rules are ASYMMETRIC and both are deliberate:
+   *
+   *   Lokasi — a BLANK NEVER OVERWRITES. The Kad Rekod is the address of
+   *   record (CLAUDE.md §3) and the popup, registry, search and every dashboard
+   *   Lokasi link read `hydrant.location`; an officer clearing the field must
+   *   not wipe the registered address.
+   *
+   *   Last Inspected — a BLANK DOES CLEAR. §3 again: returning early on an
+   *   empty date left the map advertising an inspection the record no longer
+   *   held, while the dashboard, reading those same rows, said "Belum
+   *   diperiksa". The badge follows the Pengujian rows that actually exist. */
   const hy = hydrants.list.find((x) => x.id === h.id);
-  if (hy) hy.lastInspected = d || '';
-  hydrants.persist();
+  if (hy) {
+    let changed = false;
+    const d = records.lastInspected(records.form);
+    if ((hy.lastInspected || '') !== (d || '')) { hy.lastInspected = d || ''; changed = true; }
+    const loc = String((records.form.header && records.form.header.lokasi) || '').trim();
+    if (loc && hy.location !== loc) { hy.location = loc; changed = true; }
+    hydrants.persist();
+    if (changed) hydrants.saveOne(sb.value, hy);   // fire and forget, as V1 is
+  }
   await sync.save(sb.value, h.id, records.form, auth.isAdmin);
 }
 

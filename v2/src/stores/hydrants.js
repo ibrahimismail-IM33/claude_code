@@ -49,6 +49,35 @@ export const useHydrantsStore = defineStore('hydrants', {
       return true;
     },
 
+    /* Write ONE hydrant row back to the server.
+     *
+     * V2 had no such action at all — the only writes to `hydrants` were the
+     * paged read and the INSERT behind Tambah Pili. So saving a Kad Rekod
+     * updated `lastInspected` in memory and in localStorage and stopped there.
+     *
+     * That is invisible on the device that typed it, because `mapRows` falls
+     * back to `known[r.id]` and preserves the local value across a pull. It is
+     * blank on every OTHER device, and blank after any cache clear — which is
+     * how it was reported: "date last inspected not showing on hydrant".
+     *
+     * Ported from V1's `cloudSave`, same columns. Upsert rather than update:
+     * V1 upserts here, and the row always exists by this point.
+     *
+     * Deliberately fire-and-forget, exactly as V1 is. The local copy is already
+     * saved, so a failed write costs the officer nothing now and is corrected
+     * on the next save; blocking the card's Save on a field connection would be
+     * the worse trade. */
+    async saveOne(sb, h) {
+      if (!sb || !h) return false;
+      try {
+        const res = await sb.from('hydrants').upsert({
+          id: h.id, label: h.label, lat: h.lat, lng: h.lng, status: h.status,
+          location: h.location || null, last_inspected: h.lastInspected || null,
+        });
+        return !(res && res.error);
+      } catch (e) { return false; }
+    },
+
     // Throttled so flicking between tabs does not hammer a field connection.
     async pullFresh(sb, force) {
       const now = Date.now();

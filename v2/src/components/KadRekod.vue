@@ -102,6 +102,27 @@ function onHeader(k, v) { emit('edit', { section: 'header', key: k, value: v });
 /* The print copy is built AFTER the DOM settles, and again on every redraw,
  * because a card can gain a signature from another device while it is open. */
 function refreshPrintSigs() { nextTick(() => addPrintSigs(root.value)); }
+
+/* Print.
+ *
+ * A FUNCTION, not an inline template expression. `@click="() => { …
+ * setTimeout(…) }"` looked identical and threw `TypeError: t.setTimeout is not
+ * a function` on every press, because Vue compiles template expressions against
+ * the COMPONENT CONTEXT — a bare `setTimeout` resolves to `_ctx.setTimeout`,
+ * which does not exist. So the Print button had never worked, in any V2 build,
+ * and nothing said so: the error goes to the console and an officer sees a
+ * button that does nothing.
+ *
+ * Globals belong in <script setup>, where they are ordinary globals. If a
+ * template expression ever needs one again, that is the signal to move it here.
+ *
+ * The delay lets the print copies of the signatures paint first — they are
+ * drawn into canvases by addPrintSigs, and printing before that lands gives a
+ * card with blank signature boxes. */
+function doPrint() {
+  refreshPrintSigs();
+  setTimeout(() => window.print(), 60);
+}
 onMounted(() => {
   // V1 hides everything except the overlay when printing, via a body class.
   document.body.classList.add('form-open');
@@ -134,7 +155,7 @@ watch(() => props.form, refreshPrintSigs, { deep: true });
       </div>
       <div class="factions">
         <button class="fbtn" id="fSave" @click="emit('save')">Save</button>
-        <button class="fbtn" id="fPrint" @click="() => { refreshPrintSigs(); setTimeout(() => window.print(), 60); }">Print</button>
+        <button class="fbtn" id="fPrint" @click="doPrint">Print</button>
         <button class="fbtn ghost" id="fClose" @click="emit('close')">Close</button>
       </div>
     </div>

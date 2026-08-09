@@ -546,6 +546,55 @@ Draw order: caps → walls → top faces (painter's algorithm).
       requirement. When behaviour is restored to V1, the tests that codified the
       drift have to be corrected too, not worked around.
 
+22. **The Print button had never worked, in any V2 build.** Reported
+    2026-08-09. Pressing it did nothing; the console said
+    `TypeError: t.setTimeout is not a function`.
+
+    The handler was an inline template expression:
+    `@click="() => { refreshPrintSigs(); setTimeout(() => window.print(), 60); }"`.
+    **Vue compiles template expressions against the component context**, so a
+    bare `setTimeout` resolves to `_ctx.setTimeout` — which does not exist. It
+    reads as ordinary JavaScript and is not: inside a template, globals are not
+    in scope. Moved to a `doPrint()` function in `<script setup>`, where
+    `setTimeout` is just `setTimeout`.
+
+    **A global in a template expression is the smell.** It was the only one in
+    the app; a grep for `setTimeout|setInterval|window.` inside `@click`/`:prop`
+    bindings finds them.
+
+23. **Saving a Kad Rekod never reached the `hydrants` table.** Reported in the
+    same message as "date last inspected not showing on hydrant".
+
+    V1's `saveForm` calls `syncLocation` **and** `syncLastInspected`, and each
+    ends in `cloudSave()`, which upserts the hydrant row. V2 set
+    `hy.lastInspected` in memory and called `hydrants.persist()` — **localStorage
+    only**. Nothing in V2 ever upserted `hydrants`: the only writes were the
+    paged `select` and the `insert` behind Tambah Pili.
+
+    Two consequences, one reported and one not yet:
+
+    - **Last Inspected never left the device.** And it looked fine where it was
+      typed, because `mapRows` falls back to `known[r.id]` and preserves the
+      local value across a pull — so it is correct on the device that wrote it
+      and blank on every other one, and blank after any cache clear. **A
+      same-device test passes straight over this**, which is why T13 asserts the
+      upsert rather than the pin.
+    - **The card's Lokasi was written nowhere at all**, silently breaking the §3
+      rule that the Kad Rekod is the address of record and the popup, registry,
+      search and dashboard links all follow it.
+
+    The two rules are **asymmetric on purpose** and both are ported verbatim: a
+    blank Lokasi never overwrites (clearing the field must not wipe a registered
+    address), while a blank date **does** clear the badge (§3: returning early
+    left the map advertising an inspection the record no longer held).
+
+    Worth carrying: **`tests/v2-parity-surface.js` was green through all of
+    this, correctly.** It checks that classes and ids exist in the bundle, and
+    its own header says it catches *absence, not wrongness*. The Print button
+    existed. The Save button existed. Both were wired to nothing useful. A
+    structural guard cannot answer "does pressing this do anything", and it was
+    treated as though it could.
+
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"
@@ -664,6 +713,13 @@ Draw order: caps → walls → top faces (painter's algorithm).
   commit. It rebuilt the old one and failed identically. Advice that
   contradicts something already diagnosed in the same session is worse than no
   advice, because it spends someone else's time re-finding it.
+- **Built a guard, then treated it as covering more than it does.** I wrote
+  "catches ABSENCE, not WRONGNESS" into `v2-parity-surface.js`'s own header —
+  and then handed V2 over as if the parity question were closed. The next three
+  defects (§4.22, §4.23) were all wrongness: the control renders, the guard is
+  green, the wiring behind it is dead. **A guard's stated limits are a list of
+  what still has to be checked by other means**, not a disclaimer to be written
+  once and forgotten.
 - **Handed V2 back seven times without once comparing it to V1.** Every fix was
   verified against itself — the change I made, tested by the test I wrote for
   it. The migration's whole thesis is "changes nothing an officer sees", so the
