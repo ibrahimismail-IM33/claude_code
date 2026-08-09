@@ -128,6 +128,15 @@ No API token and no secret is needed. Cloudflare builds the branch itself.
    Also glance at the build log: it should read roughly **"Read 10 files"**. If
    it says thousands, it is a Worker — see the warning in step 1.
 
+   **c. Check WHICH COMMIT it built.** The log's third line names it
+   (`HEAD is now at <sha>`). This is not paranoia: on 2026-08-09 staging was
+   found serving a commit **six behind** the branch, and had been for days.
+   Nothing about the site said so — it loaded, it signed in, it showed a
+   dashboard. The figures on that dashboard were a **stub reading all zeros**,
+   and they were read as real. A stale staging build is worse than a broken
+   one, because a broken one announces itself. **Every time staging is used to
+   confirm something, confirm the commit first.**
+
 ---
 
 ## 2. What `verify-bundle.js` is, and what it is not
@@ -231,3 +240,4 @@ one is the checklist that has caught every field bug so far.
 | Deploys, but the page is blank | Check the browser console for a CSP violation. `tests/v2-csp.js` boots the real bundle under this exact policy, so a violation here means the policy changed and that suite was not re-run |
 | Deploys, but the map is empty | Not a hosting problem. RLS returns nothing to an unauthenticated visitor — sign in |
 | Nothing deploys on push | The Pages project is watching a different branch than `claude/epb-v2` |
+| **Staging is serving an OLD commit and "Retry deployment" keeps rebuilding it** | Cloudflare never received the newer pushes, so there is no newer deployment to run — and **Retry replays the same commit by design**, so it can never escape this. Happened 2026-08-09: staging sat **six commits behind** for days while every push looked successful from this end. Check **Settings → Builds & deployments → Branch control**: if the **production branch** is not `claude/epb-v2` *and* preview deployments are off (step 4), every push is classified as a preview and silently dropped. Otherwise the GitHub App has lost access — reconnect it and confirm `claude_code` is in its selected repositories. To recover immediately use **Create deployment**, not Retry |
