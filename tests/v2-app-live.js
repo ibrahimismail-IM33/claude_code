@@ -288,6 +288,30 @@ const RECORDS = []
    * purpose, and swapping that order silently loses the dark map. */
   check('map.css still overrides the library background',
     await p.$eval('.leaflet-container', (n) => getComputedStyle(n).backgroundColor), 'rgb(10, 11, 13)');
+
+  /* And now the thing an officer actually sees, which the three assertions
+   * above do NOT cover: that the tiles form one continuous grid inside the
+   * map. `position:absolute` is the mechanism; a clipped 256px grid is the
+   * outcome, and only the outcome is the bug report. Asserting the mechanism
+   * alone is the same error as §4.15's T7, where "the ink reaches black" was
+   * perfectly satisfied by a solid black box. */
+  const geom = await p.evaluate(() => {
+    const c = document.querySelector('.leaflet-container').getBoundingClientRect();
+    const t = [...document.querySelectorAll('.leaflet-tile')].map((n) => n.getBoundingClientRect());
+    const escaped = t.filter((b) => b.right < c.left - 1 || b.left > c.right + 1
+      || b.bottom < c.top - 1 || b.top > c.bottom + 1);
+    // Every tile offset must sit on the same 256px lattice as the first.
+    const onLattice = t.every((b) => Math.abs(b.x - t[0].x) % 256 < 2 && Math.abs(b.y - t[0].y) % 256 < 2);
+    return { n: t.length, escaped: escaped.length, onLattice,
+      natural: t.every((b) => Math.round(b.width) === 256 && Math.round(b.height) === 256) };
+  });
+  check('tiles were actually laid down', geom.n > 3, true);
+  /* Without leaflet.css the tiles are inline images in normal flow, so they
+   * spill out of the map and land on the header and the search bar — which is
+   * exactly what the staging screenshot showed. */
+  check('no tile escapes the map container', geom.escaped, 0);
+  check('the tiles form one continuous 256px grid — not scattered', geom.onLattice, true);
+  check('and each is a full tile', geom.natural, true);
   await p.close();
 
   await b.close(); server.close();
