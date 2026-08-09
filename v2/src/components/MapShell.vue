@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import MapView from './MapView.vue';
 import Registry from './Registry.vue';
 import Banner from './Banner.vue';
@@ -71,13 +71,28 @@ function setSheet(open) { mobOpen.value = open; remeasure.value++; }
 function toggleSheet() { setSheet(!mobOpen.value); }
 // Tapping the map closes the sheet, as V1 does on touchend.
 function mapTouched() { if (mobOpen.value) setSheet(false); }
+
+/* Fade the panel in on tab switch. The class is removed and re-added because
+ * v-show does not remount, so a CSS animation would otherwise never re-run.
+ * OPACITY ONLY over a live map — see the note in shell.css. */
+const panelIn = ref(false);
+let panelTimer = null;
+watch(() => props.active, (on) => {
+  if (!on) return;
+  panelIn.value = false;
+  nextTick(() => {
+    panelIn.value = true;
+    if (panelTimer) clearTimeout(panelTimer);
+    panelTimer = setTimeout(() => { panelIn.value = false; panelTimer = null; }, 300);
+  });
+});
 </script>
 
 <template>
   <SearchBox :query="query" :match-count="vis.length" :status="statusFilter"
              @search="(v) => emit('search', v)" @refit="refit++" />
 
-  <div class="maparea" @touchend.passive="mapTouched">
+  <div class="maparea" :class="{ 'panel-in': panelIn }" @touchend.passive="mapTouched">
     <MapView
       :visible="vis"
       :has-pending="hasPending"

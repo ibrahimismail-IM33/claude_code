@@ -437,7 +437,7 @@ onBeforeUnmount(() => {
       v-show="tab === 'dash'"
       :hydrants="hydrants.list" :index="dash.index"
       :status-filter="statusFilter" :insp-filter="inspFilter" :zone-filter="zoneFilter"
-      :period-ix="periodIx" :source="dash.source" :sweep="sweep"
+      :period-ix="periodIx" :source="dash.source" :sweep="sweep" :active="tab === 'dash'"
       :jadual="jadual.rows" :jadual-source="jadual.source" :jadual-capped="jadual.capped"
       :is-admin="auth.isAdmin" :cloud-note="jadual.error"
       @pick-period="(i) => { periodIx = i; refreshDash(); }"

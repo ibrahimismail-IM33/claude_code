@@ -821,6 +821,70 @@ const JADUAL = [
     await p.$eval('#fSave', (n) => n.textContent.trim()), '⚠ Local only');
   await p.close();
 
+  /* ---------- T18: the tab-switch animation, and what it must not touch ------
+   *
+   * Requested design change. Two properties matter more than the motion itself:
+   *
+   * 1. THE MAP PANEL IS ANIMATED ON OPACITY ONLY. A transformed ancestor
+   *    becomes the containing block for Leaflet's absolutely-positioned panes,
+   *    and §4.16/§4.17 are both what happens when Leaflet's geometry stops
+   *    matching the page. So `.maparea` may fade, never move.
+   * 2. It must re-arm. v-show does not remount, so a CSS animation that is not
+   *    removed and re-added runs once and never again — the switch would
+   *    animate the first time and be inert afterwards, which is the kind of
+   *    thing that looks fine in a demo and dead in use.
+   *
+   * HONEST LIMIT: MapShell also resets the class explicitly before re-adding
+   * it, for a switch faster than the 300ms settle timer. That line is NOT
+   * covered here — the assertions between switches take long enough that the
+   * timer fires first, and no reliable failing case could be built for it.
+   * Recorded rather than implied: an unverified guard should say so. */
+  console.log('T18  switching tabs animates, without disturbing the map');
+  p = await mount();
+  await p.waitForTimeout(600);
+
+  const mapAnim = async () => p.$eval('.maparea', (n) => {
+    const cs = getComputedStyle(n);
+    return { name: cs.animationName, transform: cs.transform };
+  });
+
+  await p.click('#tabDash'); await p.waitForTimeout(150);
+  check('the dashboard panel animates in',
+    await p.$eval('#dashView', (n) => getComputedStyle(n).animationName), 'panelRiseIn');
+
+  await p.click('#tabMap'); await p.waitForTimeout(120);
+  const a1 = await mapAnim();
+  check('the map panel animates in', a1.name, 'panelFadeIn');
+  /* The whole point: a fade, not a move. `none` or a plain identity matrix are
+   * both fine; anything else means a transform reached a Leaflet ancestor. */
+  check('...and does NOT transform — Leaflet ancestors must stay untransformed',
+    a1.transform === 'none' || a1.transform === 'matrix(1, 0, 0, 1, 0, 0)', true);
+
+  /* Re-arm on a FAST switch — under the 300ms settle timer.
+   *
+   * This is the case the explicit class reset exists for, and the only one that
+   * can catch its absence: wait longer than the timer and the class has already
+   * been dropped, so re-arming happens for free and a broken reset still looks
+   * fine. An officer flicking between tabs is exactly this fast. */
+  await p.click('#tabDash'); await p.waitForTimeout(80);
+  await p.click('#tabMap'); await p.waitForTimeout(60);
+  /* Ask whether the animation RESTARTED, not whether the class is present.
+   * `animationName` is set whenever the class is, restart or not — an earlier
+   * version of this assertion read that and passed over a broken re-arm.
+   * getAnimations() exposes currentTime, so a freshly started run is one whose
+   * clock is near zero. */
+  check('and it re-arms even on a fast switch, inside the settle window',
+    await p.$eval('.maparea', (n) => {
+      const a = n.getAnimations().filter((x) => x.animationName === 'panelFadeIn');
+      return a.length > 0 && a.some((x) => Number(x.currentTime) < 150);
+    }), true);
+
+  // It settles: the class is dropped so nothing is left mid-animation.
+  await p.waitForTimeout(500);
+  check('the animation clears once it has run',
+    await p.$eval('.maparea', (n) => n.classList.contains('panel-in')), false);
+  await p.close();
+
   await b.close(); server.close();
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

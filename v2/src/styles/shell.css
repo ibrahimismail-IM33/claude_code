@@ -137,6 +137,31 @@
   .tabb.on{background:rgba(239,68,68,.16);border:1px solid rgba(239,68,68,.45);color:#fff}
   .tabb:focus-visible{outline:2px solid rgba(239,68,68,.6);outline-offset:2px}
 
+  /* ---- tab switch animation ----
+   *
+   * The MAP PANEL fades on OPACITY ONLY. Never a transform: a transformed
+   * ancestor becomes the containing block for Leaflet's absolutely-positioned
+   * panes, and §4.16/§4.17 are both what happens when Leaflet's idea of its
+   * own geometry stops matching the page. Opacity changes neither layout nor
+   * measurement, so it is the one safe thing to animate over a live map.
+   *
+   * The dashboard has no map, so it gets the small rise as well.
+   *
+   * Short on purpose (220ms): this fires every time an officer changes tab, and
+   * a transition long enough to notice is a transition long enough to wait for.
+   */
+  @keyframes panelFadeIn { from { opacity:0 } to { opacity:1 } }
+  @keyframes panelRiseIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:none } }
+  .maparea.panel-in { animation: panelFadeIn .22s ease-out both; }
+  #dashView.panel-in { animation: panelRiseIn .22s ease-out both; }
+
+  /* An officer who has asked for less motion gets none of it — same rule the
+   * dashboard entry animation already follows (lib/dash-anim.js). */
+  @media (prefers-reduced-motion: reduce) {
+    .maparea.panel-in, #dashView.panel-in { animation: none }
+    .pill:hover { transform: none }
+  }
+
   /* ---- phone account menu ---- */
   .menubtn{display:none;flex-direction:column;justify-content:center;gap:4px;
     width:40px;height:40px;padding:0 10px;border-radius:10px;cursor:pointer;

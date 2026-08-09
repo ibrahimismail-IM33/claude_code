@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import StatCards from './StatCards.vue';
 import Donut from './Donut.vue';
 import ZonePanel from './ZonePanel.vue';
@@ -39,6 +39,7 @@ const props = defineProps({
   jadualCapped: { type: Boolean, default: false },
   isAdmin: { type: Boolean, default: false },
   cloudNote: { type: String, default: '' },
+  active: { type: Boolean, default: false },   // is the Dashboard tab showing?
 });
 const emit = defineEmits(['pickStatus', 'pickZone', 'pickPeriod',
   'jadualAdd', 'jadualUpdate', 'jadualDelete', 'jadualLocation', 'pickLocation']);
@@ -49,12 +50,26 @@ const data = computed(() => dashData(props.hydrants, props.statusFilter, props.i
 const scope = computed(() => dashScopeLabel(props.statusFilter));
 const recent = computed(() => recentRows(props.hydrants, props.statusFilter, props.index, range.value));
 
+/* Fade+rise on tab switch. Re-armed each time because v-show does not remount.
+ * The dashboard has no map, so a transform is safe here. */
+const panelIn = ref(false);
+let panelTimer = null;
+watch(() => props.active, (on) => {
+  if (!on) return;
+  panelIn.value = false;
+  nextTick(() => {
+    panelIn.value = true;
+    if (panelTimer) clearTimeout(panelTimer);
+    panelTimer = setTimeout(() => { panelIn.value = false; panelTimer = null; }, 300);
+  });
+});
+
 // Always the whole register — never props.hydrants filtered by the pills.
 const zones = computed(() => zoneSummary(props.hydrants));
 </script>
 
 <template>
-  <div id="dashView">
+  <div id="dashView" :class="{ 'panel-in': panelIn }">
     <div class="dwrap">
       <div class="dnote" id="dashNote" v-if="cloudNote">{{ cloudNote }}</div>
 
