@@ -769,6 +769,42 @@ exactly like a lost signature.
 **Phase 5 is complete.** The remaining gate is not code: `docs/KAD-REKOD.md` §6
 requires **one card printed on the real printer** before this ships.
 
+---
+
+## THE JOIN — the phase gates were all green and the app was not working
+
+Immediately after declaring all six phases complete, two whole features turned
+out to be broken:
+
+1. **The dashboard read all zeros.** `App.vue` passed `() => 'none'` and an
+   empty index, so every hydrant counted as *Belum diperiksa* — while
+   `v2-dashboard-parity.js` proved the logic behind it with 68 green assertions.
+2. **Tapping any pin crashed the app.** `records.load()` is a pure reader that
+   RETURNS a form and never assigns `this.form`; `openCard` read
+   `records.form.header` straight after it and threw *Cannot read properties of
+   null*. The Kad Rekod — the app's core function — could not be opened at all.
+
+Neither was a logic bug. Both were **the join**: the code between the stores and
+the components. And nothing covered it, because every suite mounts one side or
+the other — the component suites through the harness with fixtures already
+supplied, the store suites by calling the stores directly. **Between those two
+is where the app actually lives, and it had no test.**
+
+This is the third time this exact shape has bitten this migration: the CSP probe
+standing in for an app for three phases, `MapShell` rendering a second set of
+pills that only appeared once the real header arrived, and now this. The
+recurring lesson is not "write more tests" — there were 932 assertions. It is
+that **a phase gate proves a layer, and an app is the seams between layers.**
+
+`tests/v2-app-live.js` is the answer: the real app, real stores, real
+components, real clicks, with only the backend stubbed. It found a third defect
+on its first run — clicking an already-active Awam/Swasta pill did not clear it,
+where V1 toggles (`index.html:1562`), so an officer could not get back to
+*Semua* from the pill itself.
+
+Verified red on all four: the original stub, the original crash, a scan that
+reads only the first page (§4.1), and a pill that no longer toggles.
+
 #### And the gate that no suite can give
 
 `docs/KAD-REKOD.md` §6 requires **a real printout before anything touching this

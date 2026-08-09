@@ -188,9 +188,6 @@ Staging is **not** anyone's daily driver. Real inspections still go through
 epilibomba.com. Two things are genuinely missing, and saying so first avoids
 bug reports for known gaps:
 
-- **The dashboard reports every hydrant as *Belum diperiksa*.** The Pengujian
-  scan is still Phase 5 work. Honest zeros were chosen over guessed figures —
-  a wrong number on a dashboard is worse than an obvious gap.
 - **Signing a row on staging is REAL and PERMANENT.** Signature capture is now
   wired, and it writes to the production database like everything else here.
   A row signed while "just testing" can never be edited, cleared or deleted —

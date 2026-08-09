@@ -10,6 +10,8 @@ import { useAuthStore } from './stores/auth.js';
 import { useHydrantsStore, PULL_EVERY } from './stores/hydrants.js';
 import { useRecordsStore } from './stores/records.js';
 import { useRecordSyncStore } from './stores/record-sync.js';
+import { useDashboardStore } from './stores/dashboard.js';
+import { inspStatusOf as inspStatusFor, halfList, halfRange } from './stores/dashboard-logic.js';
 import { usePendingStore } from './stores/pending.js';
 import { counts as countsOf } from './stores/filters-logic.js';
 
@@ -65,6 +67,7 @@ const auth = useAuthStore();
 const hydrants = useHydrantsStore();
 const records = useRecordsStore();
 const sync = useRecordSyncStore();
+const dash = useDashboardStore();
 const pending = usePendingStore();
 
 const sb = ref(null);
@@ -84,10 +87,23 @@ const dateNow = ref('—');
 
 const counts = computed(() => countsOf(hydrants.list));
 
-// Phase 5 owns the Pengujian scan. Until then every hydrant reads as
-// "Belum diperiksa" rather than being guessed at — a wrong figure on a
-// dashboard is worse than an honest zero.
-const inspStatusOf = () => 'none';
+/* The dashboard's figures, and the map's inspection filter, both derive from
+ * the SAME Pengujian rows the record card writes — one source of truth, nothing
+ * to drift (CLAUDE.md §2). This was a `() => 'none'` stub for five phases while
+ * 68 parity assertions passed over the logic behind it. */
+const periodIx = ref(0);
+const periods = computed(() => halfList());
+const periodRange = computed(() => halfRange(periods.value[periodIx.value]));
+const inspStatusOf = (h) => inspStatusFor(dash.index, h, periodRange.value);
+
+/* Fired when the Dashboard TAB IS OPENED, never during map init — the entry
+ * animation must not compete with 187 markers loading (CLAUDE.md §6). `sweep`
+ * bumps so the count-up runs on open and not on every re-render. */
+const sweep = ref(0);
+function refreshDash() {
+  sweep.value++;
+  return dash.refresh(sb.value, hydrants.list, (id) => records.load(id));
+}
 const hasPending = (id) => pending.has(id);
 
 async function signIn({ email, password, clear }) {
@@ -152,7 +168,13 @@ const signBusy = ref(false);
 const signError = ref('');
 
 async function openCard(h) {
-  records.load(h.id);
+  // ASSIGN it. `records.load` is a pure reader that RETURNS a form and never
+  // sets state — reading `records.form` straight after it threw
+  // "Cannot read properties of null", so tapping any pin crashed the app. No
+  // suite caught it: the card suites mount the component with a fixture form,
+  // the sync suites drive the stores directly, and the shell suite never opened
+  // a card. The join between them was covered by nothing.
+  records.form = records.load(h.id);
   if (!records.form.header.lokasi && h.location) records.form.header.lokasi = h.location;
   openHydrant.value = h;
   // The card shows the cached copy immediately and catches up when the cloud
@@ -223,6 +245,12 @@ async function saveCard() {
   await sync.save(sb.value, h.id, records.form, auth.isAdmin);
 }
 
+/* Clicking the ACTIVE pill clears it — V1 does `activeFilter = activeFilter === s
+ * ? null : s` (index.html:1562), so a second tap is how an officer gets back to
+ * Semua without hunting for the ✕. V2 set it unconditionally and the pill could
+ * never be turned off from itself. */
+function pickStatus(s) { statusFilter.value = statusFilter.value === s ? null : s; }
+
 function clearFilters() { statusFilter.value = null; inspFilter.value = null; zoneFilter.value = null; }
 
 function tickClock() {
@@ -282,8 +310,8 @@ onBeforeUnmount(() => {
       :tab="tab" :counts="counts" :status-filter="statusFilter"
       :email="auth.email" :is-admin="auth.isAdmin" :signed-in="auth.ready"
       :clock="clock" :date-now="dateNow"
-      @set-tab="(t) => (tab = t)"
-      @pick-status="(s) => (statusFilter = s)"
+      @set-tab="(t) => { tab = t; if (t === 'dash') refreshDash(); }"
+      @pick-status="pickStatus"
       @add="adding = true"
       @sign-out="signOut"
     />
@@ -301,7 +329,7 @@ onBeforeUnmount(() => {
         :saving="saving" :add-error="addError"
         :insp-status-of="inspStatusOf" :has-pending="hasPending"
         @pick="openCard"
-        @pick-status="(s) => (statusFilter = s)"
+        @pick-status="pickStatus"
         @clear-filters="clearFilters"
         @search="(v) => (query = v)"
         @pick-lat-lng="(p) => (draft = p)"
@@ -313,11 +341,12 @@ onBeforeUnmount(() => {
 
     <DashView
       v-show="tab === 'dash'"
-      :hydrants="hydrants.list" :index="{}"
+      :hydrants="hydrants.list" :index="dash.index"
       :status-filter="statusFilter" :insp-filter="inspFilter" :zone-filter="zoneFilter"
-      :period-ix="0" :source="''" :sweep="1"
+      :period-ix="periodIx" :source="dash.source" :sweep="sweep"
       :jadual="[]" :jadual-source="''" :is-admin="auth.isAdmin" :cloud-note="''"
-      @pick-status="(k) => (inspFilter = inspFilter === k ? null : k)"
+      @pick-period="(i) => { periodIx = i; refreshDash(); }"
+      @pick-status="(k) => { inspFilter = inspFilter === k ? null : k; tab = 'map'; }"
       @pick-zone="(z) => { zoneFilter = zoneFilter === z ? null : z; tab = 'map'; }"
     />
 

@@ -189,3 +189,11 @@ jobs:
       # signed row reads as the signature having been lost.
       - name: V2 signatures (signed links, capture, permanence)
         run: npm run test:v2sig
+
+      # THE JOIN — the assembled app, driven as an officer drives it. It exists
+      # because two whole features were broken while every other suite was
+      # green: the dashboard read all zeros, and tapping any pin crashed. The
+      # component suites mount with fixtures and the store suites call stores
+      # directly; between them is where the app actually lives.
+      - name: V2 assembled app (dashboard figures, paging, opening a card)
+        run: npm run test:v2app

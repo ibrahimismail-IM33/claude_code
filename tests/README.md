@@ -16,7 +16,7 @@ evidence. The selectors they depend on are written down in
 
 ```sh
 npm ci                       # once
-npm test                     # all twenty-five suites
+npm test                     # all twenty-six suites
 npm run test:wiring          # or one at a time
 npm run test:offline
 npm run test:clear
@@ -46,7 +46,7 @@ Exit code is 0 when everything passes, 1 otherwise.
 
 ## CI
 
-`.github/workflows/tests.yml` runs all twenty-five suites on **every push and pull
+`.github/workflows/tests.yml` runs all twenty-six suites on **every push and pull
 request**, and `publish-to-site.yml` calls the same workflow and will not
 publish until it passes:
 
@@ -96,6 +96,7 @@ bumping the `playwright` version in `package.json` needs no change here.
 | `v2-kad-rekod.js` | The **Kad Rekod** in V2, and the only suite here that **renders to PDF and counts the pages**. One card is exactly two — a row height, a font size or a capacity changed by a few percent pushes it onto a third sheet with nothing visible on screen. Also guards the deliberate inversion (screen newest-first via `column-reverse`, paper oldest-first from a chronological render loop), permanent chronological card numbers with `TERKINI` hidden in print, the four row capacities, signed rows disabled with no way to re-sign, an unresolved signature showing a placeholder rather than a broken image, Kompaun having no T.T column at all, and no overflow at 360px. **Caught a print defect on its first run**: `#formOverlay` was nested inside `#app`, so V1's `body.form-open > *:not(#formOverlay)` rule hid the whole card and it printed one blank sheet — invisible on screen, invisible in the PDF's appearance, visible only in the page count. Verified red on that nesting (3), on a screen order that stops being newest-first (2), and on a 13mm row height that spills to a third page (3). **It does not replace printing a card** — `docs/KAD-REKOD.md` §6 still requires one. |
 | `v2-record-sync.js` | The record card's **cloud round trip** in V2 — the counterpart of `p0-offline-sync.js` and `clear-row.js`, which test V1 only and were watching nothing here. Drives the real Pinia stores against a fake Supabase that can go offline (rejects), refuse a write (returns an error — a different path, and the §4.14 one), or be edited "by the office" between calls. Covers: an offline edit surviving and reaching the server, a contested row where the cloud wins and the officer keeps what they typed, a signed row never overwritten and never even offered in the payload, clearing issuing a real DELETE, a viewer never parking one, a clear made offline landing later, a contested removal not deleting, a failed flush changing **nothing**, and an unreadable cloud keeping the local card rather than blanking it. Verified red on all four defect classes: §4.14 (4 failures), §4.13 (3), §4.10 (9), and signed permanence resting on the in-memory flag (1). |
 | `v2-signatures.js` | **Signed links and signature capture** in V2 — the evidence layer. `docs/KAD-REKOD.md` §5: any change that makes a signed row writable, or a signature unreachable, is as severe as losing the record. Asserts that the image uploads **before** the row is marked signed (the other order writes a row claiming evidence it cannot produce), that a second signature is refused, that `upsert:false` stops an overwrite, that the stored reference is the storage **path** and never a public URL, that no `_`-prefixed client key leaks into the payload, and that every failure path leaves the row **unsigned**. On the read side: legacy public/sign URLs still resolve to a path, links are cached so reopening costs no round trip, both spellings of Supabase's signed-url key are accepted, an unsigned row is never given a signature, and **every** failure falls back to the stored value rather than blank — a blank T.T on a signed row reads as a lost signature. Verified red on five mutations. |
+| `v2-app-live.js` | **The join** — the assembled app, driven as an officer drives it: real stores, real components, real clicks, only the backend stubbed. It exists because two features were broken while every other suite was green — the dashboard read all zeros (`inspStatusOf` was a `() => 'none'` stub) and tapping any pin crashed (`records.load()` returns a form and never assigns `this.form`). Neither was a logic bug; both were the code *between* the stores and the components, which the component suites (fixtures supplied) and store suites (called directly) both skip. Covers: real Diperiksa/Belum di-sign/Belum diperiksa figures that reconcile in all three scope states, the scan firing on tab open and **not** during map init, **§4.1 paging** proven with >1000 rows where every hydrant's row sits after the first page, a failed cloud read keeping local figures rather than blanking, a dashboard figure filtering the map to a non-empty set, and opening and closing a Kad Rekod from a pin. Found a third defect on its first run: an active pill would not toggle off, where V1 does. Verified red on all four. |
 
 ## Adding to this
 

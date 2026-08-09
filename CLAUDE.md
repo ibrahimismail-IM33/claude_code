@@ -355,6 +355,18 @@ Draw order: caps → walls → top faces (painter's algorithm).
   signature metric and the clean signature fixture: **a fixture that cannot
   reproduce the defect proves nothing, however many assertions it carries.**
   Mutate the code and watch the test go red, every time, before trusting it.
+- **Declared six phases complete while two whole features were broken.** The
+  dashboard read all zeros (`inspStatusOf` was still a `() => 'none'` stub and
+  the index was `{}`), and **tapping any pin crashed the app** —
+  `records.load()` returns a form and never assigns `this.form`, so `openCard`
+  read `records.form.header` and threw. Neither was a logic bug: both were
+  **the join**, the code between the stores and the components. Nothing covered
+  it, because the component suites mount through the harness with fixtures
+  already supplied and the store suites call the stores directly — and between
+  those two is where the app lives. Third time this shape has appeared (the CSP
+  probe standing in for an app; `MapShell`'s duplicate pills). **A phase gate
+  proves a layer; an app is the seams between layers.** `tests/v2-app-live.js`
+  now drives the assembled app, and found a third defect on its first run.
 - **Relied on an in-memory flag to protect a permanent record.** V2's
   `deadRows` refused to delete a row carrying `_signed`, which is what V1 does
   and is sufficient *there* — V1 always writes into the existing row object, so
