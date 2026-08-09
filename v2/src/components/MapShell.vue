@@ -29,6 +29,7 @@ const props = defineProps({
   hasPending: { type: Function, default: () => false },
   noFitOnce: { type: Boolean, default: false },
   adding: { type: Boolean, default: false },
+  active: { type: Boolean, default: true },   // the map tab is showing
   isAdmin: { type: Boolean, default: false },
   draft: { type: Object, default: null },
   saving: { type: Boolean, default: false },
@@ -59,6 +60,7 @@ const counts = computed(() => countsOf(props.hydrants));
       :has-pending="hasPending"
       :refit="refit"
       :no-fit-once="noFitOnce"
+      :active="active"
       :adding="adding"
       @pick="(h) => emit('pick', h)"
       @pick-lat-lng="(p) => emit('pickLatLng', p)"

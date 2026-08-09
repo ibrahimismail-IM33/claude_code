@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { getL, loadL } from '../lib/leaflet.js';
 import { markerHtml, ICON_OPTS, tipHtml, fitDecision } from '../stores/map-logic.js';
 
@@ -26,6 +26,12 @@ const props = defineProps({
   // applySearch: without it a search finds three pili and leaves the view
   // exactly where it was, which reads as the search having done nothing.
   refit: { type: Number, default: 0 },
+  // Is the map tab actually showing? LEAFLET MIS-MEASURES ITSELF WHILE HIDDEN,
+  // and the map is kept mounted behind v-show so an officer keeps their pan —
+  // so the container collapses to zero on the dashboard and Leaflet believes
+  // that stale size when it comes back. Tiles then land against the wrong
+  // viewport: scattered squares with gaps. Found on staging, first day.
+  active: { type: Boolean, default: true },
 });
 const emit = defineEmits(['pick', 'pickLatLng', 'fitted']);
 
@@ -94,6 +100,27 @@ watch(() => [props.visible, props.refit], ([, r], old) => {
   if (old && r !== old[1]) fittedKey = '';
   draw();
 }, { deep: false });
+
+/* Re-measure when the map becomes visible again.
+ *
+ * LEAFLET MIS-MEASURES ITSELF WHILE HIDDEN. The map is kept mounted behind
+ * v-show so an officer keeps their pan across a tab switch — which means its
+ * container collapses to zero on the dashboard, and Leaflet goes on believing
+ * that size when it returns. Tiles then land against the wrong viewport:
+ * scattered squares with black gaps between them.
+ *
+ * V1 does the same thing in setTab and its comment says exactly this. Found on
+ * staging on the first day of real use.
+ *
+ * Twice, because the container regains its size a frame or two after v-show
+ * clears `display:none` — a single attempt can land before layout. */
+watch(() => props.active, (on) => {
+  if (!on || !map) return;
+  nextTick(() => {
+    if (map) map.invalidateSize();
+    setTimeout(() => { if (map) map.invalidateSize(); }, 200);
+  });
+});
 </script>
 
 <template>

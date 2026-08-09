@@ -127,8 +127,15 @@ const RECORDS = []
       const layer = () => ({ addTo() { return this; }, clearLayers() { window.__markers = []; },
         addLayer(m) { window.__markers.push(m); } });
       window.__markers = [];
+      // invalidateSize is COUNTED, not a no-op: "the map re-measured itself" is
+      // not something any error reports, and its absence looks like broken
+      // tiles rather than a missing call.
+      window.__invalidates = 0;
+      window.__mapsCreated = 0;
       window.L = {
-        map: () => ({ on: noop, invalidateSize: noop, setView: noop, fitBounds: noop }),
+        map: () => { window.__mapsCreated++;
+          return { on: noop, setView: noop, fitBounds: noop,
+                   invalidateSize: () => { window.__invalidates++; } }; },
         control: { zoom: () => ({ addTo: noop }) }, tileLayer: () => ({ addTo: noop }),
         layerGroup: layer, markerClusterGroup: layer, divIcon: (x) => x, latLngBounds: (x) => x,
         marker: () => { const m = { bindTooltip() { return m; },
@@ -212,8 +219,25 @@ const RECORDS = []
     await p.evaluate(() => window.__markers.length), OK.length);
   await p.close();
 
-  // ---------- T6: tapping a pin opens the card (it used to CRASH) ----------
-  console.log('T6  tapping a pin opens the Kad Rekod');
+  // ---------- T6: the map re-measures when it comes back into view ----------
+  console.log('T6  returning to the map re-measures it (Leaflet mis-measures while hidden)');
+  p = await mount();
+  await p.waitForTimeout(700);                      // let the mount-time calls settle
+  const beforeTabs = await p.evaluate(() => window.__invalidates);
+  const mapsBefore = await p.evaluate(() => window.__mapsCreated);
+  await p.click('#tabDash'); await p.waitForTimeout(500);
+  await p.click('#tabMap');  await p.waitForTimeout(700);
+  check('invalidateSize was called again after returning to the map',
+    await p.evaluate(() => window.__invalidates) > beforeTabs, true);
+  /* And it must be the SAME map. Re-creating it would fix the tiles by
+   * accident while throwing away the officer's pan — which is the whole reason
+   * the map is hidden with v-show instead of being unmounted. */
+  check('the map was NOT re-created — the pan survives',
+    await p.evaluate(() => window.__mapsCreated), mapsBefore);
+  await p.close();
+
+  // ---------- T7: tapping a pin opens the card (it used to CRASH) ----------
+  console.log('T7  tapping a pin opens the Kad Rekod');
   p = await mount();
   await p.evaluate(() => window.__tapPin(0));
   await p.waitForTimeout(700);

@@ -309,6 +309,35 @@ Draw order: caps → walls → top faces (painter's algorithm).
     a grey-based check also passed on the bug. Verified red on the pre-fix code
     before being trusted: 6 assertions fail.
 
+16. **The map tiled itself wrong after a tab switch.** Found on staging on the
+    first day of real use, 2026-08-09: Dashboard → Peta Pili and the map came
+    back as scattered tiles with black gaps. **Leaflet mis-measures itself
+    while hidden.** The map is deliberately kept mounted behind `v-show` so an
+    officer keeps their pan, which means its container collapses to zero on the
+    dashboard and Leaflet goes on believing that size when it returns.
+
+    V1 already knew this — `setTab` calls `map.invalidateSize()` on the way
+    back, with a comment saying why. V2 ported the mount-time calls and the
+    resize listener but **not that one line**, so it was a parity miss rather
+    than a new bug. MapView now watches an `active` prop and re-measures twice,
+    because the container regains its size a frame or two after `v-show` clears
+    `display:none`.
+
+    Two things worth carrying, both about the *verification* rather than the
+    fix:
+
+    - **The mutation test lied, because the build had failed.** Deleting the
+      watcher with a crude text slice broke the syntax; `vite build` exited
+      non-zero, `dist/` kept the OLD bundle, and the suite happily passed
+      against it. A mutation is only real if the artefact under test actually
+      changed — **check the build succeeded before believing a green
+      mutation**. Same family as `| tail` swallowing an exit code.
+    - **The edit that "applied" did nothing.** The first attempt to insert the
+      watcher replaced a line that no longer existed (it had been rewritten
+      earlier into the combined `[visible, refit]` watcher), so the change
+      silently vanished and only the failing test revealed it. Verify an edit
+      landed; do not assume a string replace matched.
+
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"

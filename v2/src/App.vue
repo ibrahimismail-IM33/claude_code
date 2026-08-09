@@ -326,6 +326,7 @@ onBeforeUnmount(() => {
         :status-filter="statusFilter" :insp-filter="inspFilter" :zone-filter="zoneFilter"
         :query="query" :no-fit-once="hydrants.noFitOnce"
         :adding="adding" :is-admin="auth.isAdmin" :draft="draft"
+        :active="tab === 'map'"
         :saving="saving" :add-error="addError"
         :insp-status-of="inspStatusOf" :has-pending="hasPending"
         @pick="openCard"
