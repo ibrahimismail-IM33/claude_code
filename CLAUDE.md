@@ -69,9 +69,24 @@ Live at **epilibomba.com**. UI language is Bahasa Malaysia.
 | `docs/epilibomba-spec.md` | Earlier design spec |
 
 ### Data
-- **187 hydrants** — 170 Awam (`status='kerajaan'`) + 17 Swasta (`status='swasta'`:
-  A26 and A92–A107, all at Kilang T.S.H Wilmar).
-- Labels zoned: `A**` Kunak town, `B**`, `C**`, `D**` Madai, `E**` Pangi.
+**No live count is written here.** It changes every time an officer taps Tambah
+Pili, and a number copied into a document goes stale without anyone noticing —
+this section claimed 187 for weeks while the register held 188, then 203.
+`docs/PRD.md` §5 does the same thing for the same reason. Read it instead:
+
+```sql
+select status, count(*) from public.hydrants group by status;
+```
+
+Facts that do **not** drift:
+- `sql/supabase-setup.sql` **seeds 187 rows** — 170 Awam (`status='kerajaan'`)
+  + 17 Swasta (`status='swasta'`). A fact about the file, not a claim about
+  today. **Do not "correct" it to match the register** — that script is what a
+  recovery actually applies.
+- **Swasta** are A26 and A92–A107, all at Kilang T.S.H Wilmar.
+- Labels zoned by leading letter: `A**` Kunak town, `B**`, `C**`, `D**` Madai,
+  `E**` Pangi. Zones are **derived from the label**, never stored (§3), so they
+  cannot go stale the way this line did.
 
 ### Security model
 - Any signed-in user **reads**; only `admin` **writes**. Enforced by RLS.
@@ -196,7 +211,7 @@ Draw order: caps → walls → top faces (painter's algorithm).
 ## 4. Bugs found and fixed (worth remembering)
 
 1. **Unbounded query** — Supabase caps a request at 1000 rows. The dashboard
-   scan pulled every Pengujian row in one go; past 1000 rows (187 hydrants ×
+   scan pulled every Pengujian row in one go; past 1000 rows (the register ×
    15/page reaches it easily) the extras were dropped and those hydrants
    silently counted as "Belum diperiksa". Would have read ~67 hydrants and
    reported 120 as never inspected. **Now pages through, ordered by
@@ -696,8 +711,11 @@ printout as the gate it is.
 **Committed regression tests** (`tests/`, see `tests/README.md`):
 - `csp-and-vendor.js` — 21 assertions: no CDN tag or CDN origin left anywhere,
   every vendor file present, and the app booted under the **real CSP read from
-  `_headers`** with the real Leaflet — 187 pins in 7 clusters, zoom control,
-  Supabase client, zero CSP violations, zero page errors
+  `_headers`** with the real Leaflet — pins rendered on the map, the
+  markercluster plugin and the zoom control present, Supabase client loaded,
+  zero CSP violations, zero page errors. (It asserts pins **exist**, not how
+  many: a suite tied to a hydrant count would go red every time an officer adds
+  a pili, which is a passing build reporting a failure.)
 - `clear-row.js` — 27 assertions over 7 scenarios: a cleared row is actually
   deleted, signed rows are never touched, clearing works offline and warns on
   a contested removal, the pin's date badge follows the rows that remain, and

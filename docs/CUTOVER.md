@@ -175,9 +175,12 @@ Worth doing if V2 is going to see regular changes. Not required for cutover.
 
 ## 8. Still open, not blocking
 
-- **The register showed 203 pili** (186 Awam + 17 Swasta) where the notes said
-  188 a week earlier. That reading came off a stale staging build, so it may
-  mean nothing — confirm it before cutover rather than after.
+- ~~The register showed 203 pili where the notes said 188.~~ **Closed
+  2026-08-09.** An officer added 15 pili with Tambah Pili on 2026-08-08 —
+  ordinary field use. Verified read-only against production: 203 = 186 Awam +
+  17 Swasta (matching the dashboard), **no duplicate labels**, all five zones
+  contiguous (A 114 / B 27 / C 36 / D 13 / E 13), no label without a letter
+  prefix, no missing coordinates or blank locations. Nothing to fix.
 - **Six merged phase branches** remain on origin (`claude/epb-v2-p0-seams` …
   `-p5-kad`). Harmless while preview deployments are off.
 - **`docs/STAGING.md` §5** points here for the cutover procedure.

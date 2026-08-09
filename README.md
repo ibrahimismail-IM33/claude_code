@@ -27,10 +27,14 @@ Bomba (inspection record cards) with permanent, locked signatures.
   `isxfhocfkjamjchmicwq`.
 - **Hosting:** static host with `_headers` support (Cloudflare Pages).
 
-## Data model (187 hydrants)
+## Data model
 
-- 170 **Awam** (`status = 'kerajaan'`) + 17 **Swasta** (`status = 'swasta'`:
-  A26 and A92–A107, all at Kilang T.S.H Wilmar).
+- `sql/supabase-setup.sql` **seeds 187 hydrants** — 170 **Awam**
+  (`status = 'kerajaan'`) + 17 **Swasta** (`status = 'swasta'`: A26 and
+  A92–A107, all at Kilang T.S.H Wilmar). That is a fact about the seed file.
+  The live register grows whenever an officer adds a pili, so it is not
+  recorded here — read it with
+  `select status, count(*) from public.hydrants group by status;`
 - Labels are zoned: `A**` (Kunak town), `B**`, `C**`, `D**` (Madai), `E**` (Pangi).
 
 ## Security model
