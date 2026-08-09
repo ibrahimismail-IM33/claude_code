@@ -463,6 +463,41 @@ Draw order: caps → walls → top faces (painter's algorithm).
     gates prove layers. Only a test that drives the assembled app proves the
     seams, and this suite has now found five defects that way.
 
+20. **Every Kad Rekod printed with no section titles and no column headings.**
+    Found on the V2 build 2026-08-09: the four yellow section bars were blank
+    and every table was a grid of unlabelled columns.
+
+    `KadRekod.vue` renders `SECTIONS[sec].title` and
+    `v-html="SECTIONS[sec].thead"`. `records-logic.js` carried **neither**, and
+    said so in its own header comment — *"the table markup (`thead`) stays in
+    the view layer, where Phase 5 will deal with it; carrying it into a store
+    would put print HTML somewhere no print test looks."* Phase 5 never did.
+    Both resolved to `undefined`, `v-html` of `undefined` renders nothing, and
+    nothing anywhere errors.
+
+    Both now live in `SECTIONS`, **proved byte-identical to `index.html`** by
+    evaluating V1's object literal and diffing `title`/`thead`/`perPage`/`cols`.
+    The tidy split was the right instinct and the wrong outcome: one definition
+    the view can actually reach beats a separation that leaves the view with
+    nothing.
+
+    Three things worth carrying, and the last is the important one:
+
+    - **The card suite asserted SHAPE, not CONTENT.** It checked two pages, the
+      section order, the row capacities, and the PDF page count — and **every
+      one of those passes just as well over an unlabelled table**. It is easy to
+      write a thorough-looking suite that never asks whether the words are
+      there.
+    - **Restoring the headings could have cost a sheet of paper.** They add
+      height to a layout tuned in millimetres, so T3's page count (2 / 4 / 6)
+      was the assertion that mattered most after the fix, not the text checks.
+    - **The real printout gate passed over this defect.** A Kad Rekod was
+      printed from V2 on the real printer and accepted (§8) — with no headings
+      on it. Three print defects have been found on paper and none by any other
+      means, so the printout stays mandatory; but **a printout only catches what
+      the person holding it is looking for.** Necessary, never sufficient. When
+      asking someone to check a printout, say what to look at.
+
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"
@@ -744,6 +779,15 @@ teleport, which produced a single blank sheet while nothing on screen changed.
 Note what the staging run alone would have proved: nothing about paper. The
 card "opening and working" is a screen claim. Keep printing one after any change
 that touches the card, the print CSS, or the component structure around it.
+
+**⚠ That printout did NOT carry the section titles or the column headings** —
+§4.20 was found afterwards, and the card that was printed and accepted had four
+blank yellow bars and unlabelled columns. So the run above proves the *page
+geometry* (two sheets, the section order, the row heights) and **not** that the
+card is complete. **A fresh printout is required, checked specifically for the
+four section titles and every column heading.** The lesson is in §4.20: a
+printout only catches what the person holding it is looking for, so say what to
+look at when asking for one.
 
 **Confirmed on a real phone in the field (2026-08-04)** — the first time any of
 this was checked outside a headless browser:

@@ -113,6 +113,46 @@ function makeForm(cards, opts) {
   check('page 2 always breaks to a new sheet',
     await p.$eval('.fcard .fpage:nth-child(2)', (n) => n.classList.contains('pb')), true);
 
+  /* Section titles and column headings.
+   *
+   * Every one of these was MISSING from V2 and nothing noticed: KadRekod.vue
+   * renders `SECTIONS[sec].title` and `v-html="SECTIONS[sec].thead"`, and
+   * records-logic.js carried neither, so the card drew blank yellow section
+   * bars over unlabelled columns. On a controlled record under MS ISO, a table
+   * of dates and pressures with no headings is not a record.
+   *
+   * This suite already asserted the card's SHAPE — two pages, the section
+   * order, the row capacities — which is why it stayed green: every structural
+   * assertion passes just as well over an unlabelled table. Shape is not
+   * content. */
+  const TITLES = {
+    kerosakan: 'REKOD PENYELENGGARAAN/BAIK PULIH KEROSAKAN',
+    pemantauan: 'REKOD PEMANTAUAN TEMAN PILI BOMBA',
+    pengujian: 'REKOD PENYELENGGARAAN/PENGUJIAN PILI BOMBA',
+    kompaun: 'REKOD KOMPAUN',
+  };
+  check('all four section titles are printed, in order',
+    await p.$$eval('.fcard .fsec-title', (n) => n.map((x) => x.textContent.trim())),
+    ['kerosakan', 'pemantauan', 'pengujian', 'kompaun'].map((k) => TITLES[k]));
+
+  // One representative heading per section, and the merged-header structure
+  // that carries the sub-columns (Mula/Siap, Kebersihan/Fizikal, Statik/Semasa).
+  for (const [sec, want] of Object.entries({
+    kerosakan: ['Tarikh', 'Jenis Kerosakan', 'Cadangan Baik Pulih', 'Mula', 'Siap', 'Kos', 'Syarikat', 'T.T'],
+    pemantauan: ['Tarikh', 'Status', 'Kebersihan', 'Fizikal', 'T.T'],
+    pengujian: ['Tarikh', 'Tekanan', 'Statik', 'Semasa', 'Catatan', 'T.T'],
+    kompaun: ['Tarikh', 'Masa', 'Seksyen', 'No. Tawaran'],
+  })) {
+    const got = await p.$$eval('table.ftab.' + sec + ' thead th', (n) => n.map((x) => x.textContent.trim()));
+    check(sec + ' carries its column headings', want.every((w) => got.includes(w)), true);
+  }
+  // The two-row header is structural: "Tarikh" spanning Mula/Siap, "Tekanan"
+  // spanning Statik/Semasa. A flat header would satisfy the text check above.
+  check('pengujian has a two-row header with a spanning cell',
+    await p.$$eval('table.ftab.pengujian thead tr', (n) => n.length), 2);
+  check('...and Tekanan spans its two sub-columns',
+    await p.$eval('table.ftab.pengujian thead th[colspan="2"]', (n) => n.textContent.trim()), 'Tekanan');
+
   // The capacities ARE the spec. A row lost here is a row an officer cannot write.
   for (const sec of Object.keys(PER)) {
     check(sec + ' holds exactly ' + PER[sec] + ' rows per card',

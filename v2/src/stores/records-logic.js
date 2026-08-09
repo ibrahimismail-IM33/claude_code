@@ -6,9 +6,16 @@
  * a mistake here is invisible on screen — it surfaces on paper, at the officer
  * who files the card.
  *
- * Only the column KEYS and the per-card capacities live here. The table markup
- * (`thead`) stays in the view layer, where Phase 5 will deal with it; carrying
- * it into a store would put print HTML somewhere no print test looks.
+ * The section TITLE and the table HEAD live here too, verbatim from V1.
+ *
+ * They were deliberately left out at first, on the reasoning that print markup
+ * in a store is markup no print test looks at. What actually happened is that
+ * nothing ever supplied them: `KadRekod.vue` renders `SECTIONS[sec].title` and
+ * `v-html="SECTIONS[sec].thead"`, both of which were `undefined`, so every card
+ * rendered with **blank yellow section bars and no column headings at all** —
+ * on screen and on paper, on a controlled record under MS ISO. One definition
+ * that the view can actually reach beats a tidy split that leaves the view
+ * with nothing. The `thead` strings are the same bytes as `index.html`'s.
  *
  * The capacities are not a display preference. They are what fits a real sheet
  * of paper: 22 rows plus roughly 75mm of header and section chrome has to land
@@ -19,26 +26,41 @@
 export const SEC_ORDER = ['kerosakan', 'pemantauan', 'pengujian', 'kompaun'];
 
 export const SECTIONS = {
-  kerosakan: { perPage: 11, cols: [
-    { k: 'tarikh', t: 'date' }, { k: 'jenis', t: 'text' }, { k: 'cadangan', t: 'text' },
-    { k: 'mula', t: 'date' }, { k: 'siap', t: 'date' }, { k: 'kos', t: 'text' },
-    { k: 'syarikat', t: 'text' }, { k: 'tt', t: 'sign' }] },
-  pemantauan: { perPage: 11, cols: [
-    { k: 'tarikh', t: 'date' }, { k: 'kebersihan', t: 'text' }, { k: 'fizikal', t: 'text' },
-    { k: 'tt', t: 'sign' }] },
-  pengujian: { perPage: 15, cols: [
-    { k: 'tarikh', t: 'date' }, { k: 'penguji', t: 'text' }, { k: 'statik', t: 'text' },
-    { k: 'semasa', t: 'text' }, { k: 'gpm', t: 'text' }, { k: 'catatan', t: 'text' },
-    { k: 'tt', t: 'sign' }] },
+  kerosakan: {
+    title: 'REKOD PENYELENGGARAAN/BAIK PULIH KEROSAKAN', perPage: 11, cols: [
+      { k: 'tarikh', t: 'date' }, { k: 'jenis', t: 'text' }, { k: 'cadangan', t: 'text' },
+      { k: 'mula', t: 'date' }, { k: 'siap', t: 'date' }, { k: 'kos', t: 'text' },
+      { k: 'syarikat', t: 'text' }, { k: 'tt', t: 'sign' }],
+    thead: '<tr><th rowspan="2" style="width:11%">Tarikh</th><th rowspan="2">Jenis Kerosakan</th><th rowspan="2">Cadangan Baik Pulih</th>'
+      + '<th colspan="2">Tarikh</th><th rowspan="2" style="width:9%">Kos</th><th rowspan="2">Syarikat</th><th rowspan="2" style="width:9%">T.T</th></tr>'
+      + '<tr><th style="width:9%">Mula</th><th style="width:9%">Siap</th></tr>' },
+  pemantauan: {
+    title: 'REKOD PEMANTAUAN TEMAN PILI BOMBA', perPage: 11, cols: [
+      { k: 'tarikh', t: 'date' }, { k: 'kebersihan', t: 'text' }, { k: 'fizikal', t: 'text' },
+      { k: 'tt', t: 'sign' }],
+    thead: '<tr><th rowspan="2" style="width:16%">Tarikh</th><th colspan="2">Status</th><th rowspan="2" style="width:14%">T.T</th></tr>'
+      + '<tr><th>Kebersihan</th><th>Fizikal</th></tr>' },
+  pengujian: {
+    title: 'REKOD PENYELENGGARAAN/PENGUJIAN PILI BOMBA', perPage: 15, cols: [
+      { k: 'tarikh', t: 'date' }, { k: 'penguji', t: 'text' }, { k: 'statik', t: 'text' },
+      { k: 'semasa', t: 'text' }, { k: 'gpm', t: 'text' }, { k: 'catatan', t: 'text' },
+      { k: 'tt', t: 'sign' }],
+    thead: '<tr><th rowspan="2" style="width:11%">Tarikh</th><th rowspan="2">Penguji<br>(Nombor Pegawai)</th>'
+      + '<th colspan="2">Tekanan</th><th rowspan="2">Pengeluaran<br>GPM/LPM<br>(Rujuk Jadual<br>Pengiraan)</th>'
+      + '<th rowspan="2">Catatan</th><th rowspan="2" style="width:9%">T.T</th></tr>'
+      + '<tr><th>Statik</th><th>Semasa</th></tr>' },
   // Two blocks of six on one row, and NO signature column — Kompaun has no T.T
   // and there is no card-level sign-off (docs/KAD-REKOD.md §5). A row may
   // legitimately use only the first block, which is why rowIsComplete does not
   // demand every field.
-  kompaun: { perPage: 10, cols: [
-    { k: 't1', t: 'date' }, { k: 'm1', t: 'text' }, { k: 's1', t: 'text' },
-    { k: 'j1', t: 'text' }, { k: 'n1', t: 'text' }, { k: 'b1', t: 'text' },
-    { k: 't2', t: 'date' }, { k: 'm2', t: 'text' }, { k: 's2', t: 'text' },
-    { k: 'j2', t: 'text' }, { k: 'n2', t: 'text' }, { k: 'b2', t: 'text' }] },
+  kompaun: {
+    title: 'REKOD KOMPAUN', perPage: 10, cols: [
+      { k: 't1', t: 'date' }, { k: 'm1', t: 'text' }, { k: 's1', t: 'text' },
+      { k: 'j1', t: 'text' }, { k: 'n1', t: 'text' }, { k: 'b1', t: 'text' },
+      { k: 't2', t: 'date' }, { k: 'm2', t: 'text' }, { k: 's2', t: 'text' },
+      { k: 'j2', t: 'text' }, { k: 'n2', t: 'text' }, { k: 'b2', t: 'text' }],
+    thead: '<tr><th>Tarikh</th><th>Masa</th><th>Seksyen</th><th>Jumlah Tawaran (RM)</th><th>No. Tawaran</th><th>Tarikh dan Jumlah Bayaran</th>'
+      + '<th>Tarikh</th><th>Masa</th><th>Seksyen</th><th>Jumlah Tawaran (RM)</th><th>No. Tawaran</th><th>Tarikh dan Jumlah Bayaran</th></tr>' },
 };
 
 export function emptyRow(sec) {
