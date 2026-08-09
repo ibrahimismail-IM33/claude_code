@@ -5,6 +5,7 @@ import AuthGate from './components/AuthGate.vue';
 import MapShell from './components/MapShell.vue';
 import DashView from './components/DashView.vue';
 import KadRekod from './components/KadRekod.vue';
+import HydrantDetail from './components/HydrantDetail.vue';
 import { getClient } from './lib/supabase.js';
 import { useAuthStore } from './stores/auth.js';
 import { useHydrantsStore, PULL_EVERY } from './stores/hydrants.js';
@@ -196,6 +197,16 @@ const signing = ref(null);          // {section,row} while the popup is open
 const signBusy = ref(false);
 const signError = ref('');
 
+/* The hydrant DETAIL modal, which is what a pin tap opens — the card comes
+ * second, from a button inside it. V1 does exactly this and V2 shipped wired
+ * straight to the card, which read as a shortcut and was a loss: the detail
+ * modal is the only place Directions, the coordinates and Last Inspected
+ * appear, and Directions is how an officer navigates to a pili in the field. */
+const detailHydrant = ref(null);
+function openDetail(h) { detailHydrant.value = h; }
+function closeDetail() { detailHydrant.value = null; }
+function detailOpenCard(h) { detailHydrant.value = null; openCard(h); }
+
 async function openCard(h) {
   // ASSIGN it. `records.load` is a pure reader that RETURNS a form and never
   // sets state — reading `records.form` straight after it threw
@@ -358,7 +369,7 @@ onBeforeUnmount(() => {
         :active="tab === 'map'"
         :saving="saving" :add-error="addError"
         :insp-status-of="inspStatusOf" :has-pending="hasPending"
-        @pick="openCard"
+        @pick="openDetail"
         @pick-status="pickStatus"
         @clear-filters="clearFilters"
         @search="(v) => (query = v)"
@@ -383,7 +394,11 @@ onBeforeUnmount(() => {
       @jadual-update="onJadualUpdate"
       @jadual-delete="onJadualDelete"
       @jadual-location="(q) => { query = q; tab = 'map'; }"
+      @pick-location="(q) => { query = q; tab = 'map'; }"
     />
+
+    <HydrantDetail v-if="detailHydrant" :hydrant="detailHydrant"
+                   @close="closeDetail" @open-card="detailOpenCard" />
 
     <KadRekod v-if="openHydrant && records.form"
               :hydrant="openHydrant" :form="records.form" :is-admin="auth.isAdmin"

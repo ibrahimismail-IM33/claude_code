@@ -4,7 +4,8 @@ import StatCards from './StatCards.vue';
 import Donut from './Donut.vue';
 import ZonePanel from './ZonePanel.vue';
 import Jadual from './Jadual.vue';
-import { dashData, dashScopeLabel, halfList, halfRange, halfLabel } from '../stores/dashboard-logic.js';
+import { dashData, dashScopeLabel, halfList, halfRange, halfLabel, recentRows } from '../stores/dashboard-logic.js';
+import { dmy } from '../stores/jadual-logic.js';
 import { zoneSummary } from '../stores/filters-logic.js';
 
 /* The dashboard.
@@ -40,12 +41,13 @@ const props = defineProps({
   cloudNote: { type: String, default: '' },
 });
 const emit = defineEmits(['pickStatus', 'pickZone', 'pickPeriod',
-  'jadualAdd', 'jadualUpdate', 'jadualDelete', 'jadualLocation']);
+  'jadualAdd', 'jadualUpdate', 'jadualDelete', 'jadualLocation', 'pickLocation']);
 
 const periods = computed(() => halfList());
 const range = computed(() => halfRange(periods.value[props.periodIx]));
 const data = computed(() => dashData(props.hydrants, props.statusFilter, props.index, range.value));
 const scope = computed(() => dashScopeLabel(props.statusFilter));
+const recent = computed(() => recentRows(props.hydrants, props.statusFilter, props.index, range.value));
 
 // Always the whole register — never props.hydrants filtered by the pills.
 const zones = computed(() => zoneSummary(props.hydrants));
@@ -86,7 +88,23 @@ const zones = computed(() => zoneSummary(props.hydrants));
           <div class="dtwrap"><table>
             <thead><tr><th style="width:120px">Tarikh</th><th style="width:100px">No. Pili</th>
               <th>Lokasi</th><th style="width:140px">Penguji</th><th style="width:120px">Status</th></tr></thead>
-            <tbody id="dashRecent"><slot name="recent" /></tbody>
+            <!-- This was `<slot name="recent" />` and nothing ever filled it,
+                 in the app or the harness, so the panel was permanently empty
+                 and said nothing about it. Rendered here from the same index
+                 every other figure derives from. -->
+            <tbody id="dashRecent">
+              <tr v-if="!recent.length">
+                <td colspan="5" class="dempty">Tiada rekod Pengujian bagi tempoh ini.</td>
+              </tr>
+              <tr v-for="(r, i) in recent" :key="i">
+                <td class="dmono">{{ dmy(r.d) }}</td>
+                <td class="dmono" style="font-weight:700">{{ r.label }}</td>
+                <td><button class="loclink" type="button" :data-loc="r.loc"
+                            @click="emit('pickLocation', r.loc)">{{ r.loc }}</button></td>
+                <td class="dmono">{{ r.p }}</td>
+                <td><span class="dtag" :class="r.s ? 'ok' : 'wait'">{{ r.s ? 'Bertandatangan' : 'Belum di-sign' }}</span></td>
+              </tr>
+            </tbody>
           </table></div>
         </div>
 

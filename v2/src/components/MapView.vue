@@ -32,6 +32,12 @@ const props = defineProps({
   // that stale size when it comes back. Tiles then land against the wrong
   // viewport: scattered squares with gaps. Found on staging, first day.
   active: { type: Boolean, default: true },
+  /* Bumped whenever something OUTSIDE the map changes its container size —
+   * today, the phone registry sheet sliding up and down. V1 calls
+   * map.invalidateSize() on every sheet toggle for exactly this reason. It is
+   * the same hazard as §4.16 and §4.17: Leaflet believing a size it no longer
+   * has, and tiles landing against the wrong viewport. */
+  remeasure: { type: Number, default: 0 },
 });
 const emit = defineEmits(['pick', 'pickLatLng', 'fitted']);
 
@@ -120,6 +126,15 @@ watch(() => props.active, (on) => {
     if (map) map.invalidateSize();
     setTimeout(() => { if (map) map.invalidateSize(); }, 200);
   });
+});
+
+/* Re-measure without re-fitting. The sheet animates for 350ms (map.css), so a
+ * single immediate call would measure mid-slide — hence the settle. Deliberately
+ * NOT a fit: the officer's pan must survive opening the registry. */
+watch(() => props.remeasure, () => {
+  if (!map) return;
+  map.invalidateSize();
+  setTimeout(() => { if (map) map.invalidateSize(); }, 380);
 });
 </script>
 

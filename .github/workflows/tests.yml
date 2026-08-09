@@ -197,3 +197,11 @@ jobs:
       # directly; between them is where the app actually lives.
       - name: V2 assembled app (dashboard figures, paging, opening a card)
         run: npm run test:v2app
+
+      # PARITY SURFACE. V2 was handed over seven times and a person found a
+      # missing feature each time — the detail modal, Jadual, the Kad Rekod
+      # headings. Every fix was verified against itself, never against V1, and
+      # the migration's whole thesis is "changes nothing an officer sees".
+      # Reads the BUILT BUNDLE, so an unimported component counts as absent.
+      - name: V2 parity surface (nothing V1 shows has gone missing)
+        run: npm run test:v2parity

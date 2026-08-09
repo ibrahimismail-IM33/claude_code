@@ -1,0 +1,36 @@
+{
+  "_README": [
+    "Waivers for tests/v2-parity-surface.js. EVERY ENTRY NEEDS A REASON.",
+    "",
+    "This file is the weak point of that guard: an entry added carelessly turns",
+    "off a check silently, and the whole reason the guard exists is that seven",
+    "missing features reached an officer. Before adding one, prove the claim —",
+    "'dead in V1 too' means the name appears in index.html exactly once (the CSS",
+    "rule) and is never rendered. Grep it; do not assume.",
+    "",
+    "If you are adding an entry because a feature is not built YET, that is not a",
+    "waiver. That is the guard working."
+  ],
+
+  "classes": {
+    "leaflet-control-attribution": "Leaflet renders it. Not our markup.",
+    "leaflet-control-zoom-in": "Leaflet renders it.",
+    "leaflet-control-zoom-out": "Leaflet renders it.",
+    "leaflet-right": "Leaflet positions controls with it.",
+    "leaflet-top": "Leaflet positions controls with it.",
+    "leaflet-tooltip-top": "Leaflet adds it to tooltips.",
+    "marker-cluster": "leaflet.markercluster renders it.",
+    "add-row": "DEAD IN V1 TOO — appears once in index.html, the CSS rule, with no markup. Verified by grep -c.",
+    "add-t": "DEAD IN V1 TOO — part of the same unused .add-row block.",
+    "add-d": "DEAD IN V1 TOO — part of the same unused .add-row block.",
+    "add-open": "DEAD IN V1 TOO — part of the same unused .add-row block.",
+    "authlogo": "DEAD IN V1 TOO — appears once in index.html, the CSS rule, with no markup.",
+    "jpg": "Not a class. Matched out of url(\"/login-bg.jpg\") by the selector regex.",
+    "ftoast": "V1 shows signature/save errors in a transient toast. V2 shows the same information inline in SignPopup via :sign-error, which persists instead of vanishing after 2.4s — arguably better on a phone in sunlight. The CSS is kept so the toast can be restored without re-deriving it. Same reason as the ftoast id waiver below."
+  },
+
+  "ids": {
+    "modalRoot": "V1's single mount point for string-built modals. V2 renders real components (HydrantDetail, AddHydrantModal, SignPopup) so there is nothing to mount into.",
+    "ftoast": "V1 shows signature/save errors in a transient toast. V2 shows the same information inline in SignPopup via :sign-error, which persists until dismissed rather than vanishing after 2.4s. Different mechanism, same information, arguably better on a phone in sunlight."
+  }
+}

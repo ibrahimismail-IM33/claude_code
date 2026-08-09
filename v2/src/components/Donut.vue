@@ -38,15 +38,45 @@ const emit = defineEmits(['pick']);
  * mid-animation frame differ. */
 const svg = computed(() => buildDonut(props.data, props.sweep, props.sweep < 1 ? 6 : undefined));
 
-function onClick(e) {
-  let el = e.target;
-  while (el && el !== e.currentTarget) {
-    if (el.getAttribute && el.getAttribute('data-key')) { emit('pick', el.getAttribute('data-key')); return; }
+function keyOf(target, root) {
+  let el = target;
+  while (el && el !== root) {
+    if (el.getAttribute && el.getAttribute('data-key')) return el.getAttribute('data-key');
     el = el.parentNode;
   }
+  return null;
+}
+
+function onClick(e) {
+  const k = keyOf(e.target, e.currentTarget);
+  if (k) emit('pick', k);
+}
+
+/* Hover dimming: pointing at one segment fades the others, so the label and
+ * the slice it belongs to are unmistakable. Ported from V1 — `.d-dim` was
+ * styled in dashboard.css and never applied by anything, which is how it was
+ * found. Delegated, like the click handler, because the paths are replaced on
+ * every animation frame.
+ *
+ * Keyboard parity too: the segments carry tabindex and role=button, so Enter
+ * and Space must act like a click or they are buttons that cannot be pressed. */
+function onOver(e) {
+  const k = keyOf(e.target, e.currentTarget);
+  e.currentTarget.querySelectorAll('.seg3d').forEach((p) => {
+    p.classList.toggle('d-dim', !!k && p.getAttribute('data-key') !== k);
+  });
+}
+function onLeave(e) {
+  e.currentTarget.querySelectorAll('.seg3d').forEach((p) => p.classList.remove('d-dim'));
+}
+function onKey(e) {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const k = keyOf(e.target, e.currentTarget);
+  if (k) { e.preventDefault(); emit('pick', k); }
 }
 </script>
 
 <template>
-  <div class="donutwrap" id="dashDonut" @click="onClick" v-html="svg"></div>
+  <div class="donutwrap" id="dashDonut" @click="onClick" @mouseover="onOver"
+       @mouseleave="onLeave" @keydown="onKey" v-html="svg"></div>
 </template>

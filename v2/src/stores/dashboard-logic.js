@@ -130,6 +130,30 @@ export function dashScopeLabel(activeFilter) {
   return activeFilter === 'swasta' ? 'Swasta' : (activeFilter === 'kerajaan' ? 'Awam' : 'Semua');
 }
 
+/* "Pemeriksaan terkini" — the five most recent Pengujian rows in the period.
+ *
+ * V2 rendered the table shell with an unfilled <slot name="recent">, so the
+ * panel was permanently empty and said nothing about it. Ported from V1's
+ * renderRecent: newest date first, capped at five, and the location carried
+ * through so each row's Lokasi can search the map.
+ *
+ * Dates are ISO, so localeCompare on the string IS a date compare — no parsing
+ * and no timezone, the same reasoning as the jadual sort. */
+export function recentRows(hydrants, activeFilter, idx, range, limit = 5) {
+  const byId = {};
+  dashList(hydrants, activeFilter).forEach((h) => { byId[String(h.id)] = h; });
+  const rows = [];
+  Object.keys(idx).forEach((id) => {
+    const h = byId[id];
+    if (!h) return;
+    rowsInPeriod(idx, h.id, range).forEach((r) => {
+      rows.push({ d: r.d, label: h.label, loc: h.location || '—', p: r.p || '—', s: r.s });
+    });
+  });
+  rows.sort((a, b) => String(b.d).localeCompare(String(a.d)));
+  return rows.slice(0, limit);
+}
+
 export function dashData(hydrants, activeFilter, idx, range) {
   const list = dashList(hydrants, activeFilter);
   const d = { total: list.length, ok: 0, wait: 0, none: 0 };

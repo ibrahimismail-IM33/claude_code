@@ -498,6 +498,54 @@ Draw order: caps → walls → top faces (painter's algorithm).
       the person holding it is looking for.** Necessary, never sufficient. When
       asking someone to check a printout, say what to look at.
 
+21. **Four more features were simply absent, and a two-minute grep found them
+    all.** Reported 2026-08-09 by an officer: tapping a pin jumped straight to
+    the Kad Rekod. V1 opens a **detail modal** first — coordinates, **🧭
+    Directions**, 🗺️ View, Last Inspected, and a *Kad Rekod* button. Directions
+    is how an officer navigates to a pili while standing in a field, and it
+    existed nowhere else in V2.
+
+    Rather than patch that one, V2's whole surface was diffed against V1's for
+    the first time. Three more gaps fell out:
+
+    - **The mobile registry sheet.** Worse than missing: `map.css` parks
+      `.cards .card` at `translateY(calc(100% - 52px))` on a phone and only
+      `.cards.mob-open` brings it back. With no handle and no summary rendered,
+      the registry was a **52px sliver with no way to open it** — on the device
+      this app is actually used on. Only the media-query overrides had been
+      ported; the base `.mob-handle` / `.mob-reg-summary` rules were absent too.
+    - **"Pemeriksaan terkini" was an empty table.** `DashView` rendered
+      `<tbody id="dashRecent"><slot name="recent" /></tbody>` and **nothing
+      filled that slot** — not the app, not the harness.
+    - **The donut's hover dimming** (`d-dim`) and its keyboard activation. The
+      segments carry `tabindex` and `role="button"`, so Enter and Space were
+      buttons that could not be pressed.
+    - **`storeWarn`.** V1 warns when localStorage is blocked; without it the
+      failure is silent, and localStorage is what every offline guarantee in
+      §4.10 rests on.
+
+    **The signature they share:** V2's stylesheets were ported from V1
+    *wholesale* while the markup was not, so the app looked fully styled and
+    finished and nothing errored. Two mechanical greps find that whole family —
+    classes V2 styles but never renders, and element ids V1 has that V2 lacks —
+    and both are now `tests/v2-parity-surface.js`, run on every push.
+
+    Three things worth carrying:
+
+    - **The greps took under a minute and were never run.** Seven handovers,
+      seven defects found by a person. Each fix was verified against *itself*;
+      the migration's thesis is "changes nothing an officer sees", so the only
+      check that mattered was V2-against-V1 and it was never made.
+    - **The guard's first version was useless and a mutation proved it.**
+      It grepped `v2/src`, so deleting `<HydrantDetail>` from the template left
+      it green — `HydrantDetail.vue` still sat on disk. It now reads the **built
+      bundle**, where an unimported component is tree-shaken away. Same lesson
+      as §5's CSP probe: *check the artefact*.
+    - **A test can encode the bug.** `v2-app-live` T7 asserted that tapping a
+      pin opens the card — which was the parity gap, written down as a
+      requirement. When behaviour is restored to V1, the tests that codified the
+      drift have to be corrected too, not worked around.
+
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"
@@ -616,6 +664,13 @@ Draw order: caps → walls → top faces (painter's algorithm).
   commit. It rebuilt the old one and failed identically. Advice that
   contradicts something already diagnosed in the same session is worse than no
   advice, because it spends someone else's time re-finding it.
+- **Handed V2 back seven times without once comparing it to V1.** Every fix was
+  verified against itself — the change I made, tested by the test I wrote for
+  it. The migration's whole thesis is "changes nothing an officer sees", so the
+  question was never "does my change work" but "does V2 do what V1 does", and I
+  did not ask it until told to. Two greps then found four missing features in
+  under a minute (§4.21). The cost landed on the user, who found six defects by
+  using the app. **When the goal is parity, the baseline is the test.**
 - **Named a Pages project after a repo that already existed.** I suggested
   calling it `epilibomba-v2`; a GitHub repo of that name exists holding a
   stripped copy of `v2/` — the decoy `docs/STAGING.md` §1 explicitly warns

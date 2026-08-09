@@ -48,26 +48,51 @@ const vis = computed(() => visibleOf(props.hydrants, {
 }, props.inspStatusOf));
 
 const counts = computed(() => countsOf(props.hydrants));
+
+/* Probed once: a browser blocking localStorage will not change its mind
+ * mid-session, and V1 checks it exactly this way. */
+const storageOK = (() => {
+  try {
+    const k = '__probe_' + Date.now();
+    window.localStorage.setItem(k, '1');
+    window.localStorage.removeItem(k);
+    return true;
+  } catch (e) { return false; }
+})();
+
+/* The phone registry bottom sheet. V1 keeps this state as a class on `.cards`
+ * and calls map.invalidateSize() on every toggle — the sheet changes the map
+ * container's height, and a Leaflet that believes a stale size is §4.16/§4.17
+ * all over again. `remeasure` is how that reaches MapView. */
+const mobOpen = ref(false);
+const remeasure = ref(0);
+function setSheet(open) { mobOpen.value = open; remeasure.value++; }
+function toggleSheet() { setSheet(!mobOpen.value); }
+// Tapping the map closes the sheet, as V1 does on touchend.
+function mapTouched() { if (mobOpen.value) setSheet(false); }
 </script>
 
 <template>
   <SearchBox :query="query" :match-count="vis.length" :status="statusFilter"
              @search="(v) => emit('search', v)" @refit="refit++" />
 
-  <div class="maparea">
+  <div class="maparea" @touchend.passive="mapTouched">
     <MapView
       :visible="vis"
       :has-pending="hasPending"
       :refit="refit"
       :no-fit-once="noFitOnce"
       :active="active"
+      :remeasure="remeasure"
       :adding="adding"
       @pick="(h) => emit('pick', h)"
       @pick-lat-lng="(p) => emit('pickLatLng', p)"
       @fitted="(d) => emit('fitted', d)"
     />
 
-    <Registry :visible-count="vis.length" :total="hydrants.length" :counts="counts" />
+    <Registry :visible-count="vis.length" :total="hydrants.length" :counts="counts"
+              :mob-open="mobOpen"
+              @toggle-sheet="toggleSheet" @open-sheet="setSheet(true)" />
 
     <Banner
       :status="statusFilter" :insp="inspFilter" :zone="zoneFilter"
@@ -81,6 +106,21 @@ const counts = computed(() => countsOf(props.hydrants));
     </div>
 
     <div class="panel chip"><span class="d soft-pulse"></span><span class="t">Tap hydrant · date shown on icon</span></div>
+
+    <!-- Storage blocked. Ported from V1, and it matters more than it looks:
+         every offline guarantee in this app is localStorage. A failed save is
+         parked in `bbpkunak_pending_*` and pushed on reconnect (§4.10) — if
+         storage is unavailable that parking is a no-op and an officer's typing
+         is gone with nothing on screen to say so. Probed once at mount, the
+         same way V1 does it, because a private-mode browser will not change its
+         mind mid-session. -->
+    <div class="panel" id="storeWarn" v-if="!storageOK"
+         style="position:absolute;bottom:16px;left:16px;z-index:500;max-width:260px;padding:10px 12px;border-color:rgba(250,204,21,.35)!important">
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <span style="font-size:14px;line-height:1.2">⚠️</span>
+        <span style="font-size:11px;line-height:1.4;color:rgba(253,224,71,.9)">Edits won't survive a refresh in this view. Download the file and open it in Chrome/Firefox to keep changes.</span>
+      </div>
+    </div>
   </div>
 
   <!-- The pills live in the shared header in V1, not inside the map area. They

@@ -270,11 +270,24 @@ const JADUAL = [
     await p.evaluate(() => window.__mapsCreated), mapsBefore);
   await p.close();
 
-  // ---------- T7: tapping a pin opens the card (it used to CRASH) ----------
-  console.log('T7  tapping a pin opens the Kad Rekod');
+  /* ---------- T7: the card opens, and opening it used to CRASH ----------
+   *
+   * The route is pin → DETAIL MODAL → Kad Rekod, which is V1's. This test used
+   * to tap a pin and expect the card immediately, because V2 was wired straight
+   * through; that wiring was a parity gap (T12) and this assertion was encoding
+   * it. What T7 is actually for is the crash — `records.load()` returns a form
+   * and never assigns `this.form`, so reading `records.form.header` threw and
+   * every pin tap killed the app. That guard is kept; only the route changed. */
+  console.log('T7  opening the Kad Rekod from a pin (via the detail modal)');
   p = await mount();
   await p.evaluate(() => window.__tapPin(0));
-  await p.waitForTimeout(700);
+  await p.waitForTimeout(400);
+  /* Guarded, not a bare click: if the detail modal regresses this would hang
+   * 30s and throw, so the rest of the suite never reports. A suite that
+   * crashes tells you less than one that fails. */
+  const openBtn = await p.$('#dOpenForm');
+  if (openBtn) { await openBtn.click(); await p.waitForTimeout(700); }
+  else check('the detail modal offers a Kad Rekod button', false, true);
   check('the card overlay is up', await p.$$eval('#formOverlay', (n) => n.length), 1);
   check('for the right hydrant', await p.$eval('#formOverlay .ftitle b', (n) => n.textContent.trim()), 'A01');
   check('it is a real 2-page card', await p.$$eval('#formOverlay .fcard .fpage', (n) => n.length), 2);
@@ -491,6 +504,53 @@ const JADUAL = [
   check('a missing table says so, rather than throwing',
     await p.$eval('#dashView .jsrc, #dashView .dsec .note', (n) => n.textContent).catch(() => ''),
     'Jadual belum disediakan di awan — peranti ini sahaja');
+  await p.close();
+
+  /* ---------- T12: a pin opens the DETAIL modal, not the card ----------
+   *
+   * V1 tapping a pin opens a detail modal and the Kad Rekod comes second, from
+   * a button inside it. V2 shipped wired straight to the card, which reads as a
+   * shortcut and is a loss: this modal is the ONLY place Directions, the
+   * coordinates and Last Inspected appear, and Directions is how an officer
+   * navigates to a pili while standing in a field. */
+  console.log('T12  a pin opens the detail modal; the card opens from its button');
+  p = await mount();
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  check('the detail modal is up', await p.$$eval('#hydrantDetail', (n) => n.length), 1);
+  check('and the Kad Rekod is NOT — the card is the second step',
+    await p.$$eval('#formOverlay', (n) => n.length), 0);
+  check('for the right hydrant', await p.$eval('#hydrantDetail h2', (n) => n.textContent.trim()), 'A01');
+
+  const h0 = REG[0];
+  check('the coordinates read at six decimals',
+    await p.$eval('#dCoords', (n) => n.textContent.trim()),
+    h0.lat.toFixed(6) + ', ' + h0.lng.toFixed(6));
+  /* Directions is the field-critical one. Built from the NUMERIC lat/lng —
+   * never from the label or location, which are officer-entered text. */
+  check('Directions points at this hydrant',
+    await p.$eval('#dDir', (n) => n.getAttribute('href')),
+    'https://www.google.com/maps/dir/?api=1&destination=' + h0.lat + ',' + h0.lng);
+  check('View points at this hydrant',
+    await p.$eval('#dView', (n) => n.getAttribute('href')),
+    'https://www.google.com/maps?q=' + h0.lat + ',' + h0.lng);
+  check('Last Inspected is shown', await p.$$eval('#dLastInsp', (n) => n.length), 1);
+
+  const openBtn2 = await p.$('#dOpenForm');
+  if (openBtn2) { await openBtn2.click(); await p.waitForTimeout(600); }
+  check('its button opens the Kad Rekod', await p.$$eval('#formOverlay', (n) => n.length), 1);
+  check('and the detail modal steps out of the way',
+    await p.$$eval('#hydrantDetail', (n) => n.length), 0);
+  await p.close();
+
+  // Closing without opening the card must leave nothing behind.
+  p = await mount();
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  const closeBtn = await p.$('#hydrantDetail .m-close');
+  if (closeBtn) { await closeBtn.click(); await p.waitForTimeout(300); }
+  check('the × closes it', await p.$$eval('#hydrantDetail', (n) => n.length), 0);
+  check('...and opens no card', await p.$$eval('#formOverlay', (n) => n.length), 0);
   await p.close();
 
   await b.close(); server.close();
