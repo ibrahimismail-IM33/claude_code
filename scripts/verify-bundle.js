@@ -50,10 +50,29 @@ if (fs.existsSync(headersPath)) {
     'script-src is not \'self\' alone:' + scriptSrc,
     'script-src is \'self\' alone');
 
-  // Staging carries real hydrant data and real officer logins.
-  check(/X-Robots-Tag:\s*noindex/.test(h),
-    'staging is not marked noindex — it holds real data and real logins',
-    'noindex present');
+  /* noindex is now BRANCH-DEPENDENT, and wrong in either direction is a real
+   * defect — which is why this is an invariant rather than a presence check.
+   *
+   *   not production → the line MUST be there. Staging holds real hydrant data
+   *                    and real officer logins; indexing it is a support
+   *                    incident waiting to happen.
+   *   production     → the line MUST be gone. epilibomba.com is a public
+   *                    service, and being absent from search results is a
+   *                    defect, not a safeguard.
+   *
+   * scripts/finalize-headers.js decides; this refuses to ship the wrong answer.
+   * They are deliberately separate: a script that both applies a rule and
+   * confirms its own work cannot fail. */
+  const PRODUCTION_BRANCH = process.env.EPB_PRODUCTION_BRANCH || 'main';
+  const isProduction = process.env.CF_PAGES_BRANCH === PRODUCTION_BRANCH;
+  const hasNoindex = /X-Robots-Tag:\s*noindex/.test(h);
+  check(isProduction ? !hasNoindex : hasNoindex,
+    isProduction
+      ? 'this is the production branch but _headers still says noindex — '
+        + 'epilibomba.com would be hidden from search results'
+      : 'this is not the production branch (' + (process.env.CF_PAGES_BRANCH || 'local')
+        + ') but _headers has no noindex — it holds real data and real logins',
+    isProduction ? 'noindex absent (production)' : 'noindex present (non-production)');
 
   // Setting this back to geolocation=() silently disables "Guna Lokasi Saya"
   // with no error message at all.
@@ -97,6 +116,23 @@ check(offenders.length === 0,
   'a CDN origin reappeared in the bundle: ' + offenders.join(', '),
   'no CDN origin');
 
+/* The login gate's background, which is the first thing an officer sees.
+ *
+ * It lived only in the site repo until cutover, because publish-to-site.yml
+ * copied it separately from anything Vite knew about. Now that Cloudflare
+ * builds this repo directly, it has to come out of v2/public/ — and if it does
+ * not, nothing complains: the #authGate rule declares a solid #0a0b0d too, so
+ * a missing image degrades to a dark panel that looks entirely deliberate.
+ *
+ * The URL must also stay root-absolute. The stylesheet is emitted at
+ * /assets/style-*.css and a relative url() resolves against the STYLESHEET, so
+ * `url(login-bg.jpg)` asks for /assets/login-bg.jpg and 404s with the same
+ * invisible result. */
+check(fs.existsSync(path.join(DIST, 'login-bg.jpg')),
+  'login-bg.jpg is not in the bundle — the login gate loses its background, '
+  + 'silently (the rule falls back to a plain dark panel)',
+  'login-bg.jpg present');
+
 /* A dependency's stylesheet can silently not ship, and nothing complains.
  *
  * V2 imported Leaflet's JS but never its CSS, so the panes and tiles had no
@@ -122,6 +158,11 @@ const allCss = cssFiles.join('\n');
     + 'so the map renders as scattered tiles with gaps',
     sel + ' rules present');
 });
+
+check(!/url\(["']?login-bg/.test(allCss),
+  'the login-bg URL is relative — it resolves against /assets/style-*.css, so '
+  + 'the browser requests /assets/login-bg.jpg and 404s. It must be "/login-bg.jpg"',
+  'login-bg URL is root-absolute');
 
 // --- report ------------------------------------------------------------------
 ok.forEach((m) => console.log('  ok    ' + m));

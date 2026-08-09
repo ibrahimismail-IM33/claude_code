@@ -45,7 +45,7 @@
   .factions{display:flex;gap:8px}
   /* ---------- login gate ---------- */
   #authGate{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;
-    background:#0a0b0d url("login-bg.jpg") center center / cover no-repeat}
+    background:#0a0b0d url("/login-bg.jpg") center center / cover no-repeat}
   /* scrim: keeps the white text readable wherever the smoke happens to be bright */
   #authGate::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
     background:radial-gradient(1100px 620px at 50% 48%,rgba(0,0,0,.18),rgba(0,0,0,.72))}

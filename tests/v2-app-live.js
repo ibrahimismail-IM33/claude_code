@@ -30,7 +30,7 @@ const { chromium } = require('playwright');
 const ROOT = path.join(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 const CHROMIUM = process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium';
-const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.png': 'image/png' };
+const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg' };
 
 let pass = 0, fail = 0;
 const check = (name, got, want) => { const ok = JSON.stringify(got) === JSON.stringify(want);
@@ -72,7 +72,7 @@ const RECORDS = []
   const b = await chromium.launch({ executablePath: CHROMIUM });
 
   async function mount(opts) {
-    const o = Object.assign({ role: 'admin', rows: REG, records: RECORDS, failScan: false, bigScan: 0 }, opts);
+    const o = Object.assign({ role: 'admin', rows: REG, records: RECORDS, failScan: false, bigScan: 0, noSession: false }, opts);
     const p = await b.newPage({ viewport: { width: 1280, height: 950 } });
     p.on('pageerror', (e) => { console.log('  PAGEERROR ' + e.message); fail++; });
     await p.addInitScript((cfg) => {
@@ -81,8 +81,12 @@ const RECORDS = []
       window.supabase = {
         createClient: () => ({
           auth: {
-            getSession: () => ok({ session: { user: { id: 'u1' } } }),
-            getUser: () => ok({ user: { id: 'u1', email: 'officer@bomba.gov.my' } }),
+            // noSession leaves the login gate up — the only state that renders
+            // #authGate, and therefore the only one that can check its
+            // background image (T9).
+            getSession: () => ok({ session: cfg.noSession ? null : { user: { id: 'u1' } } }),
+            getUser: () => (cfg.noSession ? ok({ user: null })
+              : ok({ user: { id: 'u1', email: 'officer@bomba.gov.my' } })),
             signInWithPassword: () => ok({}),
             signOut: () => ok({}),
           },
@@ -312,6 +316,44 @@ const RECORDS = []
   check('no tile escapes the map container', geom.escaped, 0);
   check('the tiles form one continuous 256px grid — not scattered', geom.onLattice, true);
   check('and each is a full tile', geom.natural, true);
+  await p.close();
+
+  /* ---------- T9: the login gate's background image actually LOADS ----------
+   *
+   * The first thing every officer sees, and it fails silently. The #authGate
+   * rule declares `#0a0b0d url("/login-bg.jpg")`, so a missing image degrades
+   * to a plain dark panel that looks entirely deliberate — V1 has the same
+   * declaration and has never looked broken.
+   *
+   * Two ways it goes missing, and this suite has to catch both:
+   *   1. The file is not in the bundle at all. It lived only in the site repo
+   *      until cutover, because publish-to-site.yml copied it separately.
+   *   2. The file ships but the URL is relative. The built stylesheet sits at
+   *      /assets/style-*.css and a relative url() resolves against the
+   *      STYLESHEET, so `url("login-bg.jpg")` requests /assets/login-bg.jpg.
+   *
+   * Note what is NOT asserted: `getComputedStyle(...).backgroundImage`. That
+   * returns the same string whether or not the file exists, so it passes on
+   * both bugs. The image is loaded explicitly and its natural size checked —
+   * a 404 gives 0x0. Same lesson as §4.15's black box: assert the outcome. */
+  console.log('T9  the login gate background image resolves and loads');
+  p = await mount({ noSession: true });
+  const bg = await p.evaluate(async () => {
+    const gate = document.querySelector('#authGate');
+    if (!gate) return { err: 'no #authGate — the login gate did not render' };
+    const url = (/url\(["']?([^"')]+)/.exec(getComputedStyle(gate).backgroundImage) || [])[1];
+    if (!url) return { err: 'no background-image on #authGate' };
+    const img = new Image();
+    const loaded = await new Promise((res) => {
+      img.onload = () => res(true); img.onerror = () => res(false); img.src = url;
+    });
+    return { url, loaded, w: img.naturalWidth, h: img.naturalHeight };
+  });
+  check('the login gate is showing', !bg.err, true);
+  check('its background URL is root-absolute, not relative to /assets/',
+    /^https?:\/\/[^/]+\/login-bg\.jpg$/.test(bg.url || ''), true);
+  check('and the image actually loads (a 404 gives 0x0)', bg.loaded, true);
+  check('at its real dimensions', [bg.w, bg.h], [1600, 811]);
   await p.close();
 
   await b.close(); server.close();

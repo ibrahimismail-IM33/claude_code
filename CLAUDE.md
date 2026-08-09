@@ -133,7 +133,11 @@ Draw order: caps → walls → top faces (painter's algorithm).
 
 | Decision | Choice | Why |
 |---|---|---|
-| Two repos | `claude_code` builds, **`ibrahimismail-IM33/e-pili-bomba` is what Cloudflare publishes** | They drifted 7 commits apart once and officers used a live app missing fixes. A workflow now copies the three published paths on every push to main, and refuses to publish if a CDN tag reappears or `sql/`/`tests/` would go public |
+| Two repos | `claude_code` builds, **`ibrahimismail-IM33/e-pili-bomba` is what Cloudflare publishes** | They drifted 7 commits apart once and officers used a live app missing fixes. A workflow now copies the three published paths on every push to main, and refuses to publish if a CDN tag reappears or `sql/`/`tests/` would go public. **Applies to V1. At V2 cutover this is superseded — see the next row** |
+| V2 publishing | **Cloudflare Pages builds `claude_code` directly** and serves `dist/`, like staging. The site repo is no longer the source for epilibomba.com | `publish-to-site.yml` cannot publish V2 at all: no build step, and V2's app is a Vite bundle under `v2/` rather than the three paths it copies. Teaching it to build was the alternative and was declined for the simpler route. **The cost is real and was accepted knowingly: `tests.yml` stops gating what officers receive** — Cloudflare deploys every push, green or red. `verify-bundle.js` still fails the deployment on a bad artefact, so a malformed bundle cannot ship; a logic regression can. `docs/CUTOVER.md` §7 is how to take the gate back (build a `release` branch that CI fast-forwards only when the suites pass) |
+| Rollback from V2 | **Move the custom domain back to the old Pages project.** So the old project, the `e-pili-bomba` repo and `publish-to-site.yml` all stay | No build, no revert, no deploy — the site repo still holds V1 exactly as officers used it, and the workflow keeps it current. A git revert would need a rebuild and a redeploy while officers wait |
+| `X-Robots-Tag` | **Branch-aware at build time** (`scripts/finalize-headers.js`), and `v2/public/_headers` **keeps** the `noindex` line | One file now feeds two environments: staging must stay unindexed (real data, real logins), production must not be. The line stays in the source so the safe default is what you get by doing nothing — any future branch or preview is private unless told otherwise. Production is identified by `CF_PAGES_BRANCH`, which Cloudflare sets itself, so there is no dashboard variable to forget. `verify-bundle.js` re-checks the outcome independently: one script decides, the other refuses to ship the wrong answer |
+| `login-bg.jpg` | **Lives in `v2/public/`, referenced as `url("/login-bg.jpg")` — root-absolute** | It used to exist only in the site repo, copied separately, so a Cloudflare build of this repo shipped without it. And the leading slash is load-bearing: the built stylesheet is `/assets/style-*.css`, and a relative `url()` resolves against the **stylesheet**, so `url("login-bg.jpg")` requests `/assets/login-bg.jpg`. Both failures are **invisible** — `#authGate` declares `#0a0b0d` too, so a missing image degrades to a dark panel that looks deliberate |
 | CI | `tests.yml` runs every suite on every push, and `publish-to-site.yml` **calls it and depends on it** (`needs: test`) rather than duplicating the steps | The suites existed for months and nothing ran them, while publishing was automatic — so the guarantee was "these bugs won't come back if someone remembers". The gate, not the workflow, is the deliverable: a CI job that reports red while the broken build ships anyway is decoration. Reusing the workflow via `workflow_call` means there is one definition of how tests run, so the gate cannot drift from the thing it is gating |
 | Audit identity | Taken from the **JWT inside the database**, never from the request body, no fallback | A first version had `coalesce(jwt_email, new.updated_by)`, which let a modified page write any name it liked. Caught in testing. An audit column the client can set is decorative |
 | Third-party libraries | **Self-hosted in `vendor/`**, no CDN, no SRI needed | A script from unpkg/jsdelivr runs with full access to the signed-in session and every record card, and `@supabase/supabase-js@2` floated — whatever the CDN called "latest 2.x" reached every officer with no review. Self-hosting removes the path entirely and lets CSP `script-src` drop to `'self'`. Versions pinned in `vendor/README.md` |
@@ -640,12 +644,17 @@ real app, after staging spent days serving a commit six behind (docs/STAGING.md
 dashboard, and **the Kad Rekod opening and working** — all on the assembled V2
 bundle against the production database.
 
-**What this does NOT cover, and it is the part that matters:** the card was
-confirmed **on screen**. Every print-facing property of the Kad Rekod is
-invisible until it reaches paper — three print defects, three found on paper,
-none found by any other means — and V2 *moved the card into a component*, which
-already broke printing once (the `#formOverlay` teleport). **A real printout is
-still required before cutover.**
+**And confirmed ON PAPER from V2 (2026-08-09)** — the Kad Rekod printed from
+the V2 bundle on the real printer, and it works. This was the last mandatory
+gate in `docs/KAD-REKOD.md` and the one most likely to fail: every print-facing
+property of this card is invisible until it reaches paper (three print defects,
+three found on paper, none found by any other means), and V2 *moved the card
+into a component*, which already broke printing once — the `#formOverlay`
+teleport, which produced a single blank sheet while nothing on screen changed.
+
+Note what the staging run alone would have proved: nothing about paper. The
+card "opening and working" is a screen claim. Keep printing one after any change
+that touches the card, the print CSS, or the component structure around it.
 
 **Confirmed on a real phone in the field (2026-08-04)** — the first time any of
 this was checked outside a headless browser:

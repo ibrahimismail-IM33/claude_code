@@ -85,7 +85,7 @@ No API token and no secret is needed. Cloudflare builds the branch itself.
    | Field | Value |
    |---|---|
    | Framework preset | None |
-   | Build command | `npm ci && npx vite build && node scripts/verify-bundle.js` |
+   | Build command | `npm ci && npx vite build && node scripts/finalize-headers.js && node scripts/verify-bundle.js` |
    | Build output directory | `dist` |
    | Root directory | *(leave blank — the repo root)* |
 
@@ -95,6 +95,12 @@ No API token and no secret is needed. Cloudflare builds the branch itself.
    |---|---|---|
    | `NODE_VERSION` | `20` | `package.json` requires `>=20` |
    | `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` | `1` | `playwright` is a devDependency and `npm ci` runs its postinstall, which downloads **~150 MB of Chromium** that only the test suites use. Nothing on Cloudflare's builder suppresses it — this container only avoids it because `PLAYWRIGHT_BROWSERS_PATH` happens to be set here. Without this the build is slow at best, and can fail on Cloudflare's 25 MiB per-file limit |
+
+   `finalize-headers.js` needs **no** variable of its own. It reads
+   `CF_PAGES_BRANCH`, which Cloudflare sets on every build, and keeps
+   `X-Robots-Tag: noindex` on every branch except production — so staging stays
+   unindexed without anyone configuring it, and a new branch is private by
+   default rather than by memory.
 
 4. **Settings → Builds & deployments → Preview branch control → turn preview
    deployments OFF** (or restrict them to none), so **only `claude/epb-v2`
@@ -158,6 +164,15 @@ artefact:
 - the built CSS carries Leaflet's and markercluster's own rules — without them
   the map renders as scattered tiles with black gaps from first paint, and
   nothing else in the pipeline notices (CLAUDE.md §4.17)
+- `login-bg.jpg` is in the bundle **and** its CSS URL is root-absolute — either
+  failure loses the login gate's background *silently*, because the rule falls
+  back to a plain dark panel that looks deliberate
+
+Note that `X-Robots-Tag` is checked as an **invariant**, not a presence: it must
+be there on every branch except production, and absent on production.
+`scripts/finalize-headers.js` (which runs first) applies the rule; this refuses
+to ship the wrong answer. They are separate on purpose — a script that both
+applies a rule and confirms its own work cannot fail.
 
 Verified by mutation before being trusted: a `V2_HARNESS=1` build, a missing
 `_headers`, a CDN string planted in an asset, and a dropped Leaflet stylesheet

@@ -22,9 +22,19 @@
  * body, .mono, .disp and .tab are in tokens.css with the rest of V1's reset,
  * so each has exactly one definition.
  *
- * NOTE: #authGate references login-bg.jpg, which is not in this repo — it is
- * carried alongside the published site. Missing, the rule falls back to the
- * #0a0b0d it also declares, which is why V1 has never looked broken without it.
+ * NOTE: #authGate's background is `url("/login-bg.jpg")` — ROOT-ABSOLUTE, and
+ * the leading slash is load-bearing. The file now lives in v2/public/, so Vite
+ * copies it to the site root; but the built stylesheet is emitted at
+ * /assets/style-*.css, and a RELATIVE url() in CSS resolves against the
+ * stylesheet, not the page. Written as url("login-bg.jpg") the browser asks for
+ * /assets/login-bg.jpg and gets a 404.
+ *
+ * It fails quietly, which is the problem: the rule declares #0a0b0d as well, so
+ * a missing image degrades to a plain dark panel that looks deliberate. V1 has
+ * the same declaration and has never looked broken, so nothing here would have
+ * announced the regression. tests/v2-app-live.js T9 asserts the image actually
+ * loads, by its natural dimensions rather than by the computed style — a
+ * computed background-image string is identical whether or not the file exists.
  */
 
   .app{position:fixed;inset:0;display:flex;flex-direction:column;width:100%;height:100%}
@@ -47,7 +57,7 @@
 
   /* ---- login gate (z-index 100000 — above everything) ---- */
   #authGate{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;
-    background:#0a0b0d url("login-bg.jpg") center center / cover no-repeat}
+    background:#0a0b0d url("/login-bg.jpg") center center / cover no-repeat}
   /* scrim: keeps the white text readable wherever the smoke happens to be bright */
   #authGate::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
     background:radial-gradient(1100px 620px at 50% 48%,rgba(0,0,0,.18),rgba(0,0,0,.72))}
