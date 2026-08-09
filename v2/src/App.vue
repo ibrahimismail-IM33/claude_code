@@ -13,7 +13,9 @@ import { useRecordSyncStore } from './stores/record-sync.js';
 import { useDashboardStore } from './stores/dashboard.js';
 import { inspStatusOf as inspStatusFor, halfList, halfRange } from './stores/dashboard-logic.js';
 import { usePendingStore } from './stores/pending.js';
+import { useJadualStore } from './stores/jadual.js';
 import { counts as countsOf } from './stores/filters-logic.js';
+import { animateSweep } from './lib/dash-anim.js';
 
 /* The app shell.
  *
@@ -69,6 +71,7 @@ const records = useRecordsStore();
 const sync = useRecordSyncStore();
 const dash = useDashboardStore();
 const pending = usePendingStore();
+const jadual = useJadualStore();
 
 const sb = ref(null);
 const tab = ref('map');
@@ -97,13 +100,39 @@ const periodRange = computed(() => halfRange(periods.value[periodIx.value]));
 const inspStatusOf = (h) => inspStatusFor(dash.index, h, periodRange.value);
 
 /* Fired when the Dashboard TAB IS OPENED, never during map init — the entry
- * animation must not compete with 187 markers loading (CLAUDE.md §6). `sweep`
- * bumps so the count-up runs on open and not on every re-render. */
-const sweep = ref(0);
+ * animation must not compete with 187 markers loading (CLAUDE.md §6).
+ *
+ * `sweep` is the animation's PROGRESS, in [0, 1], and it is multiplied straight
+ * into every figure the dashboard shows. It is NOT a counter, and it was one
+ * once: `sweep.value++` passed 1, 2, 3 … into code expecting a fraction, so the
+ * register of 203 was displayed as 1624 on the eighth open and "Belum
+ * diperiksa" read 705.4%. The first open gave sweep === 1 and looked perfect,
+ * which is why every suite passed and staging looked right.
+ *
+ * Cancel before re-running: two overlapping animations would write the same
+ * value from two rAF loops. The cancel lands on 1, so a figure is never left
+ * part-counted. */
+const sweep = ref(1);
+let cancelSweep = null;
+function runSweep() {
+  if (cancelSweep) cancelSweep();
+  cancelSweep = animateSweep((p) => { sweep.value = p; });
+}
 function refreshDash() {
-  sweep.value++;
+  runSweep();
+  jadual.load(sb.value, periodRange.value);
   return dash.refresh(sb.value, hydrants.list, (id) => records.load(id));
 }
+
+/* The schedule's writes go through the store, then re-read so every device
+ * agrees. `by` is the signed-in email, for the created_by column — the row's
+ * own audit trail is stamped in the database from the JWT regardless. */
+const jadualRange = () => periodRange.value;
+async function onJadualAdd(row) {
+  await jadual.add(sb.value, jadualRange(), Object.assign({ by: auth.email || null }, row));
+}
+async function onJadualUpdate(row) { await jadual.update(sb.value, jadualRange(), row); }
+async function onJadualDelete(id) { await jadual.remove(sb.value, jadualRange(), id); }
 const hasPending = (id) => pending.has(id);
 
 async function signIn({ email, password, clear }) {
@@ -345,10 +374,15 @@ onBeforeUnmount(() => {
       :hydrants="hydrants.list" :index="dash.index"
       :status-filter="statusFilter" :insp-filter="inspFilter" :zone-filter="zoneFilter"
       :period-ix="periodIx" :source="dash.source" :sweep="sweep"
-      :jadual="[]" :jadual-source="''" :is-admin="auth.isAdmin" :cloud-note="''"
+      :jadual="jadual.rows" :jadual-source="jadual.source" :jadual-capped="jadual.capped"
+      :is-admin="auth.isAdmin" :cloud-note="jadual.error"
       @pick-period="(i) => { periodIx = i; refreshDash(); }"
       @pick-status="(k) => { inspFilter = inspFilter === k ? null : k; tab = 'map'; }"
       @pick-zone="(z) => { zoneFilter = zoneFilter === z ? null : z; tab = 'map'; }"
+      @jadual-add="onJadualAdd"
+      @jadual-update="onJadualUpdate"
+      @jadual-delete="onJadualDelete"
+      @jadual-location="(q) => { query = q; tab = 'map'; }"
     />
 
     <KadRekod v-if="openHydrant && records.form"

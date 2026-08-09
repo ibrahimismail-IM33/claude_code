@@ -38,8 +38,22 @@ function dpt(a, r, dx) {
   const t = a * Math.PI / 180;
   return [DCX + r * DK * Math.cos(t) + (dx || 0), DCY + r * Math.sin(t)];
 }
+/* Arc sampling step, in degrees. 2° for the final frame; COARSENED to 6° while
+ * the entry animation is moving, which is a large part of why that animation
+ * drops zero frames even at 8x CPU throttling (CLAUDE.md §6). V1 does the same
+ * thing with a global it flips in dAnimate.
+ *
+ * Module-scoped rather than threaded through dsamples/dface/dwall/dband: those
+ * are called from a dozen places and every one of them would have to carry a
+ * parameter that only buildDonut knows. It is set at the top of buildDonut and
+ * never read outside a synchronous build, so nothing can observe it mid-flight.
+ *
+ * DSTEP stays exported as the constant 2 — the parity fixtures are built at
+ * that resolution and must keep comparing byte-for-byte against V1. */
+let dstep = DSTEP;
+
 function dsamples(a0, a1, r, dx) {
-  const n = Math.max(2, Math.ceil(Math.abs(a1 - a0) / DSTEP)), out = [];
+  const n = Math.max(2, Math.ceil(Math.abs(a1 - a0) / dstep)), out = [];
   for (let i = 0; i <= n; i++) out.push(dpt(a0 + (a1 - a0) * i / n, r, dx));
   return out;
 }
@@ -67,8 +81,15 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
 }
 
-export function buildDonut(d, sweep) {
+export function buildDonut(d, sweep, step) {
   if (sweep === undefined) sweep = 1;
+  /* Arc resolution is the CALLER'S choice, exactly as in V1 where dAnimate
+   * flips the global and buildDonut just reads it. It must not be derived from
+   * `sweep` here: tests/v2-donut-parity.js compares intermediate frames
+   * byte-for-byte against V1, which builds them at DSTEP, so coarsening
+   * whenever sweep < 1 makes every mid-animation frame differ from V1. Tried
+   * that; 325 assertions said no. */
+  dstep = step || DSTEP;
   const lim = DSTART + 360 * sweep, t = d.total || 1, vals = [d.ok, d.wait, d.none];
   let defs = '', body = '', faces = '', leads = '';
   const meta = [];

@@ -410,6 +410,59 @@ Draw order: caps → walls → top faces (painter's algorithm).
     - **§4.16's lesson applied again, and paid.** Both mutations here were
       checked for `BUILD EXIT=0` before their red was believed.
 
+18. **Every dashboard figure multiplied by the number of times the tab had been
+    opened.** Found by an officer on the V2 build, 2026-08-09: the register of
+    203 displayed as **1624**, and *Belum diperiksa* read **705.4%**.
+
+    `sweep` is the entry animation's **progress, in [0, 1]**, and it is
+    multiplied straight into every figure — `lib/donut.js` renders
+    `Math.round(d.total * sweep)`, `StatCards.vue` renders
+    `Math.round(data[k] * sweep)` and `(data[k] / total * 100 * sweep)`.
+    `App.vue` passed an incrementing **counter**: `sweep.value++`, so 1, 2, 3 …
+
+    Every number on the report is `×8`, the eighth open: 203→1624, 24→192,
+    179→1432. **The entry animation had never actually been implemented** —
+    nothing drove a value 0→1 over time. `lib/dash-anim.js` is what was missing,
+    ported from V1's `dAnimate` (900ms, ease-out cubic, time-based rAF,
+    `prefers-reduced-motion` honoured, in-flight run cancelled).
+
+    Three things worth carrying:
+
+    - **The first open was always correct**, because a counter's first value is
+      1 and 1 is a valid progress. That is why staging looked right, why the
+      printout gate passed, and why **965 assertions missed it: every test
+      opened the dashboard once**. `tests/v2-app-live.js` T10 opens it three
+      times, which is the entire difference between catching this and not.
+      Same family as the clean signature fixture and the donut band in §5 — a
+      fixture that cannot reproduce the defect proves nothing.
+    - **The donut's percentages stayed correct throughout**, because `sweep`
+      cancels in a ratio. Only absolute figures diverged, so a glance at the
+      chart said everything was fine. A derived value that is invariant under
+      the bug is not evidence.
+    - **One of the new assertions passed on the bug, and nearly shipped.**
+      "No percentage exceeds 100" was written against `.pct`; the class is
+      `.pc`, so it selected nothing — and `[].every(...)` is `true`. An
+      assertion over an empty set is not a weak assertion, it is **no**
+      assertion. It now checks the set has three members first.
+
+19. **Jadual Pemeriksaan was missing from V2 entirely.** Found in the same
+    session. `jadual-logic.js` (parity-tested) and `Jadual.vue` both existed and
+    were both correct. Nothing joined them: `App.vue` passed `:jadual="[]"`,
+    bound no handler for the panel's add/update/remove events, and never passed
+    `capped` or forwarded `pickLocation`. The panel rendered permanently empty
+    and every write vanished silently.
+
+    **Third instance of the join being the broken part** — after the `() =>
+    'none'` dashboard stub and `records.load()` never assigning `this.form`.
+    The store now exists (`stores/jadual.js`, ported from V1 including the
+    per-period cache replacement and the 42P01-vs-connection distinction) and
+    T11 drives the round trip through the assembled app.
+
+    The recurring shape is worth stating plainly: **every component and every
+    pure function can be right while the application does nothing.** Phase
+    gates prove layers. Only a test that drives the assembled app proves the
+    seams, and this suite has now found five defects that way.
+
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"
@@ -512,6 +565,27 @@ Draw order: caps → walls → top faces (painter's algorithm).
   Supabase project for a restore test "then deleting it" without first checking
   that I had a way to delete it, or a token to download the backup artifact. I
   had neither. Check the whole path is available before recommending it.
+- **Put a performance optimisation inside a generator whose output is a
+  contract.** Restoring V1's 2°→6° arc coarsening, I derived the resolution
+  from `sweep` **inside `buildDonut`** — so every frame with `sweep < 1` was
+  drawn at a different resolution from V1. `tests/v2-donut-parity.js` compares
+  intermediate frames byte-for-byte and went from 29 passing to **325 failing**
+  in one edit. V1 puts the decision in `dAnimate`, its *caller*, and that is not
+  a stylistic detail: `buildDonut`'s output is the thing under parity, so
+  anything that changes its bytes belongs outside it. Moved to `Donut.vue`,
+  where V1 has it. The suite did its job — but the reasoning should not have
+  needed it.
+- **Told the user "a retry is fine here".** Having already established, and
+  written into `docs/STAGING.md`, that **a Cloudflare retry replays the same
+  commit by design**, I then advised retrying a deployment to pick up a new
+  commit. It rebuilt the old one and failed identically. Advice that
+  contradicts something already diagnosed in the same session is worse than no
+  advice, because it spends someone else's time re-finding it.
+- **Named a Pages project after a repo that already existed.** I suggested
+  calling it `epilibomba-v2`; a GitHub repo of that name exists holding a
+  stripped copy of `v2/` — the decoy `docs/STAGING.md` §1 explicitly warns
+  against — and the project got pointed at it. Check a suggested name is not
+  also the name of something selectable in the same dialog.
 
 ---
 

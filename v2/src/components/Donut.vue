@@ -28,7 +28,15 @@ const props = defineProps({
 });
 const emit = defineEmits(['pick']);
 
-const svg = computed(() => buildDonut(props.data, props.sweep));
+/* Coarser arcs (6°) while the ring is still sweeping, full 2° resolution for
+ * the frame that lands — a large part of why the entry animation drops ZERO
+ * frames at 8x CPU throttling (CLAUDE.md §6). V1 does the same in dAnimate.
+ *
+ * Decided HERE and not inside buildDonut: the parity fixtures build
+ * intermediate frames at DSTEP and compare them to V1 byte-for-byte, so a
+ * resolution derived from `sweep` inside the generator makes every
+ * mid-animation frame differ. */
+const svg = computed(() => buildDonut(props.data, props.sweep, props.sweep < 1 ? 6 : undefined));
 
 function onClick(e) {
   let el = e.target;

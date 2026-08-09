@@ -33,11 +33,14 @@ const props = defineProps({
   sweep: { type: Number, default: 1 },
   jadual: { type: Array, default: () => [] },
   jadualSource: { type: String, default: '' },
+  // Surfaced rather than swallowed: if a period ever exceeds the query cap the
+  // panel says so instead of quietly undercounting.
+  jadualCapped: { type: Boolean, default: false },
   isAdmin: { type: Boolean, default: false },
   cloudNote: { type: String, default: '' },
 });
 const emit = defineEmits(['pickStatus', 'pickZone', 'pickPeriod',
-  'jadualAdd', 'jadualUpdate', 'jadualDelete']);
+  'jadualAdd', 'jadualUpdate', 'jadualDelete', 'jadualLocation']);
 
 const periods = computed(() => halfList());
 const range = computed(() => halfRange(periods.value[props.periodIx]));
@@ -97,10 +100,12 @@ const zones = computed(() => zoneSummary(props.hydrants));
         :rows="jadual"
         :period-ix="periodIx"
         :source="jadualSource"
+        :capped="jadualCapped"
         :is-admin="isAdmin"
         @add="(r) => emit('jadualAdd', r)"
         @update="(r) => emit('jadualUpdate', r)"
         @remove="(id) => emit('jadualDelete', id)"
+        @pick-location="(q) => emit('jadualLocation', q)"
       />
     </div>
   </div>

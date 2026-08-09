@@ -56,6 +56,13 @@ const RECORDS = []
   .concat(WAIT.map((id) => ({ hydrant_id: id, section: 'pengujian', row_index: 0,
     data: { tarikh: TODAY, penguji: 'Ali' }, signed: false })));
 
+// Three scheduled visits inside the current period, for the jadual panel.
+const JADUAL = [
+  { id: 1, tarikh: TODAY, pasukan: 'Pasukan A', lokasi: 'Kg. Getah', created_at: TODAY + 'T01:00:00Z' },
+  { id: 2, tarikh: TODAY, pasukan: 'Pasukan B', lokasi: 'Hospital Kunak', created_at: TODAY + 'T02:00:00Z' },
+  { id: 3, tarikh: TODAY, pasukan: 'Pasukan C', lokasi: 'Kilang T.S.H', created_at: TODAY + 'T03:00:00Z' },
+];
+
 (async () => {
   execFileSync('npx', ['vite', 'build'], { cwd: ROOT, stdio: 'pipe' });
 
@@ -72,11 +79,12 @@ const RECORDS = []
   const b = await chromium.launch({ executablePath: CHROMIUM });
 
   async function mount(opts) {
-    const o = Object.assign({ role: 'admin', rows: REG, records: RECORDS, failScan: false, bigScan: 0, noSession: false }, opts);
+    const o = Object.assign({ role: 'admin', rows: REG, records: RECORDS, failScan: false, bigScan: 0, noSession: false, jadual: [], jadualError: null }, opts);
     const p = await b.newPage({ viewport: { width: 1280, height: 950 } });
     p.on('pageerror', (e) => { console.log('  PAGEERROR ' + e.message); fail++; });
     await p.addInitScript((cfg) => {
       window.__scanCalls = [];
+      window.__jadualCalls = [];
       const ok = (data) => Promise.resolve({ data, error: null });
       window.supabase = {
         createClient: () => ({
@@ -98,9 +106,28 @@ const RECORDS = []
               order() { return this; },
               single: () => ok({ role: cfg.role }),
               range(f, t) { this._range = [f, t]; return this; },
+              gte() { return this; },
+              lte() { return this; },
               upsert: () => ok([]),
-              delete() { return { eq() { return this; }, then: (r) => ok([]).then(r) }; },
+              insert(arg) {
+                if (table === 'jadual_pemeriksaan') window.__jadualCalls.push({ op: 'insert', arg });
+                return ok([]);
+              },
+              update(arg) {
+                if (table === 'jadual_pemeriksaan') window.__jadualCalls.push({ op: 'update', arg });
+                return { eq() { return this; }, then: (r) => ok([]).then(r) };
+              },
+              delete() {
+                if (table === 'jadual_pemeriksaan') window.__jadualCalls.push({ op: 'delete' });
+                return { eq() { return this; }, then: (r) => ok([]).then(r) };
+              },
               then(res, rej) {
+                if (table === 'jadual_pemeriksaan') {
+                  if (cfg.jadualError) {
+                    return Promise.resolve({ error: cfg.jadualError, data: null }).then(res, rej);
+                  }
+                  return ok(cfg.jadual || []).then(res, rej);
+                }
                 // The Pengujian scan
                 if (table === 'hydrant_records' && this._eq.section === 'pengujian') {
                   window.__scanCalls.push(this._range);
@@ -354,6 +381,116 @@ const RECORDS = []
     /^https?:\/\/[^/]+\/login-bg\.jpg$/.test(bg.url || ''), true);
   check('and the image actually loads (a 404 gives 0x0)', bg.loaded, true);
   check('at its real dimensions', [bg.w, bg.h], [1600, 811]);
+  await p.close();
+
+  /* ---------- T10: the figures must not change on re-opening the tab ----------
+   *
+   * `sweep` is the entry animation's PROGRESS, in [0,1], and it multiplies
+   * every displayed figure. App.vue passed an incrementing COUNTER instead, so
+   * the register of 203 rendered as 1624 on the eighth open and "Belum
+   * diperiksa" reported 705.4%.
+   *
+   * The reason 965 assertions missed it: at the FIRST open the counter is 1,
+   * which is a valid progress value, so everything is exactly right. Every
+   * test opened the dashboard once. This one opens it three times — that is
+   * the entire difference between catching this and not.
+   *
+   * Same family as the clean signature fixture and the donut band in §5: a
+   * fixture that cannot reproduce the defect proves nothing. */
+  console.log('T10  the dashboard reads the same on the 1st, 2nd and 3rd open');
+  p = await mount();
+  const reads = [];
+  for (let i = 0; i < 3; i++) {
+    await p.click('#tabDash');
+    await p.waitForTimeout(1400);              // past the 900ms animation
+    reads.push(await figures(p));
+    await p.click('#tabMap');
+    await p.waitForTimeout(200);
+  }
+  check('open 1 is correct', reads[0],
+    [String(OK.length), String(WAIT.length), String(REG.length - OK.length - WAIT.length)]);
+  check('open 2 is IDENTICAL to open 1', reads[1], reads[0]);
+  check('open 3 is IDENTICAL to open 1', reads[2], reads[0]);
+  // The donut centre is the figure an officer reads first, and it is the one
+  // that showed 1624. It must equal the register, every time.
+  check('Jumlah Pili still equals the register',
+    await p.$eval('#dashDonut .center-n', (n) => n.textContent.trim()), String(REG.length));
+  /* And the percentages must stay sane. 705.4% was the loudest symptom, but a
+   * ratio can look right while the counts are wrong (the donut's own
+   * percentages did, because sweep cancels), so this asserts the ceiling. */
+  const pcts = await p.$$eval('#dashView .dstat .pc', (n) => n.map((x) => parseFloat(x.textContent)));
+  /* Assert the SET IS NON-EMPTY first. `[].every(...)` is true, so a selector
+   * that matches nothing passes forever — which is exactly what happened when
+   * this was written as `.pct`: it went green against the un-fixed build. An
+   * assertion over an empty set is not a weak assertion, it is no assertion. */
+  check('there are percentages to check', pcts.length, 3);
+  check('no percentage exceeds 100', pcts.every((v) => v <= 100), true);
+  await p.close();
+
+  // ---------- T11: Jadual Pemeriksaan is actually joined to the app ----------
+  /* jadual-logic.js and Jadual.vue were both written, both correct, and never
+   * connected: App.vue passed `:jadual="[]"` and bound no handler, so the panel
+   * rendered permanently empty and every write went nowhere. Third instance of
+   * the join being the broken part (CLAUDE.md §5). */
+  console.log('T11  the shared schedule loads, and an admin can write to it');
+  p = await mount({ jadual: JADUAL });
+  await p.click('#tabDash');
+  await p.waitForTimeout(900);
+  check('the schedule renders its rows, not an empty panel',
+    await p.$$eval('#dashJadual tr', (n) => n.filter((r) => !r.querySelector('.dempty')).length),
+    JADUAL.length);
+  check('and it says the schedule is shared',
+    await p.$eval('#dashView .jsrc, #dashView .dsec .note', (n) => n.textContent).catch(() => ''),
+    'Dikongsi ✓');
+  check('an admin sees the row controls',
+    await p.$$eval('#dashJadual .ddel', (n) => n.length), JADUAL.length);
+
+  await p.fill('#jTarikh', TODAY);
+  await p.fill('#jPasukan', 'Pasukan B');
+  await p.fill('#jLokasi', 'Kg. Baru');
+  await p.click('#jAdd');
+  await p.waitForTimeout(500);
+  check('adding sends an insert to jadual_pemeriksaan',
+    await p.evaluate(() => (window.__jadualCalls || []).filter((c) => c.op === 'insert').length), 1);
+  check('with the values typed',
+    await p.evaluate(() => {
+      const c = (window.__jadualCalls || []).find((x) => x.op === 'insert');
+      return c ? [c.arg.tarikh, c.arg.pasukan, c.arg.lokasi] : null;
+    }), [TODAY, 'Pasukan B', 'Kg. Baru']);
+
+  /* Delete sits one button away from edit and cannot be undone, so it asks
+   * first (CLAUDE.md §3). Playwright dismisses dialogs unless told otherwise —
+   * so this both accepts the prompt and PROVES the prompt is still there. */
+  let asked = 0;
+  p.on('dialog', (d) => { asked++; d.accept(); });
+  /* Guarded rather than a bare click: if the panel is empty this step would
+   * otherwise hang for 30s and throw, killing the run so the remaining cases
+   * never report. A suite that crashes tells you less than one that fails. */
+  const delBtn = await p.$('#dashJadual .ddel');
+  if (delBtn) { await delBtn.click(); await p.waitForTimeout(400); }
+  else check('there is a row to delete', false, true);
+  check('it asks before deleting', asked, 1);
+  check('deleting sends a delete',
+    await p.evaluate(() => (window.__jadualCalls || []).filter((c) => c.op === 'delete').length), 1);
+  await p.close();
+
+  // A viewer must not get write controls. The server enforces it either way,
+  // but a button that always fails is worse than no button.
+  p = await mount({ jadual: JADUAL, role: 'viewer' });
+  await p.click('#tabDash');
+  await p.waitForTimeout(900);
+  check('a viewer sees no delete controls',
+    await p.$$eval('#dashJadual .ddel', (n) => n.length), 0);
+  await p.close();
+
+  /* A MISSING TABLE and an UNREACHABLE CLOUD must read differently — otherwise
+   * an admin goes hunting for a SQL fault that is really a dropped signal. */
+  p = await mount({ jadual: [], jadualError: { code: '42P01', message: 'relation does not exist' } });
+  await p.click('#tabDash');
+  await p.waitForTimeout(900);
+  check('a missing table says so, rather than throwing',
+    await p.$eval('#dashView .jsrc, #dashView .dsec .note', (n) => n.textContent).catch(() => ''),
+    'Jadual belum disediakan di awan — peranti ini sahaja');
   await p.close();
 
   await b.close(); server.close();
