@@ -19,6 +19,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import './styles/map.css';
 import './styles/dashboard.css';
+import './styles/profile.css';
 // LAST in the chain, and deliberately so: the record card's print rules must
 // win, and several of them sit at the same specificity as screen rules.
 import './styles/kad-rekod.css';

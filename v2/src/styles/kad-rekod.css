@@ -269,6 +269,22 @@
   .sigsub{font-size:12px;color:rgba(255,255,255,.55);margin:6px 0 14px;line-height:1.5}
   .sigpick{display:block;text-align:center;padding:11px;border-radius:9px;background:rgba(255,255,255,.06);border:1px dashed rgba(255,255,255,.25);color:#fff;font-size:13px;font-weight:600;cursor:pointer}
   .sigpick:hover{background:rgba(255,255,255,.1)}
+  /* .sigpick is now a <button> as well as a <label>. A button does NOT inherit
+     page colour or font — §4.6 was exactly this, a .stat button falling back to
+     the UA default and washing out — so both are set explicitly, and the
+     full-width/box-sizing bits a UA gives a label but not a button. */
+  button.sigpick{width:100%;font-family:var(--sans);appearance:none}
+  /* The primary action: solid, because "Sign" is the fast path an officer
+     takes dozens of times a week. Dashed still reads as "attach a file". */
+  #sigUseProfile{border-style:solid;border-color:#ef4444;background:#ef4444;color:#fff}
+  #sigUseProfile:hover{background:#dc3a3a}
+  /* The secondary way in. Quiet, but a real 44px target — it is the only route
+     left for an officer signing on a colleague's device. */
+  .sigalt{display:block;width:100%;margin-top:8px;min-height:44px;padding:11px;
+    background:none;border:0;color:rgba(255,255,255,.6);
+    font-family:var(--sans);font-size:12px;text-decoration:underline;cursor:pointer}
+  .sigalt:hover{color:#fff}
+  .sigpick.ghost{margin-top:8px}
   .sigprev{margin-top:12px;min-height:0}
   .sigprev img{display:block;max-width:100%;max-height:150px;margin:0 auto;border-radius:8px;padding:8px;
     background-color:#fff;

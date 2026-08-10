@@ -154,11 +154,12 @@
   @keyframes panelRiseIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:none } }
   .maparea.panel-in { animation: panelFadeIn .22s ease-out both; }
   #dashView.panel-in { animation: panelRiseIn .22s ease-out both; }
+  #profileView.panel-in { animation: panelRiseIn .22s ease-out both; }
 
   /* An officer who has asked for less motion gets none of it — same rule the
    * dashboard entry animation already follows (lib/dash-anim.js). */
   @media (prefers-reduced-motion: reduce) {
-    .maparea.panel-in, #dashView.panel-in { animation: none }
+    .maparea.panel-in, #dashView.panel-in, #profileView.panel-in { animation: none }
     .pill:hover { transform: none }
   }
 

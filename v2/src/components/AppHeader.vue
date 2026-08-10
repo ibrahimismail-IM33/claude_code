@@ -87,6 +87,8 @@ function menuSignOut() { menuOpen.value = false; emit('signOut'); }
                 role="tab" :aria-selected="String(tab === 'map')" @click="pick('map')">Peta Pili</button>
         <button class="tabb" :class="{ on: tab === 'dash' }" id="tabDash" data-tab="dash"
                 role="tab" :aria-selected="String(tab === 'dash')" @click="pick('dash')">Dashboard</button>
+        <button class="tabb" :class="{ on: tab === 'profile' }" id="tabProfile" data-tab="profile"
+                role="tab" :aria-selected="String(tab === 'profile')" @click="pick('profile')">Profil</button>
       </div>
 
       <Pills :counts="counts" :active="statusFilter"

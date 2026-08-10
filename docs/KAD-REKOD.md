@@ -162,6 +162,51 @@ private `signatures` bucket and display through 1-hour signed links.
 writable, or a signature image unreachable, is a correctness failure of the
 same severity as losing the record itself.
 
+### The Profile signature is a STENCIL, not evidence
+
+**Decided by Ibrahim Ismail, 2026-08-09. Binding.**
+
+An officer stores one signature on their **Profile** tab
+(`profiles.signature`, a path under `profile/<uid>.png` in the same private
+bucket). Pressing **Sign** on a Kad Rekod fills the popup's preview from it,
+instead of asking for a photograph every time — five taps in the field became
+two, for something done dozens of times a week.
+
+That signature **may be replaced, at any time.** This is the *only* signature
+in the app that may be, and it does not weaken anything above, because of one
+rule that must never change:
+
+> **`signRow()` COPIES the stencil into the row's own object** at
+> `signaturePath(hydrantId, section, rowIndex)`, with `upsert: false`, and
+> stores **that** path on the record. **A filed row never points at
+> `profile/<uid>.png`.**
+
+If a row referenced the Profile object instead, an officer replacing a badly-lit
+photo would silently rewrite the evidence on every record that pointed at it —
+and by §5 those records can never be corrected. The copy is what makes
+"replaceable stencil" and "permanent evidence" compatible at all.
+
+Two consequences worth stating, because both look like inconsistencies to
+tidy away and neither is:
+
+- `upsert: true` on the Profile upload and `upsert: false` on the row's upload
+  are **both correct**, and for opposite reasons. Replacement is the point of
+  one; a collision must be an error on the other.
+- The Sign button **fills the preview and stops there.** It does not confirm.
+  Confirming is permanent, and the only thing standing between a mis-tap and an
+  unremovable record is the officer looking at what they are about to file.
+
+What a signature attests is unchanged: an admin, identified by their login
+(`signed_by`), locked this row on this date. Only the moment of *capture*
+moved earlier.
+
+The file picker remains, as **Guna gambar lain** — an officer signing on a
+colleague's device has no stencil on that account.
+
+Guarded by `tests/v2-app-live.js` T19–T21. T21 asserts the paths and the
+upsert flags on both sides, and that replacing a Profile signature writes
+nothing outside `profile/`.
+
 ### Signatures are darkened for print, and it must stay that way
 
 Signatures are **photographed**, so `stripSignatureBg` never produces black

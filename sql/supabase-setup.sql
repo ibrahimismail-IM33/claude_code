@@ -28,8 +28,22 @@ create table if not exists public.profiles (
   email      text,
   full_name  text,
   role       text not null default 'viewer' check (role in ('admin','viewer')),
+  -- The officer's own signature, held as a STORAGE PATH inside the private
+  -- `signatures` bucket (file 2 creates it) — never an image, never a public
+  -- URL, for the same reason as hydrant_records.signature: a public URL stops
+  -- working the moment the bucket is locked down.
+  --
+  -- THIS IS A STENCIL, NOT EVIDENCE. It is COPIED at signing time into the
+  -- row's own object; a filed row never points at it. So replacing it here is
+  -- allowed and changes nothing already filed — which is the exact opposite of
+  -- the rule on hydrant_records, and deliberately so. See docs/KAD-REKOD.md.
+  signature  text,
   created_at timestamptz default now()
 );
+
+-- Present since 2026-08-09; added here too so an existing database is topped up
+-- rather than needing a fresh install.
+alter table public.profiles add column if not exists signature text;
 
 alter table public.profiles enable row level security;
 
@@ -67,6 +81,12 @@ create policy "read own profile" on public.profiles
   for select to authenticated
   using (auth.uid() = id or public.is_admin());
 
+-- This ALREADY covers an admin setting their own `signature`, which is why the
+-- Profile signature needed no new policy — and why the feature is admin-only:
+-- a viewer has no update path to profiles at all, by design. Do NOT add a
+-- self-update policy to widen it. `for all` here would let one write both
+-- `signature` and `role` in the same statement, so a self-update rule scoped to
+-- `auth.uid() = id` would hand every viewer the ability to promote themselves.
 create policy "admins manage profiles" on public.profiles
   for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
@@ -340,12 +360,18 @@ on conflict (id) do update set
 
 
 -- ---------------------------------------------------------------------------
--- 4. Check it worked — expect 187 / 170 / 17 / 0
+-- 4. Check it worked — expect 187 / 170 / 17 / 0, and profile_signature_col t
 -- ---------------------------------------------------------------------------
 select count(*)                                   as total_hydrants,
        count(*) filter (where status='kerajaan')   as awam,
        count(*) filter (where status='swasta')     as swasta,
-       count(*) filter (where location is null)    as missing_address
+       count(*) filter (where location is null)    as missing_address,
+       -- Selected rather than assumed: a column that failed to be added is
+       -- invisible until an officer's Profile silently refuses to save (§7 —
+       -- a verification query must select the thing it is verifying).
+       (select exists (select 1 from information_schema.columns
+          where table_schema='public' and table_name='profiles'
+            and column_name='signature'))          as profile_signature_col
 from public.hydrants;
 
 

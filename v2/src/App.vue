@@ -6,6 +6,7 @@ import MapShell from './components/MapShell.vue';
 import DashView from './components/DashView.vue';
 import KadRekod from './components/KadRekod.vue';
 import HydrantDetail from './components/HydrantDetail.vue';
+import ProfileView from './components/ProfileView.vue';
 import { getClient } from './lib/supabase.js';
 import { useAuthStore } from './stores/auth.js';
 import { useHydrantsStore, PULL_EVERY } from './stores/hydrants.js';
@@ -15,6 +16,7 @@ import { useDashboardStore } from './stores/dashboard.js';
 import { inspStatusOf as inspStatusFor, halfList, halfRange } from './stores/dashboard-logic.js';
 import { usePendingStore } from './stores/pending.js';
 import { useJadualStore } from './stores/jadual.js';
+import { useProfileStore } from './stores/profile.js';
 import { counts as countsOf } from './stores/filters-logic.js';
 import { animateSweep } from './lib/dash-anim.js';
 
@@ -73,6 +75,7 @@ const sync = useRecordSyncStore();
 const dash = useDashboardStore();
 const pending = usePendingStore();
 const jadual = useJadualStore();
+const profile = useProfileStore();
 
 const sb = ref(null);
 const tab = ref('map');
@@ -176,7 +179,24 @@ async function signIn({ email, password, clear }) {
 async function enter() {
   await auth.enter(sb.value);
   hydrants.loadLocal([]);
+  // NOT awaited: the register is what an officer opened the app for, and a
+  // profile read is not allowed to sit in front of it. The Sign popup awaits
+  // `profile.ready` itself, so a slow read delays that one dialog and nothing
+  // else.
+  profile.load(sb.value);
   await hydrants.pull(sb.value);          // first read fits the map
+}
+
+/* Saving the officer's own signature.
+ *
+ * The ONE signature in this app that may be replaced — it is a stencil that
+ * signRow() COPIES onto a row, never a reference a filed record points at.
+ * stores/profile.js carries the full reasoning; docs/KAD-REKOD.md is where the
+ * rule is binding.
+ */
+async function saveProfileSignature(file) {
+  if (!sb.value || !file) return;
+  await profile.save(sb.value, file);
 }
 
 async function signOut() {
@@ -248,12 +268,58 @@ async function openCard(h) {
 }
 
 /* Signing. Admin-only here AND in RLS — this component's check is courtesy. */
+const profileSig = ref('');        // the stencil's BYTES, for the popup preview
+const profileSigLoading = ref(false);
+let signToken = 0;                 // see startSign — a primitive, deliberately
+
 function startSign(e) {
   if (!auth.isAdmin) return;
   const row = (records.form[e.section] || [])[e.row];
   if (!row || row._signed) return;          // permanence: never offer to re-sign
   signError.value = '';
   signing.value = e;
+
+  /* Fetch the officer's stored signature so the popup opens with the preview
+   * already filled — that is the whole point of the Sign button: two taps in
+   * the field instead of five.
+   *
+   * Fetched HERE, on each open, rather than cached when the profile loads. A
+   * card can sit open for an hour, and what this produces is copied into a
+   * PERMANENT record; a stale copy of a signature the officer has since
+   * replaced is exactly the thing that cannot be corrected afterwards.
+   *
+   * Not awaited by the caller: the popup opens immediately and fills in when
+   * this lands, so a slow connection never blocks the dialog. */
+  profileSig.value = '';
+  profileSigLoading.value = true;
+  /* A token, NOT a comparison against `signing.value`.
+   *
+   * `ref()` deep-converts an object to a reactive PROXY, so `signing.value`
+   * is never `===` the object that was assigned to it — a staleness guard
+   * written that way is always "stale" and silently throws every result away.
+   * That is exactly what happened here, and nothing errored: the popup simply
+   * offered to add a signature the officer already had. A counter compares
+   * primitives and cannot be proxied. */
+  const token = ++signToken;
+  (async () => {
+    // A profile read still in flight would otherwise report "no signature" and
+    // send the officer off to add one they already have.
+    if (!profile.ready) await profile.load(sb.value);
+    const d = await profile.asDataUrl(sb.value);
+    // Discard if the officer closed the popup or moved to another row while
+    // this was in flight — the bytes belong to the row that asked for them.
+    if (token !== signToken) return;
+    profileSig.value = d || '';
+    profileSigLoading.value = false;
+  })();
+}
+
+/* No stored signature: send them where they can add one. The card closes,
+ * because Profile is a tab behind it and leaving the overlay up would hide it. */
+function signGoProfile() {
+  signing.value = null;
+  closeCard();
+  tab.value = 'profile';
 }
 async function confirmSign(dataUrl) {
   const h = openHydrant.value;
@@ -450,6 +516,16 @@ onBeforeUnmount(() => {
       @pick-location="(q) => { query = q; tab = 'map'; }"
     />
 
+    <ProfileView
+      v-show="tab === 'profile'"
+      :email="auth.email" :is-admin="auth.isAdmin"
+      :sig-url="profile.url" :has-signature="profile.hasSignature"
+      :busy="profile.busy" :error="profile.error"
+      :active="tab === 'profile'"
+      @pick-signature="saveProfileSignature"
+      @sign-out="signOut"
+    />
+
     <HydrantDetail v-if="detailHydrant" :hydrant="detailHydrant"
                    @close="closeDetail" @open-card="detailOpenCard" />
 
@@ -457,8 +533,10 @@ onBeforeUnmount(() => {
               :hydrant="openHydrant" :form="records.form" :is-admin="auth.isAdmin"
               :last-edit="sync.lastEdit" :cloud-note="sync.note" :save-state="saveState"
               :signing="signing" :sign-busy="signBusy" :sign-error="signError"
+              :profile-sig="profileSig" :profile-sig-loading="profileSigLoading"
               @close="closeCard" @save="saveCard" @edit="editCell"
-              @sign="startSign" @sign-cancel="signing = null" @sign-confirm="confirmSign" />
+              @sign="startSign" @sign-cancel="signing = null" @sign-confirm="confirmSign"
+              @sign-go-profile="signGoProfile" />
 
     <AuthGate v-if="!auth.ready" :busy="authBusy" :error="authError" @sign-in="signIn" />
   </div>

@@ -66,7 +66,20 @@ const JADUAL = [
 (async () => {
   execFileSync('npx', ['vite', 'build'], { cwd: ROOT, stdio: 'pipe' });
 
+  /* A real 1x1 PNG, served for any signed signature link. The Sign popup FETCHES
+   * those bytes and converts them to a data URL, so a stub string would leave
+   * that whole path unexercised — and it is the path that decides what gets
+   * filed permanently. */
+  const PNG_1X1 = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64');
+
   const server = http.createServer((req, res) => {
+    if (req.url.startsWith('/sig/')) {
+      res.writeHead(200, { 'Content-Type': 'image/png' });
+      res.end(PNG_1X1);
+      return;
+    }
     const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
     const file = path.join(DIST, rel);
     if (!file.startsWith(DIST) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
@@ -79,7 +92,7 @@ const JADUAL = [
   const b = await chromium.launch({ executablePath: CHROMIUM });
 
   async function mount(opts) {
-    const o = Object.assign({ role: 'admin', rows: REG, records: RECORDS, failScan: false, bigScan: 0, noSession: false, jadual: [], jadualError: null, saveFails: false }, opts);
+    const o = Object.assign({ role: 'admin', rows: REG, records: RECORDS, failScan: false, bigScan: 0, noSession: false, jadual: [], jadualError: null, saveFails: false, profileSig: null, base }, opts);
     const p = await b.newPage({ viewport: { width: 1280, height: 950 } });
     p.on('pageerror', (e) => { console.log('  PAGEERROR ' + e.message); fail++; });
     await p.addInitScript((cfg) => {
@@ -87,6 +100,9 @@ const JADUAL = [
       window.__jadualCalls = [];
       window.__upserts = [];
       window.__saved = [];   // rows the app has written, seen by later scans
+      window.__uploads = [];         // { path, upsert } per storage write
+      window.__profileUpdates = [];  // every value written to profiles.signature
+      window.__profileSig = cfg.profileSig || null;   // what the database holds
       const ok = (data) => Promise.resolve({ data, error: null });
       window.supabase = {
         createClient: () => ({
@@ -100,13 +116,42 @@ const JADUAL = [
             signInWithPassword: () => ok({}),
             signOut: () => ok({}),
           },
-          storage: { from: () => ({ createSignedUrls: () => ok([]) }) },
+          /* The signatures bucket.
+           *
+           * `createSignedUrl` hands back a REAL url on the test server, because
+           * the Sign popup fetches those bytes and turns them into a data URL —
+           * a stub returning a fake string would exercise none of that path.
+           * Uploads are recorded rather than performed: what T21 has to prove is
+           * WHICH PATH each signature was written to, since that is the whole
+           * difference between a stencil and a permanent record. */
+          storage: {
+            from: () => ({
+              createSignedUrls: () => ok([]),
+              createSignedUrl: (p) => ok({ signedUrl: cfg.base + 'sig/' + encodeURIComponent(p) }),
+              upload: (p, blob, o) => {
+                window.__uploads.push({ path: p, upsert: !!(o && o.upsert) });
+                return ok({ path: p });
+              },
+            }),
+          },
           from: (table) => {
             const q = {
-              _eq: {}, _range: null,
+              _eq: {}, _range: null, _cols: '',
               eq(k, v) { this._eq[k] = v; return this; },
               order() { return this; },
-              single: () => ok({ role: cfg.role }),
+              /* Both reads on `profiles` end in .single(), and they ask for
+               * different columns. Branching on the SELECTED COLUMNS rather
+               * than returning one merged object keeps the stub honest: a
+               * profile store that forgot to select `signature` would then
+               * still appear to work here, and would return nothing in the app.
+               * A stub that is permissive in the wrong direction invents
+               * defects and hides real ones — §4.24. */
+              single() {
+                if (table === 'profiles' && /signature/.test(this._cols)) {
+                  return ok({ signature: window.__profileSig });
+                }
+                return ok({ role: cfg.role });
+              },
               range(f, t) { this._range = [f, t]; return this; },
               gte() { return this; },
               lte() { return this; },
@@ -132,6 +177,12 @@ const JADUAL = [
               },
               update(arg) {
                 if (table === 'jadual_pemeriksaan') window.__jadualCalls.push({ op: 'update', arg });
+                // The database keeps it, so a later read sees the replacement —
+                // which is what makes T21's "replace, then reload" case real.
+                if (table === 'profiles' && arg && 'signature' in arg) {
+                  window.__profileUpdates.push(arg.signature);
+                  window.__profileSig = arg.signature;
+                }
                 return { eq() { return this; }, then: (r) => ok([]).then(r) };
               },
               delete() {
@@ -166,7 +217,7 @@ const JADUAL = [
                 if (table === 'hydrants') return ok(cfg.rows).then(res, rej);
                 return ok([]).then(res, rej);
               },
-              select() { return this; },
+              select(cols) { this._cols = cols || ''; return this; },
             };
             return q;
           },
@@ -883,6 +934,201 @@ const JADUAL = [
   await p.waitForTimeout(500);
   check('the animation clears once it has run',
     await p.$eval('.maparea', (n) => n.classList.contains('panel-in')), false);
+  await p.close();
+
+  /* ---------- T19: Sign fills the preview from the officer's Profile --------
+   *
+   * The requested change: `📷 Pilih gambar / Ambil foto` becomes `Sign`, and
+   * pressing it uses the signature already stored on the officer's Profile
+   * instead of asking for a photo every time.
+   *
+   * The assertion that matters is NOT that a button exists — §5 records
+   * treating a structural guard as though it answered "does pressing this do
+   * anything", twice, while Print and Save were both wired to nothing. So this
+   * presses it and reads the preview.
+   *
+   * It also checks Sign does NOT confirm. Confirming is permanent, and the only
+   * thing between a mis-tap and an unremovable record is the officer looking at
+   * what they are about to file. */
+  console.log('T19  Sign fills the preview from the stored Profile signature');
+  p = await mount({ profileSig: 'profile/u1.png' });
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  const ob7 = await p.$('#dOpenForm');
+  if (ob7) { await ob7.click(); await p.waitForTimeout(700); }
+  // Open the popup from an unsigned row's T.T cell, the way an officer does.
+  await p.evaluate(() => {
+    const c = document.querySelector("#formOverlay .sigbtn[data-sec=pengujian]");
+    if (c) c.click();
+  });
+  await p.waitForTimeout(500);
+
+  check('the button reads Sign, not "Pilih gambar"',
+    await p.evaluate(() => { const n = document.querySelector('#sigUseProfile'); return n ? n.textContent.trim() : null; }), 'Sign');
+  check('the preview starts empty — nothing is pre-committed',
+    await p.$('#sigPrev img'), null);
+  check('...and "Sahkan & Kunci" is not yet available',
+    await p.$eval('#sigOk', (n) => n.disabled), true);
+
+  await p.click('#sigUseProfile');
+  await p.waitForTimeout(400);
+  check('pressing Sign fills the preview from the Profile signature',
+    await p.evaluate(() => { const n = document.querySelector('#sigPrev img'); return !!n && n.src.startsWith('data:image/'); }), true);
+  check('...which arms the confirm button',
+    await p.$eval('#sigOk', (n) => n.disabled), false);
+  check('Sign alone does NOT file anything — confirming is a separate tap',
+    await p.evaluate(() => window.__uploads.filter((u) => !u.path.startsWith('profile/')).length), 0);
+
+  // The file picker is still reachable: an officer signing on a colleague's
+  // device has no Profile signature on that account. Removing it would take
+  // away a capability, and this change is to the label, not to what the card
+  // can attest.
+  check('a secondary route to the camera remains', !!(await p.$('#sigOther')), true);
+  await p.click('#sigOther');
+  await p.waitForTimeout(150);
+  check('...and it reveals the original file input', !!(await p.$('#sigFile')), true);
+  await p.close();
+
+  /* ---------- T20: no stored signature sends the officer to Profile ---------
+   *
+   * The failure this replaces is a dead button: an officer taps Sign, nothing
+   * happens, and there is no route to fixing it from inside the popup. */
+  console.log('T20  with no stored signature, Sign offers the way to add one');
+  p = await mount({ profileSig: null });
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  const ob8 = await p.$('#dOpenForm');
+  if (ob8) { await ob8.click(); await p.waitForTimeout(700); }
+  await p.evaluate(() => {
+    const c = document.querySelector("#formOverlay .sigbtn[data-sec=pengujian]");
+    if (c) c.click();
+  });
+  await p.waitForTimeout(600);
+
+  check('no Sign button is offered when there is nothing to sign with',
+    await p.$('#sigUseProfile'), null);
+  check('the popup offers Profile instead of a dead button',
+    !!(await p.$('#sigGoProfile')), true);
+  await p.click('#sigGoProfile');
+  await p.waitForTimeout(400);
+  check('...and it actually lands on the Profile tab',
+    await p.$eval('#tabProfile', (n) => n.classList.contains('on')), true);
+  check('the card closes so Profile is not hidden behind it',
+    await p.$('#formOverlay'), null);
+  check('Profile says the signature is missing',
+    await p.evaluate(() => { const n = document.querySelector('#pvSigNone'); return !!n && n.textContent.includes('Belum ada'); }), true);
+
+  /* And the officer can finish the errand they were sent on.
+   *
+   * Adding a FIRST signature is a different path from replacing one, and only
+   * this one proves the store keeps what it just wrote: on a replacement the
+   * old path is already loaded, so a save that never records the new one still
+   * looks correct. A mutation removing that assignment survived every other
+   * assertion in this suite. */
+  check('the add button is offered, not a replace',
+    await p.evaluate(() => { const n = document.querySelector('#pvAddSig'); return n ? n.textContent.trim() : null; }),
+    'Tambah tandatangan');
+  await p.setInputFiles('#pvSigFile', { name: 's.png', mimeType: 'image/png', buffer: PNG_1X1 });
+  await p.waitForTimeout(1200);
+  check('the new signature appears without a reload',
+    await p.evaluate(() => !!document.querySelector('#pvSig img')), true);
+  check('...the button now offers a replacement',
+    await p.evaluate(() => { const n = document.querySelector('#pvAddSig'); return n ? n.textContent.trim() : null; }),
+    'Tukar tandatangan');
+  check('...and it says the save landed',
+    await p.evaluate(() => !!document.querySelector('#pvOk')), true);
+  await p.close();
+
+  /* ---------- T21: the stencil is COPIED, never referenced ----------
+   *
+   * The property the whole feature rests on, and the one worth writing first.
+   *
+   * A Profile signature may be REPLACED. A filed row's signature may NEVER be.
+   * Those two facts are only compatible because signRow() uploads its own copy
+   * to the row's own path — if a row referenced `profile/<uid>.png` instead,
+   * an officer replacing a bad photo would silently rewrite the evidence on
+   * every record that pointed at it, and those records cannot be corrected.
+   *
+   * So this asserts WHERE each write went and with what upsert flag, not what
+   * the images look like: the paths are the guarantee. */
+  console.log('T21  a filed signature is the row\'s own object, not the Profile\'s');
+  p = await mount({ profileSig: 'profile/u1.png' });
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  const ob9 = await p.$('#dOpenForm');
+  if (ob9) { await ob9.click(); await p.waitForTimeout(700); }
+  await p.evaluate(() => {
+    const c = document.querySelector("#formOverlay .sigbtn[data-sec=pengujian]");
+    if (c) c.click();
+  });
+  await p.waitForTimeout(500);
+  await p.click('#sigUseProfile');
+  await p.waitForTimeout(300);
+  await p.click('#sigOk');
+  await p.waitForTimeout(900);
+
+  const rowUploads = await p.evaluate(() => window.__uploads.filter((u) => !u.path.startsWith('profile/')));
+  check('signing uploaded exactly one new object', rowUploads.length, 1);
+  check('...at the ROW\'s own path, never the Profile\'s',
+    /^\d+\/pengujian_\d+_\d+\.png$/.test(rowUploads[0] ? rowUploads[0].path : ''), true);
+  // upsert:false is what makes a per-row object unrepeatable: a collision is an
+  // error rather than a silent overwrite of filed evidence.
+  check('...and refuses to overwrite (upsert false)',
+    rowUploads[0] ? rowUploads[0].upsert : true, false);
+
+  const rowSig = await p.evaluate(() => {
+    const r = window.__upserts.filter((u) => u.table === 'hydrant_records')
+      .flatMap((u) => (Array.isArray(u.arg) ? u.arg : [u.arg]))
+      .filter((x) => x && x.signed);
+    return r.length ? r[r.length - 1].signature : '';
+  });
+  check('the RECORD stores its own path, so nothing it depends on can change',
+    /^\d+\/pengujian_\d+_\d+\.png$/.test(rowSig), true);
+  check('...and specifically not the Profile object', rowSig.startsWith('profile/'), false);
+  await p.close();
+
+  /* Now the other half: replacing the Profile signature must touch NOTHING
+   * that is filed. Verified as a distinct case because "the paths differ" and
+   * "a replacement leaves the record alone" are different claims, and only the
+   * second is the promise made to an officer. */
+  p = await mount({ profileSig: 'profile/u1.png' });
+  await p.waitForTimeout(600);
+  await p.click('#tabProfile');
+  await p.waitForTimeout(300);
+  check('an admin is offered a replacement, not just an add',
+    await p.evaluate(() => { const n = document.querySelector('#pvAddSig'); return n ? n.textContent.trim() : null; }), 'Tukar tandatangan');
+  await p.setInputFiles('#pvSigFile', { name: 's.png', mimeType: 'image/png', buffer: PNG_1X1 });
+  await p.waitForTimeout(1200);
+
+  const after = await p.evaluate(() => ({
+    uploads: window.__uploads.map((u) => u),
+    updates: window.__profileUpdates.slice(),
+  }));
+  check('replacing writes only to the Profile path',
+    after.uploads.every((u) => u.path === 'profile/u1.png'), true);
+  check('...at least one write happened (an empty set proves nothing)',
+    after.uploads.length > 0, true);
+  check('...and it IS allowed to overwrite — replacement is the feature',
+    after.uploads.every((u) => u.upsert === true), true);
+  // Stated as "not a profile path" rather than matching a hydrant pattern: a
+  // pattern that happens not to match proves nothing, and an earlier version of
+  // this line used one that could never have matched (§4.18).
+  check('nothing outside the Profile path was touched',
+    after.uploads.filter((u) => !u.path.startsWith('profile/')).length, 0);
+  check('the profile row points at the profile object',
+    after.updates[after.updates.length - 1], 'profile/u1.png');
+  await p.close();
+
+  /* A viewer has no update path to profiles at all — `admins manage profiles`
+   * is the only write policy on that table, which is why no new policy was
+   * added. The server decides; this only checks the app does not offer a
+   * control that RLS would refuse. */
+  p = await mount({ role: 'viewer', profileSig: null });
+  await p.waitForTimeout(600);
+  await p.click('#tabProfile');
+  await p.waitForTimeout(300);
+  check('a viewer is not offered the uploader', await p.$('#pvAddSig'), null);
+  check('...and is told why', await p.$eval('#profileView .pvnote', (n) => n.textContent.includes('admin')), true);
   await p.close();
 
   await b.close(); server.close();

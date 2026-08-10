@@ -49,6 +49,11 @@ const props = defineProps({
   signing: { type: Object, default: null },   // {section,row} while the popup is open
   signBusy: { type: Boolean, default: false },
   signError: { type: String, default: '' },
+  /* The officer's stored signature, as bytes, fetched when the popup opens.
+   * Pressing Sign pre-fills the preview with this — it is a STENCIL, copied
+   * into the row's own object by signRow(). The row never points at it. */
+  profileSig: { type: String, default: '' },
+  profileSigLoading: { type: Boolean, default: false },
   hydrant: { type: Object, required: true },
   form: { type: Object, required: true },
   isAdmin: { type: Boolean, default: false },
@@ -61,7 +66,7 @@ const props = defineProps({
    * lost. */
   saveState: { type: String, default: '' },
 });
-const emit = defineEmits(['close', 'save', 'edit', 'sign', 'signCancel', 'signConfirm', 'dropPending']);
+const emit = defineEmits(['close', 'save', 'edit', 'sign', 'signCancel', 'signConfirm', 'signGoProfile', 'dropPending']);
 
 const root = ref(null);
 
@@ -291,6 +296,8 @@ watch(() => props.form, refreshPrintSigs, { deep: true });
   </div>
 
   <SignPopup v-if="signing" :busy="signBusy" :error="signError"
-             @close="emit('signCancel')" @confirm="(d) => emit('signConfirm', d)" />
+             :profile-sig="profileSig" :profile-sig-loading="profileSigLoading"
+             @close="emit('signCancel')" @confirm="(d) => emit('signConfirm', d)"
+             @go-profile="emit('signGoProfile')" />
   </Teleport>
 </template>
