@@ -177,7 +177,18 @@ watch(() => props.form, refreshPrintSigs, { deep: true });
         <span v-if="editedLine" class="flastedit">{{ editedLine }}</span>
       </div>
       <div class="factions">
-        <button class="fbtn" id="fSave" :disabled="saveState === 'saving'"
+        <!-- A VIEWER GETS NO SAVE BUTTON, and no writable field anywhere below.
+             V1 has done this since the beginning (`applyFormReadOnly`); V2
+             declared the `isAdmin` prop in Phase 5 and never used it, so a
+             viewer could type into a legal record's card and press Save. RLS
+             refuses the write, which means the officer's typing is parked and
+             lost rather than filed — §4.10 wearing a friendlier face, and the
+             same failure §4.25 fixed on the Save button itself.
+             Hiding it is COURTESY, NOT THE CONTROL: the database refuses a
+             viewer's write regardless, and that is what actually protects the
+             record. -->
+        <span v-if="!isAdmin" class="ro-note" id="fReadOnly">Read-only</span>
+        <button v-if="isAdmin" class="fbtn" id="fSave" :disabled="saveState === 'saving'"
                 @click="emit('save')">{{ saveLabel }}</button>
         <button class="fbtn" id="fPrint" @click="doPrint">Print</button>
         <button class="fbtn ghost" id="fClose" @click="emit('close')">Close</button>
@@ -212,21 +223,21 @@ watch(() => props.form, refreshPrintSigs, { deep: true });
             <div class="fhdr-l">
               <div class="frow"><label>No. Pili</label><span style="flex:1;font-weight:700">: {{ hydrant.label }}</span></div>
               <div class="frow"><label>Lokasi</label><span>:</span>
-                <input class="fin-h" data-hk="lokasi" :value="form.header.lokasi || ''"
+                <input class="fin-h" data-hk="lokasi" :readonly="!isAdmin" :disabled="!isAdmin" :value="form.header.lokasi || ''"
                        @input="onHeader('lokasi', $event.target.value)"></div>
               <div class="frow"><label>Jenis</label><span style="flex:1;font-weight:700">: PH</span></div>
               <div class="frow"><label>Tarikh Pasang</label><span>:</span>
-                <input class="fin-h fin-date" type="date" :max="today()" data-hk="tarikh_pasang"
+                <input class="fin-h fin-date" type="date" :max="today()" data-hk="tarikh_pasang" :readonly="!isAdmin" :disabled="!isAdmin"
                        :value="form.header.tarikh_pasang || ''" @input="onHeader('tarikh_pasang', $event.target.value)">
                 <span class="fin-print fin-print-h">{{ fmtDMY(form.header.tarikh_pasang || '') }}</span></div>
             </div>
             <div class="fhdr-r">
               <div class="fteman-t">TEMAN PILI BOMBA</div>
               <div class="frow"><label style="width:82px">No. Keahlian</label><span>:</span>
-                <input class="fin-h" data-hk="no_keahlian" :value="form.header.no_keahlian || ''"
+                <input class="fin-h" data-hk="no_keahlian" :readonly="!isAdmin" :disabled="!isAdmin" :value="form.header.no_keahlian || ''"
                        @input="onHeader('no_keahlian', $event.target.value)"></div>
               <div class="frow"><label style="width:82px">Tarikh Daftar</label><span>:</span>
-                <input class="fin-h" data-hk="tarikh_daftar" :value="form.header.tarikh_daftar || ''"
+                <input class="fin-h" data-hk="tarikh_daftar" :readonly="!isAdmin" :disabled="!isAdmin" :value="form.header.tarikh_daftar || ''"
                        @input="onHeader('tarikh_daftar', $event.target.value)"></div>
               <div class="fteman-b">PILI BOMBA: AWAM / SWASTA</div>
             </div>
@@ -250,17 +261,17 @@ watch(() => props.form, refreshPrintSigs, { deep: true });
                            a signed row looks like the signature has been lost. -->
                       <span v-else-if="r._signed && r._sig" class="sigwait" :data-sig-sec="sec" :data-sig-row="i">T.T</span>
                       <span v-else-if="r._signed" class="sigimg" style="font-size:9px;color:#166534">SIGNED</span>
-                      <button v-else class="sigbtn" :data-sec="sec" :data-row="i"
+                      <button v-else class="sigbtn" :disabled="!isAdmin" :data-sec="sec" :data-row="i"
                               title="Lampirkan tandatangan (admin)" @click="emit('sign', { section: sec, row: i })">+ T.T</button>
                     </template>
                     <template v-else-if="col.t === 'date'">
                       <input class="fin fin-date" type="date" :max="today()" :data-sec="sec" :data-row="i" :data-k="col.k"
-                             :value="r[col.k] || ''" :readonly="!!r._signed" :disabled="!!r._signed"
+                             :value="r[col.k] || ''" :readonly="!!r._signed || !isAdmin" :disabled="!!r._signed || !isAdmin"
                              @input="onCell(sec, i, col.k, $event.target.value)">
                       <span class="fin-print">{{ fmtDMY(r[col.k] || '') }}</span>
                     </template>
                     <input v-else class="fin" type="text" :data-sec="sec" :data-row="i" :data-k="col.k"
-                           :value="r[col.k] || ''" :readonly="!!r._signed" :disabled="!!r._signed"
+                           :value="r[col.k] || ''" :readonly="!!r._signed || !isAdmin" :disabled="!!r._signed || !isAdmin"
                            @input="onCell(sec, i, col.k, $event.target.value)">
                   </td>
                 </tr>
@@ -281,17 +292,17 @@ watch(() => props.form, refreshPrintSigs, { deep: true });
                       <img v-if="r._signed && r._sigUrl" class="sigimg" :src="r._sigUrl" alt="T.T">
                       <span v-else-if="r._signed && r._sig" class="sigwait" :data-sig-sec="sec" :data-sig-row="i">T.T</span>
                       <span v-else-if="r._signed" class="sigimg" style="font-size:9px;color:#166534">SIGNED</span>
-                      <button v-else class="sigbtn" :data-sec="sec" :data-row="i"
+                      <button v-else class="sigbtn" :disabled="!isAdmin" :data-sec="sec" :data-row="i"
                               title="Lampirkan tandatangan (admin)" @click="emit('sign', { section: sec, row: i })">+ T.T</button>
                     </template>
                     <template v-else-if="col.t === 'date'">
                       <input class="fin fin-date" type="date" :max="today()" :data-sec="sec" :data-row="i" :data-k="col.k"
-                             :value="r[col.k] || ''" :readonly="!!r._signed" :disabled="!!r._signed"
+                             :value="r[col.k] || ''" :readonly="!!r._signed || !isAdmin" :disabled="!!r._signed || !isAdmin"
                              @input="onCell(sec, i, col.k, $event.target.value)">
                       <span class="fin-print">{{ fmtDMY(r[col.k] || '') }}</span>
                     </template>
                     <input v-else class="fin" type="text" :data-sec="sec" :data-row="i" :data-k="col.k"
-                           :value="r[col.k] || ''" :readonly="!!r._signed" :disabled="!!r._signed"
+                           :value="r[col.k] || ''" :readonly="!!r._signed || !isAdmin" :disabled="!!r._signed || !isAdmin"
                            @input="onCell(sec, i, col.k, $event.target.value)">
                   </td>
                 </tr>

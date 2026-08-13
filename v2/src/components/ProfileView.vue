@@ -100,7 +100,15 @@ watch(() => props.active, (on) => {
         </div>
       </div>
 
-      <div class="pvcard">
+      <!-- ADMIN ONLY, card and all (user's call, 2026-08-13).
+           It used to render for a viewer too, with "Hanya admin boleh menyimpan
+           tandatangan" underneath. That was worse than useless: a viewer has no
+           signature to store, cannot sign a Kad Rekod row, and the card only
+           offered an explanation for a capability they were never going to use.
+           The whole panel goes rather than the buttons inside it.
+           Courtesy, not the control — `admins manage profiles` is what actually
+           refuses a viewer's write, in the database. -->
+      <div class="pvcard" v-if="isAdmin">
         <h2>Tandatangan</h2>
 
         <div class="pvsig" id="pvSig">
@@ -110,17 +118,14 @@ watch(() => props.active, (on) => {
           </span>
         </div>
 
-        <p class="pvnote" v-if="isAdmin">
+        <p class="pvnote">
           Tandatangan ini digunakan semasa menekan <b>Sign</b> pada Kad Rekod.
           Ia boleh <b>ditukar bila-bila masa</b> — tandatangan pada rekod yang
           <b>sudah disahkan tidak akan berubah</b>, kerana salinan berasingan
           disimpan pada rekod itu semasa disahkan.
         </p>
-        <p class="pvnote" v-else>
-          Hanya admin boleh menyimpan tandatangan.
-        </p>
 
-        <div class="pvacts" v-if="isAdmin">
+        <div class="pvacts">
           <button class="pvbtn primary" id="pvAddSig" :disabled="busy"
                   @click="fileEl && fileEl.click()">
             {{ busy ? 'Memuat naik…' : (hasSignature ? 'Tukar tandatangan' : 'Tambah tandatangan') }}

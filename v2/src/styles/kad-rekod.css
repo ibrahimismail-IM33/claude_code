@@ -42,7 +42,19 @@
     padding:10px 16px;background:linear-gradient(180deg,#16171b,#0c0d10);border-bottom:1px solid rgba(255,255,255,.1)}
   .ftitle{font-family:var(--display);font-weight:700;font-size:15px;color:#fff}
   .ftitle b{color:#f87171}
-  .factions{display:flex;gap:8px}
+  .factions{display:flex;gap:8px;align-items:center}
+  /* Shown to a VIEWER in place of the Save button. It is not decoration: with
+     every field disabled and no Save, an officer with no explanation is left
+     wondering whether the card is broken.
+     A chip rather than V1's faint inline text — V1 used rgba(255,255,255,.45)
+     at 10px, which measures about 3.5:1 on this toolbar and is the one thing on
+     the card that must be readable when nothing else responds to touch.
+     No print rule needed: `.factions` sits inside `.ftoolbar`, and the print
+     block already hides that outright — this is a screen affordance and must
+     never reach paper. */
+  .ro-note{margin-right:auto;font-family:var(--mono);font-size:11px;font-weight:600;
+    letter-spacing:.12em;text-transform:uppercase;padding:3px 10px;border-radius:9999px;
+    background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.88)}
   /* The login gate lived here TOO — all 18 of its selectors duplicated
      byte-for-byte from shell.css. Removed 2026-08-10, leaving shell.css as
      the single definition.
@@ -56,11 +68,6 @@
 
      The gate has nothing to do with the Kad Rekod. If something here ever
      needs to override it, write that one rule and say why. */
-  .rolebadge{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:9999px;
-    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
-  .rolebadge .r{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:rgba(255,255,255,.75)}
-  .rolebadge.admin{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35)}
-  .rolebadge.admin .r{color:#fca5a5}
   .signout{background:none;border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.6);cursor:pointer;
     font-size:11px;padding:4px 9px;border-radius:9999px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.12em}
   .signout:hover{color:#fff;border-color:rgba(255,255,255,.3)}

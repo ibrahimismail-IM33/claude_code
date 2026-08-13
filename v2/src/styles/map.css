@@ -49,14 +49,23 @@
      BEFORE map.css, so this file wins. A background written into shell.css
      would apply to nothing and look like the rule had no effect. */
   header{position:relative;z-index:1000;border-bottom:1px solid rgba(255,255,255,.06);
-    padding:14px 28px;background:rgba(8,14,24,.45);}
+    padding:14px 22px;background:rgba(8,14,24,.45);}
   header::before{content:"";position:absolute;inset:0;pointer-events:none;
     background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
       linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
     background-size:30px 30px;
     -webkit-mask-image:radial-gradient(ellipse 70% 120% at 50% 0%,#000 30%,transparent 80%);
     mask-image:radial-gradient(ellipse 70% 120% at 50% 0%,#000 30%,transparent 80%);}
-  .hrow{position:relative;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  /* THE SPACING IN THIS ROW IS LOAD-BEARING, not taste. Awam / Swasta / Tambah
+     Pili / DATE / TIME / Sign out must share ONE line (user's call,
+     2026-08-13); below 1280px they used to wrap and the header went 124px ->
+     172px, costing ~48px of map. Removing the Live pip and the role badge got
+     it to 1100px; the rest is this: gap 16 -> 12 here, 10 -> 8 in .hright, the
+     .clock inset dropped, the divider gone, and the header's own padding
+     28 -> 22. Measured, the row needs 1020px of content and now holds down to
+     1024px — every laptop, and a tablet in landscape. v2-shell.js asserts the
+     header stays one row at 1024. */
+  .hrow{position:relative;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   .brand{display:flex;align-items:center;gap:12px}
   .bar{width:4px;height:44px;border-radius:9999px;background:linear-gradient(180deg,#f87171,#dc2626);
     box-shadow:0 0 14px rgba(239,68,68,.6)}
@@ -88,7 +97,10 @@
      class computes to `none` on a phone, and it is the cheapest place to put
      the full name back if it is ever wanted. */
   .kx{display:none}
-  .divider{width:1px;height:40px;background:rgba(255,255,255,.1);margin:0 4px}
+  /* The `.divider` rule went with its element (user's call, 2026-08-13), for the
+     same reason the red `.bar` did: it was a second vertical rule competing with
+     the crest, and this row needs every pixel. Removed here rather than left
+     behind — v2-parity-surface T1 fails on a class V2 styles but never renders. */
 
   .pills{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .pill{display:flex;align-items:center;gap:10px;padding:6px 12px 6px 10px;border-radius:9999px;cursor:pointer;
@@ -102,18 +114,19 @@
     background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:6px}
   .clearf:hover{color:rgba(255,255,255,.8);background:rgba(255,255,255,.05)}
 
-  .hright{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .hright{margin-left:auto;display:flex;align-items:center;gap:8px}
   .addbtn{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:9999px;cursor:pointer;
     background:#fff;color:#000;font-size:14px;font-weight:700;border:none;transition:all .2s;
     box-shadow:0 8px 20px -8px rgba(255,255,255,.6)}
   .addbtn:hover{transform:translateY(-2px);background:rgba(255,255,255,.9)}
-  .clock{display:flex;align-items:center;gap:8px;font-family:var(--mono);padding-left:8px}
+  .clock{display:flex;align-items:center;gap:8px;font-family:var(--mono)}
   .clock .u{font-size:10px;text-transform:uppercase;letter-spacing:.25em;color:rgba(255,255,255,.35)}
   .clock .t{font-size:14px;color:rgba(255,255,255,.8)}
-  .live{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:9999px;
-    background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3)}
-  .live .d{width:6px;height:6px;border-radius:9999px;background:#34d399}
-  .live .l{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.2em;color:#6ee7b7}
+  /* `.live` (the green pip) and `.rolebadge` are GONE — user's call,
+     2026-08-13. The rules go with the markup rather than being left behind:
+     v2-parity-surface T1 asserts every class V2 STYLES is actually rendered, so
+     dead rules here would turn it red. `.soft-pulse` stays — the map chip, the
+     pills, the banner and the detail modal all still use it. */
 
   /* ---- map ---- */
   .maparea{flex:1 1 auto;position:relative;min-height:0}

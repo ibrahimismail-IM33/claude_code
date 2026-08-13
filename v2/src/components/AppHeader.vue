@@ -110,8 +110,6 @@ function menuSignOut() { menuOpen.value = false; emit('signOut'); }
         </div>
       </div>
 
-      <div class="divider"></div>
-
       <Pills :counts="counts" :active="statusFilter"
              @pick="(s) => emit('pickStatus', s)" @clear="emit('pickStatus', null)" />
 
@@ -124,10 +122,15 @@ function menuSignOut() { menuOpen.value = false; emit('signOut'); }
              still Malaysian time; MYT was telling officers the timezone they
              are standing in. -->
         <div class="clock"><span class="u">TIME</span><span class="t" id="clock">{{ clock }}</span></div>
-        <div class="live"><span class="d soft-pulse"></span><span class="l">Live</span></div>
-        <div class="rolebadge" :class="{ hide: !signedIn, admin: isAdmin }" id="roleBadge">
-          <span class="r" id="roleTxt">{{ isAdmin ? 'Admin' : 'Viewer' }}</span>
-        </div>
+        <!-- The Live pip and the role badge are GONE (user's call, 2026-08-13).
+             Both were decoration competing for the width this row needs: the pip
+             never reported anything an officer acts on, and the role is stated
+             plainly on the Profil tab, which is one tap away on every device.
+             Removing them is what lets Awam / Swasta / Tambah Pili / DATE / TIME
+             / Sign out share ONE row instead of wrapping below 1280px.
+             `#roleTxt` and `#roleBadge` were the only place the role appeared in
+             the header; v2-shell.js now reads it from Profil instead, so the
+             requirement is still asserted — the surface moved, it did not go. -->
         <button class="signout" :class="{ hide: !signedIn }" id="signOutBtn" @click="emit('signOut')">Sign out</button>
       </div>
 

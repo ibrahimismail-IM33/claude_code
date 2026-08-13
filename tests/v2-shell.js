@@ -215,7 +215,14 @@ const AWAM = REG.filter((h) => h.status === 'kerajaan').length;
   // ---------- T3: role UI ----------
   console.log('T3  role decides what is worth showing — never what is allowed');
   p = await mount({ role: 'viewer' });
-  check('a viewer is named as one', await p.$eval('#roleTxt', (n) => n.textContent.trim()), 'Viewer');
+  /* THE ROLE BADGE IS GONE FROM THE HEADER (user's call, 2026-08-13) — it and
+   * the Live pip were removed so Awam / Swasta / Tambah Pili / DATE / TIME /
+   * Sign out fit one row. These assertions follow the role to the Profil tab
+   * rather than being deleted: "an officer can see which role they hold" is the
+   * requirement, and it still holds — only the surface moved. The same thing
+   * was done for #mEmail when the tabs moved into the phone menu. */
+  check('the header carries no role badge any more', await p.$('#roleBadge'), null);
+  check('and no Live pip', await p.$('.live'), null);
   check('and is not offered Tambah Pili',
     await p.$eval('#headerAdd', (n) => n.classList.contains('ro-hidden')), true);
   check('the phone menu agrees',
@@ -234,8 +241,13 @@ const AWAM = REG.filter((h) => h.status === 'kerajaan').length;
   await p.close();
 
   p = await mount({ role: 'admin' });
-  check('an admin is named as one', await p.$eval('#roleTxt', (n) => n.textContent.trim()), 'Admin');
-  check('the badge is marked admin', await p.$eval('#roleBadge', (n) => n.classList.contains('admin')), true);
+  await p.evaluate(() => { document.querySelector('#tabProfile').click(); });
+  await p.waitForTimeout(300);
+  check('an admin is named as one, on the Profil tab',
+    await p.$eval('#pvRole', (n) => n.textContent.trim()), 'Admin');
+  check('the badge is marked admin', await p.$eval('#pvRole', (n) => n.classList.contains('admin')), true);
+  await p.evaluate(() => { document.querySelector('#tabMap').click(); });
+  await p.waitForTimeout(200);
   check('and IS offered Tambah Pili',
     await p.$eval('#headerAdd', (n) => n.classList.contains('ro-hidden')), false);
 
@@ -247,8 +259,10 @@ const AWAM = REG.filter((h) => h.status === 'kerajaan').length;
 
   // A role the profiles table does not recognise must fail CLOSED.
   p = await mount({ role: 'something-else' });
+  await p.evaluate(() => { document.querySelector('#tabProfile').click(); });
+  await p.waitForTimeout(300);
   check('an unknown role is treated as a viewer, never as an admin',
-    await p.$eval('#roleTxt', (n) => n.textContent.trim()), 'Viewer');
+    await p.$eval('#pvRole', (n) => n.textContent.trim()), 'Viewer');
   await p.close();
 
   // ---------- T4: tabs ----------
@@ -363,6 +377,52 @@ const AWAM = REG.filter((h) => h.status === 'kerajaan').length;
       await p.$eval('.kx', (n) => getComputedStyle(n).display), 'none');
     await p.close();
   }
+
+  /* ---------- T9: the header stays ONE row on a desktop ----------
+   *
+   * Awam / Swasta / Tambah Pili / DATE / TIME / Sign out share a single line
+   * (user's call, 2026-08-13). They used to wrap below 1280px — the header went
+   * 124px to 172px and took ~48px of map with it, on the tab where the map is
+   * the whole point.
+   *
+   * MEASURED, NOT INSPECTED. There is no class or computed style that says "this
+   * row wrapped": `.hrow` is `flex-wrap:wrap`, so wrapping is the normal,
+   * error-free outcome and the only evidence is geometry. That is the §4.26
+   * lesson — the pills stacked one per line for months because every check
+   * asked about names instead of positions.
+   *
+   * The floor is 1024px: every laptop, and a tablet in landscape. Below that it
+   * still wraps, which is accepted — the row needs 1020px of content and the
+   * brand and the pills are not negotiable. Removing the Live pip and the role
+   * badge got it from 1280 to 1100; the spacing in map.css did the rest. */
+  console.log('T9  the header stays one row down to 1024px');
+  /* "One line" is the ROW being no taller than its tallest child. Comparing the
+   * children's `top` values does NOT work: `.hrow` is `align-items:center`, so
+   * a short pill and the tall brand block legitimately start at different y
+   * while sitting on the same line. That first version reported 3 rows at every
+   * width, including 1280 where the header is visibly one line. */
+  const rowTop = () => p.evaluate(() => {
+    const row = document.querySelector('.hrow');
+    const kids = [...row.children].filter((n) => getComputedStyle(n).display !== 'none');
+    const tallest = Math.max(...kids.map((n) => n.getBoundingClientRect().height));
+    const rowH = row.getBoundingClientRect().height;
+    return { wrapped: rowH > tallest + 2, rowH: Math.round(rowH), tallest: Math.round(tallest),
+      height: Math.round(document.querySelector('header').getBoundingClientRect().height) };
+  });
+  for (const w of [1280, 1100, 1024]) {
+    p = await mount({ role: 'admin' }, { width: w, height: 900 });
+    const r = await rowTop();
+    check(w + 'px · brand, pills and controls share one line',
+      [r.wrapped, r.rowH > 0], [false, true]);
+    check(w + 'px · so the header stays short', r.height < 140, true);
+    await p.close();
+  }
+  // The two that were removed to buy that width must stay gone — a re-added
+  // badge would put the wrap back and nothing else here would notice.
+  p = await mount({ role: 'admin' }, { width: 1024, height: 900 });
+  check('no Live pip in the header', await p.$('.live'), null);
+  check('no role badge in the header', await p.$('#roleBadge'), null);
+  await p.close();
 
   await b.close(); server.close();
   console.log('\n' + pass + ' passed, ' + fail + ' failed');

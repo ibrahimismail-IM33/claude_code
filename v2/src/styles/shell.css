@@ -228,11 +228,6 @@
     border-radius:8px;padding:9px 11px;line-height:1.45}
   .autherr.hide{display:none}
   .authlogo{width:52px;height:52px;object-fit:contain;display:block;margin:0 auto 12px}
-  .rolebadge{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:9999px;
-    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
-  .rolebadge .r{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:rgba(255,255,255,.75)}
-  .rolebadge.admin{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35)}
-  .rolebadge.admin .r{color:#fca5a5}
   .signout{background:none;border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.6);cursor:pointer;
     font-size:11px;padding:4px 9px;border-radius:9999px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.12em}
   .signout:hover{color:#fff;border-color:rgba(255,255,255,.3)}
@@ -346,9 +341,7 @@
     .bar   { height:20px; width:3px; }
     h1     { font-size:15px; }
     h1 span{ display:none; }
-    .divider,
     .clock,
-    .live  { display:none !important; }
     /* Keep "BBP Kunak" but drop the rest — the full string is ~200px wide and
        pushed the tabs onto a row of their own, costing a line of map. */
     .kicker{ font-size:7.5px; letter-spacing:.13em; }

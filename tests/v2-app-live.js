@@ -730,7 +730,7 @@ const JADUAL = [
   p = await mount();
   await p.waitForTimeout(300);
   const hdr = await p.evaluate(async () => {
-    const sels = ['#brandWordmark', '.kicker', '.clock .t', '.live .l'];
+    const sels = ['#brandWordmark', '.kicker', '.clock .t'];
     const out = sels.map((s) => {
       const n = document.querySelector(s);
       if (!n) return { sel: s };
@@ -1477,7 +1477,92 @@ const JADUAL = [
   await p.click('#tabProfile');
   await p.waitForTimeout(300);
   check('a viewer is not offered the uploader', await p.$('#pvAddSig'), null);
-  check('...and is told why', await p.$eval('#profileView .pvnote', (n) => n.textContent.includes('admin')), true);
+  /* The WHOLE signature card is gone for a viewer now, not just its buttons
+     (user's call, 2026-08-13). It used to render with "Hanya admin boleh
+     menyimpan tandatangan" underneath — an explanation of a capability a viewer
+     was never going to use, on a panel that could do nothing for them.
+     Asserted by the preview element rather than the note, because the note was
+     the thing that went. */
+  check('...and the signature card is not there at all', await p.$('#pvSig'), null);
+  check('...while the identity rows still are', await p.$eval('#pvRole', (n) => n.textContent.trim()), 'Viewer');
+  await p.close();
+
+  /* ---------- T21b: a VIEWER cannot edit the Kad Rekod ----------
+   *
+   * V1 has done this since the beginning — `applyFormReadOnly()` disables every
+   * input, hides Save and adds a "Read-only" note. **V2 declared the `isAdmin`
+   * prop in Phase 5 and never used it**, so a viewer could type into a legal
+   * record's card and press Save. RLS refuses the write, which means the typing
+   * is parked locally and lost rather than filed: §4.10 wearing a friendlier
+   * face, and the same shape as §4.25's silent Save button.
+   *
+   * Found by reading the prop, not by any suite — `v2-parity-surface` was green
+   * because the control EXISTS; its own header says it catches absence, not
+   * wrongness, and this is the fourth defect of that kind (§4.22, §4.23).
+   *
+   * Hiding the controls is COURTESY, NOT THE CONTROL. The assertions are about
+   * an officer not being invited to do work that will be thrown away; the
+   * database is what actually refuses it.
+   */
+  console.log('T21b a viewer can open and print a card, but not change it');
+  p = await mount({ role: 'viewer',
+    cardRows: [{ hydrant_id: 1, section: 'pengujian', row_index: 0,
+      data: { tarikh: TODAY, penguji: 'Ali' }, signed: false }] });
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  const obV = await p.$('#dOpenForm');
+  if (obV) await obV.click();
+  await p.waitForTimeout(600);
+
+  check('the card opens for a viewer', await p.evaluate(() => !!document.querySelector('#formOverlay')), true);
+  check('there is no Save button', await p.$('#fSave'), null);
+  /* Read through the DOM rather than $eval, so a regression that removes the
+     note reports a FAIL instead of throwing — a suite that dies mid-case hides
+     every assertion after it. */
+  check('and the card says why',
+    await p.evaluate(() => { const n = document.querySelector('#fReadOnly'); return n ? n.textContent.trim() : null; }),
+    'Read-only');
+  // Print stays: reading and filing a record is exactly what a viewer is for.
+  check('Print is still offered', await p.evaluate(() => !!document.querySelector('#fPrint')), true);
+  check('Close is still offered', await p.evaluate(() => !!document.querySelector('#fClose')), true);
+
+  /* EVERY field, not a sample. The header inputs and the table cells are
+   * separate bindings, and an earlier version of this change patched only one
+   * of them. */
+  const roState = await p.evaluate(() => {
+    const all = [...document.querySelectorAll('#formOverlay input')];
+    const open = all.filter((n) => !n.disabled && !n.readOnly);
+    const sig = [...document.querySelectorAll('#formOverlay button.sigbtn')].filter((n) => !n.disabled);
+    return { inputs: all.length, writable: open.length,
+      firstWritable: open.length ? (open[0].className + ' ' + (open[0].getAttribute('data-hk') || open[0].getAttribute('data-k') || '')) : null,
+      signBtns: document.querySelectorAll('#formOverlay button.sigbtn').length, signEnabled: sig.length };
+  });
+  check('every input on the card is locked', [roState.writable, roState.firstWritable], [0, null]);
+  check('...and there were inputs to lock', roState.inputs > 0, true);
+  check('no signature can be attached', roState.signEnabled, 0);
+  check('...and there were Sign buttons to disable', roState.signBtns > 0, true);
+  await p.close();
+
+  /* The same card, as an ADMIN — or the assertions above would pass just as
+   * well on a card that renders nothing at all. */
+  p = await mount({ role: 'admin',
+    cardRows: [{ hydrant_id: 1, section: 'pengujian', row_index: 0,
+      data: { tarikh: TODAY, penguji: 'Ali' }, signed: false }] });
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  const obA = await p.$('#dOpenForm');
+  if (obA) await obA.click();
+  await p.waitForTimeout(600);
+  const adminState = await p.evaluate(() => ({
+    save: !!document.querySelector('#fSave'),
+    note: !!document.querySelector('#fReadOnly'),
+    writable: [...document.querySelectorAll('#formOverlay input')].filter((n) => !n.disabled && !n.readOnly).length,
+    signEnabled: [...document.querySelectorAll('#formOverlay button.sigbtn')].filter((n) => !n.disabled).length,
+  }));
+  check('an admin still gets Save', adminState.save, true);
+  check('...and no Read-only note', adminState.note, false);
+  check('...and writable fields', adminState.writable > 0, true);
+  check('...and a working Sign button', adminState.signEnabled > 0, true);
   await p.close();
 
   /* ---------- T22: the phone header — where the navigation actually is ------

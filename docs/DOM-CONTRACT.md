@@ -33,7 +33,9 @@ time of writing.
 | `#authGate` | `p0-offline-sync`, `clear-row`, `kad-rekod` | Login gate overlay. Its removal is how the tests know the app is usable |
 | `#authGate` / `#authBtn` / `#authEmail` / `#authPass` / `#authErr` | `v2-shell`, `v2-csp` | The login gate. **z-index 100000 — the top of the ladder.** `#authErr` must never say which half of the credentials was wrong |
 | `#tabMap` | `v2-shell` | The Peta Pili tab button. `.on` marks the active tab; `aria-selected` must follow it |
-| `#headerAdd` / `#signOutBtn` / `#roleBadge` / `#roleTxt` | `v2-shell` | Header account controls. `.ro-hidden` hides writes from a viewer — **courtesy, not the control**: RLS refuses the write regardless |
+| `#headerAdd` / `#signOutBtn` | `v2-shell` | Header account controls. `.ro-hidden` hides writes from a viewer — **courtesy, not the control**: RLS refuses the write regardless. `#roleBadge` / `#roleTxt` were here and are **gone** (2026-08-13): the role badge and the Live pip came out so the row fits one line, and the role is read from `#pvRole` on the Profil tab instead |
+| `#pvRole` / `#pvEmail` | `v2-shell` | The Profil tab's identity rows, and now the ONLY place the signed-in role is shown. Asserted for viewer, admin and an unrecognised role |
+| `#fSave` / `#fReadOnly` | `v2-app-live` | A viewer gets `#fReadOnly` and no `#fSave`; an admin the reverse. Every input on the card is `disabled` for a viewer — courtesy again, RLS is the control |
 | `#menuBtn` / `#menuPanel` / `#mAdd` / `#mSignOut` / `#mEmail` / `#mRole` | `v2-shell` | The phone menu. Below 640px `.hright` is `display:none`, so this is the **only** route to Tambah Pili and sign-out |
 | `#tabDash` | `zone-panel` | The Dashboard tab button |
 | `#dashView` | `zone-panel` | Dashboard root. **Also the CSS scope for every dashboard rule** (CLAUDE.md §10) |
