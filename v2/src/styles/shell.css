@@ -68,11 +68,20 @@
   #authGate{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;
     background:#f4f5f7}
   /* The watermark needs its OWN layer: a background-image layer cannot carry an
-     opacity. Sized to bleed past the card so it reads as a ground, not a
-     sticker. */
+     opacity or a blend mode. Sized to bleed past the card so it reads as a
+     ground, not a sticker.
+
+     MULTIPLY IS NOT DECORATION. The 50th artwork is WHITE-BACKED — no
+     transparency anywhere — so painted normally it is a 500px white square.
+     Under multiply the white multiplies away to nothing and only the engraved
+     grey lines darken what is beneath, which is what makes one asset work on
+     both this light page and the dark app background. Remove the blend and a
+     white block appears; T9 asserts the overlap is DARKER than its surroundings
+     for exactly that reason. */
   #authGate::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
     background:url("/logo-50.png") center 46% / min(760px, 128vw) no-repeat;
-    opacity:.18}
+    mix-blend-mode:multiply;
+    opacity:.62}
   /* The scrim is gone with the photograph it existed for — it was there to hold
      white text clear of bright smoke, and the page is now light and even. */
   #authGate.hide{display:none}

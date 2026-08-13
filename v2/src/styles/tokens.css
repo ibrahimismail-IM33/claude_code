@@ -42,24 +42,41 @@
      Root-absolute urls, for the reason spelled out on #authGate. */
   body{font-family:var(--sans);color:#e7e5e4;-webkit-font-smoothing:antialiased;
     background:
-      linear-gradient(180deg,rgba(6,14,24,.42),rgba(6,14,24,.66)),
-      url("/app-bg.jpg") center center / cover no-repeat,
-      #0a1622;
+      linear-gradient(180deg,rgba(6,14,24,.10),rgba(6,14,24,.34)),
+      /* `right center`, not `center`. The artwork's interest — the traces —
+         all enters from the RIGHT edge, and `cover` crops width on anything
+         narrower than 1.71:1, so `center` throws exactly the part that was
+         asked for off the screen. The file needs no rotation; it needed
+         positioning. */
+      url("/app-bg.png") right center / cover no-repeat,
+      #0e1a24;
     background-attachment:fixed,fixed,fixed;}
-  /* The 50th watermark, on its OWN layer.
-     Two things a background-image layer cannot do and this needs: an opacity,
-     and a filter. At full colour the red "50" and the red "BOMBA DAN
-     PENYELAMAT" read as CONTENT — measured on the dashboard, where it sat over
-     a section heading and pulled the eye off the figures. Desaturated to a
-     blue-grey ghost it does what a watermark is for.
+  /* The 50th watermark, on its OWN layer — a background-image layer can carry
+     neither an opacity nor a blend mode, and this needs both.
+
+     MULTIPLY IS LOAD-BEARING. The artwork is WHITE-BACKED, so painted normally
+     it is a large white block over the circuit board. Multiply drops the white
+     to nothing and lets only the engraved lines darken what is under them,
+     which is the embossed ghost in the reference. The same asset and the same
+     blend serve the light login page — one file, one technique, nothing to
+     drift between two surfaces.
+     The grayscale()/brightness() filter that used to be here is gone with the
+     colour version it was correcting.
+
      It is a body pseudo-element, so it paints under .app (which comes later in
      source order and is positioned); every panel above it is transparent or
      paints its own card, so nothing needs a z-index. Nothing is layered over
      the MAP — .leaflet-container paints its own ground, and a background on a
      Leaflet ancestor is one edit away from a transform on one (§4.16/§4.17). */
   body::before{content:"";position:fixed;inset:0;pointer-events:none;
-    background:url("/logo-50.png") left -70px top 56px / auto 420px no-repeat;
-    filter:grayscale(.9) brightness(.6);
-    opacity:.30}
+    background:url("/logo-50.png") left -40px top 40px / auto 560px no-repeat;
+    /* The engraving is light-grey linework on white. Multiplied straight onto
+       an already-dark ground it darkens by almost nothing and vanishes — the
+       first attempt was invisible on the header. contrast() pushes the lines
+       down toward black first, so the multiply has something to bite on and
+       the 50 reads as embossed INTO the background, as in the reference. */
+    filter:contrast(1.9) brightness(.62);
+    mix-blend-mode:multiply;
+    opacity:1}
   .mono{font-family:var(--mono)} .disp{font-family:var(--display)}
   .tab{font-variant-numeric:tabular-nums}

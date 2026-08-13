@@ -484,9 +484,46 @@ const JADUAL = [
   check('...and it actually loads (a 404 gives 0x0)', art.mark.loaded, true);
   check('...at its real dimensions', [art.mark.w, art.mark.h], [500, 500]);
   check('the app shell background URL is root-absolute',
-    /^https?:\/\/[^/]+\/app-bg\.jpg$/.test(art.shellUrl || ''), true);
+    /^https?:\/\/[^/]+\/app-bg\.png$/.test(art.shellUrl || ''), true);
   check('...and it loads too', art.shell.loaded, true);
   check('...at its real dimensions', [art.shell.w, art.shell.h], [1920, 1120]);
+
+  /* THE WATERMARK MUST DARKEN, NOT COVER.
+   *
+   * The 50th artwork is WHITE-BACKED — no transparency anywhere — so painted as
+   * an ordinary layer it is a large white block. `mix-blend-mode: multiply` is
+   * what drops that white out and leaves only the engraved lines.
+   *
+   * Asserting the rule is present would prove nothing: the interesting failure
+   * is a white rectangle appearing over the artwork, and a check for
+   * `mixBlendMode === 'multiply'` passes just as happily on a build where the
+   * blend has no effect. So this samples the page: the area the watermark
+   * covers must be DARKER than the ground beside it. A white block is brighter,
+   * which is precisely the state this catches. */
+  const meanLuma = async () => {
+    const shot = await p.screenshot();
+    return p.evaluate(async (d) => {
+      const img = new Image(); img.src = 'data:image/png;base64,' + d; await img.decode();
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+      const im = x.getImageData(0, 0, c.width, c.height).data;
+      let t = 0;
+      for (let i = 0; i < im.length; i += 4) t += (im[i] * 299 + im[i + 1] * 587 + im[i + 2] * 114) / 1000;
+      return t / (im.length / 4);
+    }, shot.toString('base64'));
+  };
+  const withBlend = await meanLuma();
+  // Force the blend off and re-measure the SAME page. If multiply is doing its
+  // job the white plate reappears and the screen gets brighter; if the blend
+  // were inert the two numbers would match.
+  await p.addStyleTag({ content: '#authGate::before{mix-blend-mode:normal!important}' });
+  await p.waitForTimeout(150);
+  const withoutBlend = await meanLuma();
+  check('the watermark DARKENS the page — it is not a white plate laid over it',
+    withBlend < withoutBlend - 1, true);
+  await p.reload({ waitUntil: 'load' });
+  await p.waitForTimeout(900);
 
   /* Every text colour on the gate, measured against RENDERED PIXELS.
    *
