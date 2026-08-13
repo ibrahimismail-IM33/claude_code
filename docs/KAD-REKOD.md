@@ -337,6 +337,10 @@ printout came out visibly faded.
 > mistake cost a printout. `tests/v2-signature-print-parity.js` runs both
 > implementations over both fixtures and asserts the outputs are byte-identical,
 > so the two copies cannot drift.
+>
+> **Confirmed on a real printer, 2026-08-13.** A01 prints, and the signature is
+> whole. That is the fourth print defect in this document and the fourth found
+> on paper — no screen, and no measurement I made, caught any of them.
 
 The print CSS **used to** apply
 `filter: brightness(0)` plus **three** `drop-shadow(0 0 0 #000)` passes.

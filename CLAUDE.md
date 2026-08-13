@@ -1282,11 +1282,26 @@ second check mattered as much as the first: the replacement had to be verified
 not only for "is the ink black" but for "is the signature still *there*", since
 a threshold slightly too high erases faint strokes entirely.
 
-**Three print defects, three found on paper, none found by any other means.**
-Faded ink, then a black box, then the risk of an erased signature. The screen
-was wrong every time, the automated measurements were necessary but never
-sufficient, and each one was caught by an officer printing a card. Treat the
-printout as the gate it is.
+**Confirmed on paper again (2026-08-13)** — A01, after the print threshold was
+found to be *erasing* signatures rather than fading them (§4.31). The officer
+printed and it works.
+
+Worth keeping the shape of this one, because it is the sharpest example in the
+file of a measurement being right and the conclusion being wrong. Everything I
+measured held up: a built print copy does print black, eight photo qualities did
+print at or above screen coverage, five stroke weights did survive the
+downscale. Every one of those fixtures had *uniform* alpha, and the defect lives
+entirely in a signature that is pale and dark **at once** — so the sweep that
+looked exhaustive was exhaustive over the wrong dimension, and two rounds of it
+cost the user two printouts. **The officer's printed PDF answered it in one
+query**: pure black, binary alpha, 1.48% coverage. Ask for the artefact before
+the third round of reasoning, not after.
+
+**Four print defects, four found on paper, none found by any other means.**
+Faded ink, then a black box, then the risk of an erased signature — and then an
+actually erased one. The screen was wrong every time, the automated measurements
+were necessary but never sufficient, and each one was caught by an officer
+printing a card. Treat the printout as the gate it is.
 
 **Committed regression tests** (`tests/`, see `tests/README.md`):
 - `csp-and-vendor.js` — 21 assertions: no CDN tag or CDN origin left anywhere,
