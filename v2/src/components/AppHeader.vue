@@ -92,7 +92,11 @@ function menuSignOut() { menuOpen.value = false; emit('signOut'); }
 
     <div class="hrow">
       <div class="brand">
-        <span class="bar"></span>
+        <!-- The red accent bar that used to sit here is gone (user's call,
+             2026-08-13) — the crest is the mark, and a second vertical rule
+             beside it was competing with it.
+             Only the ELEMENT is removed; the `.bar` rule stays in map.css
+             because StatCards renders the same class for its status bars. -->
         <div class="logo"><img :src="logo" alt="Jabatan Bomba dan Penyelamat Malaysia"></div>
         <div>
           <!-- Wordmark FIRST, kicker under it — the mockup's order, and the same

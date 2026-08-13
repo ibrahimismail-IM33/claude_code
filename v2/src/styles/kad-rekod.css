@@ -66,7 +66,7 @@
   .signout:hover{color:#fff;border-color:rgba(255,255,255,.3)}
   .ro-hidden{display:none!important}
   /* ---------- search row (below header, full width) ---------- */
-  .searchrow{position:relative;z-index:500;flex:0 0 auto;background:linear-gradient(180deg,rgba(14,15,18,.96),rgba(10,11,13,.96));
+  .searchrow{position:relative;z-index:500;flex:0 0 auto;background:none;
     border-bottom:1px solid rgba(255,255,255,.08);padding:10px 20px 11px}
   @media print{ .searchrow{display:none!important} }
   .searchbox{display:flex;align-items:center;gap:10px;width:100%;
@@ -75,7 +75,10 @@
   .searchbox .sicon{font-size:14px;opacity:.6;line-height:1;flex:none}
   .searchbox input{flex:1;min-width:0;background:transparent;border:none;outline:none;color:#fff;
     font-family:var(--sans);font-size:14px;padding:0}
-  .searchbox input::placeholder{color:rgba(255,255,255,.35)}
+  /* .62, not .35. The search row lost its solid ground (user's call), so the
+     placeholder now sits over the artwork: measured 2.88:1 there. It is the
+     only label this field has. */
+  .searchbox input::placeholder{color:rgba(255,255,255,.62)}
   .searchbox input::-webkit-search-cancel-button{display:none}
   .sclear{flex:none;background:rgba(255,255,255,.08);border:none;color:rgba(255,255,255,.7);cursor:pointer;
     width:22px;height:22px;border-radius:9999px;font-size:12px;line-height:1;display:grid;place-items:center}

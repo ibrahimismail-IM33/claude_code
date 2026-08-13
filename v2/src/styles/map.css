@@ -47,8 +47,12 @@
   h1{font-family:var(--display);font-size:26px;font-weight:800;letter-spacing:.01em;
     color:var(--brand);line-height:1.05}
   h1 span{color:#f87171}
+  /* A LIGHTER orange than the wordmark, and measured rather than chosen. At
+     --brand it came out 3.51:1 over the artwork — fine for the wordmark, which
+     is large text and needs 3, but this is 13px and needs 4.5. Same family,
+     one step up in lightness, which is the smallest change that passes. */
   .kicker{font-family:var(--display);font-size:13px;font-weight:700;letter-spacing:.30em;
-    text-transform:uppercase;color:var(--brand);margin-top:1px}
+    text-transform:uppercase;color:#fdba74;margin-top:1px}
   /* The "· Sabah · Bomba Malaysia" tail is now hidden at EVERY width, not just
      on phones. At the wordmark's new size that string runs ~400px and pushed
      Tambah Pili, the clocks and Sign Out onto a second row — a 168px header
@@ -246,7 +250,7 @@
   input[type=date].inp{color-scheme:dark}
 
   /* ---------- search row (below header, full width) ---------- */
-  .searchrow{position:relative;z-index:500;flex:0 0 auto;background:linear-gradient(180deg,rgba(14,15,18,.96),rgba(10,11,13,.96));
+  .searchrow{position:relative;z-index:500;flex:0 0 auto;background:none;
     border-bottom:1px solid rgba(255,255,255,.08);padding:10px 20px 11px}
   @media print{ .searchrow{display:none!important} }
   .searchbox{display:flex;align-items:center;gap:10px;width:100%;
@@ -255,7 +259,10 @@
   .searchbox .sicon{font-size:14px;opacity:.6;line-height:1;flex:none}
   .searchbox input{flex:1;min-width:0;background:transparent;border:none;outline:none;color:#fff;
     font-family:var(--sans);font-size:14px;padding:0}
-  .searchbox input::placeholder{color:rgba(255,255,255,.35)}
+  /* .62, not .35. The search row lost its solid ground (user's call), so the
+     placeholder now sits over the artwork: measured 2.88:1 there. It is the
+     only label this field has. */
+  .searchbox input::placeholder{color:rgba(255,255,255,.62)}
   .searchbox input::-webkit-search-cancel-button{display:none}
   .sclear{flex:none;background:rgba(255,255,255,.08);border:none;color:rgba(255,255,255,.7);cursor:pointer;
     width:22px;height:22px;border-radius:9999px;font-size:12px;line-height:1;display:grid;place-items:center}

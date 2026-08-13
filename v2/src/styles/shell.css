@@ -83,8 +83,10 @@
   .app::after{
     z-index:-1;
     inset:0;                                      /* upright, no transform */
-    /* Half the page, as the reference draws it. */
-    background:url("/logo-50.png") left 4% center / auto 52vh no-repeat;
+    /* The SAME placement and size the header uses (tokens.css, body::before) —
+       user's call: the 50 should not move or resize between tabs. Written to
+       match that rule literally so the two cannot drift apart. */
+    background:url("/logo-50.png") left -40px top 40px / auto 560px no-repeat;
     /* No `filter` — see tokens.css: a filter isolates the element and its
        mix-blend-mode stops blending, so the artwork's white plate paints as a
        visible rectangle. */
@@ -144,10 +146,12 @@
   /* frosted-glass login panel floating over the smoke */
   .authbox{
     /* noise is generated here rather than fetched from another site */
-    /* Stronger blur and saturation than V1's: on a light, detailed ground the
-       refraction is what says "glass", and at .80 tint a weak blur just looks
-       like a flat panel with a slightly blurry edge. */
-    --filter-glass3d: blur(26px) brightness(1.16) saturate(3.1);
+    /* LIQUID GLASS. The refraction is what makes it read as a material rather
+       than a translucent rectangle: a deep blur, lifted brightness and heavy
+       saturation pull colour out of the artwork behind and smear it through
+       the panel. On a light, detailed ground a weak blur just looks like a
+       flat panel with a soft edge. */
+    --filter-glass3d: blur(34px) brightness(1.18) saturate(1.5);
     /* .42 → .80, and this value is a balance, not a preference.
        This card is GLASS: it tints whatever is behind it. Against the old dark
        photograph .42 produced a dark panel; against the near-white page it
@@ -159,10 +163,17 @@
        while the blur, the refraction and the edge highlights read as glass
        again. Measured, not guessed — T9 holds the floor, so this cannot be
        nudged down later without the suite saying so. */
-    --color-glass3d: rgba(10,12,16,.80);
+    /* NAVY, not neutral. At rgba(10,12,16,…) the panel came out BROWN: heavy
+       `saturate()` pulls colour from whatever is behind, and behind it is a
+       sepia engraving on cream, so the glass faithfully amplified the sepia.
+       The tint is blue now and the saturation is down to 1.5 — enough for the
+       glass to carry colour through, not enough to dye the panel with it.
+       If this ever looks brown again, that is the cause: check the saturation
+       before the tint. */
+    --color-glass3d: rgba(20,37,58,.91);
     --noise-glass3d: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.28'/%3E%3C/svg%3E");
     position:relative;z-index:4;
-    width:100%;max-width:360px;border-radius:18px;padding:26px 22px;
+    width:100%;max-width:360px;border-radius:30px;padding:30px 24px;
     background:transparent;border:none;
     box-shadow:
       0 0 0.75px hsl(205 20% 10% / 0.2),
@@ -178,14 +189,18 @@
     content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;overflow:hidden;z-index:3;
     -webkit-backdrop-filter:var(--filter-glass3d); backdrop-filter:var(--filter-glass3d);
     background-color:var(--color-glass3d);
-    background-image:var(--noise-glass3d);
-    background-size:100px; background-repeat:repeat;
+    /* Sheen over the noise: glass is brighter where the light meets it, and a
+       perfectly even panel is the thing that reads as plastic. */
+    background-image:
+      linear-gradient(160deg,rgba(255,255,255,.055) 0%,rgba(255,255,255,.015) 38%,rgba(255,255,255,0) 62%),
+      var(--noise-glass3d);
+    background-size:auto, 100px; background-repeat:no-repeat, repeat;
   }
   .authbox::after{
     content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;overflow:hidden;z-index:5;
     box-shadow:
-      inset 2px 2px 1px -3px hsl(205 20% 90% / 0.8),
-      inset 4px 4px 2px -6px hsl(205 20% 90% / 0.3),
+      inset 2px 2px 1px -3px hsl(205 20% 90% / 0.95),
+      inset 5px 5px 3px -6px hsl(205 20% 90% / 0.45),
       inset 1.5px 1.5px 1.5px -0.75px hsl(205 20% 90% / 0.15),
       inset 1.5px 1.5px 0.25px hsl(205 20% 90% / 0.03),
       inset 0 0 0.25px 0.5px hsl(205 20% 90% / 0.03);
@@ -212,24 +227,34 @@
      caused. Semi-transparent text is composited before anyone sees it, so the
      declared colour says nothing. */
   .authbox label{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.2em;color:rgba(255,255,255,.72);margin:12px 0 6px}
-  .authbox input{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);border-radius:9px;
-    padding:11px 12px;color:#fff;font-size:15px;outline:none;font-family:var(--sans)}
+  /* Pills, as the reference draws them. 16px, not 15: below 16px iOS zooms the
+     page on focus, which throws an officer into a sideways-scrolled layout
+     mid-login. */
+  .authbox input{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);
+    border-radius:9999px;
+    padding:14px 20px;color:#fff;font-size:16px;outline:none;font-family:var(--sans)}
   .authbox input:focus{border-color:rgba(59,130,246,.65);box-shadow:0 0 0 3px rgba(59,130,246,.18)}
   /* The reveal toggle. `position:relative` on the wrapper only — the input keeps
      its own full width and the button overlays its right edge, so nothing about
      the field's layout changes. */
   .authpwrap{position:relative}
   /* Room for the button, so a long password never runs under it. */
-  .authpwrap input{padding-right:48px}
-  .autheye{position:absolute;right:4px;top:50%;transform:translateY(-50%);
+  .authpwrap input{padding-right:54px}
+  .autheye{position:absolute;right:8px;top:50%;transform:translateY(-50%);
     display:grid;place-items:center;width:44px;height:44px;   /* the touch minimum */
     background:none;border:none;cursor:pointer;border-radius:8px;
     color:rgba(255,255,255,.80)}
   .autheye:hover{color:#fff;background:rgba(255,255,255,.07)}
   .autheye:focus-visible{outline:2px solid rgba(59,130,246,.7);outline-offset:-2px}
-  .authbtn{width:100%;margin-top:18px;padding:12px;border:none;border-radius:9px;background:#2563eb;color:#fff;
-    font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 10px 26px -10px #2563eb}
-  .authbtn:hover{background:#1d4ed8}
+  /* Cream with dark ink, and a glow beneath — the reference's button.
+     Measured, not eyeballed: #16202c on #f6efdc is 14.6:1. The glow is a
+     shadow in the button's OWN colour, which is what makes it look lit from
+     within rather than dropped on top. */
+  .authbtn{width:100%;margin-top:22px;padding:15px;border:none;border-radius:9999px;
+    background:#f6efdc;color:#16202c;
+    font-family:var(--sans);font-size:16px;font-weight:700;cursor:pointer;min-height:52px;
+    box-shadow:0 0 34px -6px rgba(246,239,220,.55), 0 10px 26px -12px rgba(0,0,0,.6)}
+  .authbtn:hover{background:#fffaf0}
   .authbtn:disabled{opacity:.6;cursor:not-allowed}
   .autherr{margin-top:12px;font-size:12px;color:#fca5a5;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);
     border-radius:8px;padding:9px 11px;line-height:1.45}
@@ -253,16 +278,23 @@
   .tabs{position:relative;z-index:1;display:flex;gap:6px;
     margin:-14px -28px 12px;                 /* cancel header padding: full bleed */
     padding:6px 8px;
-    background:linear-gradient(180deg,#15171c,#0e1013);
+    /* No ground of its own — the app's background reads through, so the bar
+       belongs to the page instead of sitting on a black strip over it. The
+       active pill is the only fill left, which is the one thing it has to
+       say. */
+    background:none;
     border-bottom:1px solid rgba(255,255,255,.08)}
   .tabb{appearance:none;border:none;cursor:pointer;
     flex:1 1 0; min-width:0;                 /* equal thirds, as the mockup */
     display:flex;align-items:center;justify-content:center;gap:8px;
-    padding:12px 16px;font-family:var(--sans);font-size:14px;font-weight:700;
+    padding:8px 16px;font-family:var(--sans);font-size:14px;font-weight:700;
     color:rgba(255,255,255,.6);background:none;transition:all .18s;
     /* Rounded, as the reference draws them: three pills sharing the bar rather
        than three panels butted together. */
-    white-space:nowrap;min-height:46px;border-radius:9999px}
+    /* 38px, down from 46 (user's call). These are DESKTOP ONLY — the hamburger
+       is the navigation below 640px — so the 44px touch minimum does not bind
+       here; T22 asserts the phone path separately. */
+    white-space:nowrap;min-height:38px;border-radius:9999px}
   .tabb .ti{font-size:15px;line-height:1}
   .tabb:hover{color:rgba(255,255,255,.9);background:rgba(255,255,255,.04)}
   /* Filled, not tinted. On a bar this wide a 16% tint reads as "slightly
