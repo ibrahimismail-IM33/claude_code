@@ -813,6 +813,47 @@ Draw order: caps → walls → top faces (painter's algorithm).
 
     Verified by reproduction before any fix: teaching the stub the real rule
     turned the shipped code red with the officer's exact error string.
+
+30. **The app's decoration printed onto the Kad Rekod, because the print rule
+    cannot reach pseudo-elements.** Reported 2026-08-13 with a photograph of a
+    print preview.
+
+    V1's print isolation is one line, and V2 ports it verbatim:
+
+    ```css
+    body.form-open > *:not(#formOverlay){ display:none !important }
+    ```
+
+    **`body > *` matches child ELEMENTS.** `body::before` is not one. When the
+    50th-anniversary artwork was added it went on exactly that pseudo-element —
+    `position:fixed`, full page, `mix-blend-mode:multiply` — so it survived the
+    rule and landed on a **legal record**, on every printed page.
+
+    Fixed by naming the pseudo-elements explicitly, plus `body{background:none}`
+    in print. `.app`'s own pseudo-elements are inside an element the rule
+    already hides, and are named anyway: relying on an ancestor to hide a
+    decoration is what failed here once.
+
+    Three things worth carrying:
+
+    - **The print suite mounts through the HARNESS, which is a bare page.** It
+      renders the card to PDF and counts pages, and none of that ever saw a body
+      background, a watermark or an app shell — because the harness has none.
+      The layer was proven; the app was not. Same shape as every other seam
+      defect in this file, now reaching paper. `v2-app-live.js` T23 prints from
+      the assembled app and asserts each pseudo-element by name.
+    - **I could not reproduce the reported symptom, and said so.** The report was
+      blank pages; what I found was a watermark over the record. Headless
+      Chromium printed the card with its text intact both with and without
+      backgrounds, so the blanking is something about the reporter's print
+      pipeline that I have not seen. The fix removes the most plausible cause —
+      a fixed, blended, full-page layer is exactly what a weaker print
+      implementation drops the page over — but **"it should fix it" is a
+      hypothesis, and the printout is the test.**
+    - **A decoration is not neutral on paper.** Every previous print defect here
+      was about the record's own ink (§4.15, §4.20). This one was about
+      something that had no business being on the page at all, added three
+      commits earlier for a screen.
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"

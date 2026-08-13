@@ -1455,6 +1455,57 @@ const JADUAL = [
       .filter((n) => getComputedStyle(n).display !== 'none').length), 4);
   await p.close();
 
+  /* ---------- T23: the card printed FROM THE ASSEMBLED APP ----------
+   *
+   * `v2-kad-rekod.js` already renders the card to PDF and counts pages — but it
+   * mounts through the HARNESS, which is a bare page. The app is not: it has a
+   * body background, `body::before` carrying the 50th watermark, and `.app`
+   * pseudo-elements. None of that exists in the harness, so none of it was ever
+   * in a printed page under test.
+   *
+   * It reached paper. `body.form-open > *:not(#formOverlay)` hides child
+   * ELEMENTS; a pseudo-element is not one, so the watermark printed across a
+   * legal record — a fixed, `mix-blend-mode:multiply` layer over every page.
+   *
+   * Same shape as every seam defect in this file: the layer was proven, the
+   * app was not. */
+  console.log('T23  the Kad Rekod prints clean from the real app, not the harness');
+  p = await mount();
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  const ob10 = await p.$('#dOpenForm');
+  if (ob10) { await ob10.click(); await p.waitForTimeout(900); }
+  check('the card is open and teleported to <body>, where the print CSS expects it',
+    await p.evaluate(() => { const n = document.querySelector('#formOverlay');
+      return !!n && n.parentElement === document.body; }), true);
+
+  await p.emulateMedia({ media: 'print' });
+  await p.waitForTimeout(250);
+  /* Asserted on the PSEUDO-ELEMENTS by name. The child rule cannot reach them,
+   * and that is the entire defect — a test that only checked `#app` is hidden
+   * passes over it. */
+  check('nothing from the app shell paints on the page',
+    await p.evaluate(() => ['body::before', 'body::after', '.app::before', '.app::after']
+      .map((sel) => {
+        const [host, pseudo] = sel.split('::');
+        const el = host === 'body' ? document.body : document.querySelector(host);
+        return el ? getComputedStyle(el, '::' + pseudo).display : 'none';
+      })
+      .filter((d) => d !== 'none')), []);
+  check('...and the app itself is hidden',
+    await p.$eval('#app', (n) => getComputedStyle(n).display), 'none');
+  check('the card is still visible — the rule hides the shell, not the record',
+    await p.$eval('#formOverlay', (n) => getComputedStyle(n).display), 'block');
+
+  /* The page count is the assertion that catches a layout change pushing the
+   * card onto a third sheet, which is invisible on screen (docs/KAD-REKOD.md). */
+  const pdf = await p.pdf({ format: 'Letter', printBackground: true,
+    margin: { top: '8mm', bottom: '8mm', left: '8mm', right: '8mm' } });
+  check('one card still prints as exactly two pages',
+    (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length, 2);
+  await p.emulateMedia({ media: 'screen' });
+  await p.close();
+
   await b.close(); server.close();
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

@@ -45,6 +45,13 @@ paper. The print CSS sets row heights in **millimetres**
 plus roughly 75mm of header and section chrome has to land inside the 259mm of
 usable height on Letter at an 8mm margin.
 
+**Nothing from the app shell may print.** The isolation rule is
+`body.form-open > *:not(#formOverlay){display:none}` — and it matches child
+ELEMENTS only. A `body::before` decoration is invisible to it and will print
+across the record; that happened once, with the 50th-anniversary watermark.
+Any new full-page layer must be named explicitly in the print block, and
+`tests/v2-app-live.js` T23 asserts it from the assembled app.
+
 **Changing a row height, a font size, or a capacity can silently push the card
 onto a third sheet.** That is not visible on screen. Anyone touching the print
 CSS must re-render to PDF and count the pages.

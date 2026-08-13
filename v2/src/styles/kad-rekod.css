@@ -184,6 +184,19 @@
     html,body{height:auto !important;overflow:visible !important}
     .app{height:auto !important;overflow:visible !important;display:block !important;position:static !important}
     body.form-open>*:not(#formOverlay){display:none!important}
+    /* THE RULE ABOVE CANNOT REACH PSEUDO-ELEMENTS. `body > *` matches child
+       ELEMENTS; `body::before` is not one, so the app's decoration walked
+       straight onto the paper — the 50th-anniversary watermark printed across
+       a legal record, and a `position:fixed` layer carrying
+       `mix-blend-mode:multiply` sat over every printed page.
+       The Kad Rekod prints on white. Nothing from the app shell belongs on it:
+       not the artwork, not the body background, not a blend group. `.app`'s own
+       pseudo-elements are inside an element this rule already hides, but they
+       are named anyway — relying on an ancestor to hide a decoration is what
+       failed here once. */
+    body::before,body::after{display:none!important;content:none!important}
+    .app::before,.app::after{display:none!important;content:none!important}
+    body{background:none!important;background-image:none!important}
     #formOverlay{position:static;background:#fff;backdrop-filter:none;overflow:visible;display:block;height:auto;margin:0;padding:0}
     #formOverlay, #formOverlay *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
     .ftoolbar,.ftoast{display:none!important}
