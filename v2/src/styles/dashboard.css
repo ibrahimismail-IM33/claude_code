@@ -50,9 +50,22 @@
    * the premise changed, not because the earlier decision was wrong. The
    * artwork still reads around and between the panels, which is where the
    * reference shows it. */
-  #dashView .dsec{padding:18px;background:#121419;border:1px solid rgba(255,255,255,.11);
-    border-radius:14px}
-  #dashView .dcard{background:#121419;border:1px solid rgba(255,255,255,.11);border-radius:14px;padding:18px}
+  /* LIQUID GLASS, dark. The base is rgba(18,20,25,.88) and 18,20,25 is exactly
+     the #121419 these panels used to be — the colour the green/blue/red figure
+     ink was measured against (10.6 / 7.3 / 6.7:1). Keeping the base that dark is
+     what lets the panel turn to glass without moving those numbers; a lighter or
+     more transparent one lifts the panel toward the artwork's gold lines and
+     drags every figure with it. See tokens.css. */
+  #dashView .dsec{padding:18px;border-radius:14px;
+    background:linear-gradient(180deg,var(--glass-sheen),transparent 42%),var(--glass-bg);
+    border:1px solid var(--glass-rim);
+    -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+    box-shadow:var(--glass-shadow),var(--glass-inset);}
+  #dashView .dcard{border-radius:14px;padding:18px;
+    background:linear-gradient(180deg,var(--glass-sheen),transparent 42%),var(--glass-bg);
+    border:1px solid var(--glass-rim);
+    -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+    box-shadow:var(--glass-shadow),var(--glass-inset);}
   #dashView h2{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;
     color:rgba(255,255,255,.55);margin:0 0 14px;font-weight:700}
 

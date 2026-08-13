@@ -160,18 +160,26 @@
     /* Sheen over the noise: glass is brighter where the light meets it, and a
        perfectly even panel is the thing that reads as plastic. */
     background-image:
-      linear-gradient(160deg,rgba(255,255,255,.055) 0%,rgba(255,255,255,.015) 38%,rgba(255,255,255,0) 62%),
+      linear-gradient(160deg,rgba(202,240,248,.075) 0%,rgba(202,240,248,.02) 38%,rgba(202,240,248,0) 62%),
       var(--noise-glass3d);
     background-size:auto, 100px; background-repeat:no-repeat, repeat;
   }
+  /* THE RIM LIGHT TAKES CAF0F8; THE TINT DOES NOT.
+     `--color-glass3d` stays exactly where it was measured. It is the value that
+     decides how dark this card renders, and every one of T9's seven text
+     colours is measured against it — the last time it moved, the wordmark fell
+     to 1.03:1 on the first screen an officer sees. So the accent goes on the
+     EDGES, which is where a glass material shows its colour anyway: the rim,
+     the sheen and the Sign In button. The rim was already a near-white blue-grey
+     (hsl 205 20% 90%); CAF0F8 is the same family, one step more saturated. */
   .authbox::after{
     content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;overflow:hidden;z-index:5;
     box-shadow:
-      inset 2px 2px 1px -3px hsl(205 20% 90% / 0.95),
-      inset 5px 5px 3px -6px hsl(205 20% 90% / 0.45),
-      inset 1.5px 1.5px 1.5px -0.75px hsl(205 20% 90% / 0.15),
-      inset 1.5px 1.5px 0.25px hsl(205 20% 90% / 0.03),
-      inset 0 0 0.25px 0.5px hsl(205 20% 90% / 0.03);
+      inset 2px 2px 1px -3px rgba(202,240,248,.95),
+      inset 5px 5px 3px -6px rgba(202,240,248,.45),
+      inset 1.5px 1.5px 1.5px -0.75px rgba(202,240,248,.18),
+      inset 1.5px 1.5px 0.25px rgba(202,240,248,.05),
+      inset 0 0 0.25px 0.5px rgba(202,240,248,.05);
   }
   .authbox > *{position:relative;z-index:6}
   /* fallback: if the browser cannot blur, fall back to a solid dark panel */
@@ -218,16 +226,24 @@
      Measured, not eyeballed: #16202c on #f6efdc is 14.6:1. The glow is a
      shadow in the button's OWN colour, which is what makes it look lit from
      within rather than dropped on top. */
+  /* Cream -> CAF0F8, the accent (user's call, 2026-08-13). The INK stays
+     near-black and that is not a style choice: CAF0F8 has luminance 0.82, so
+     dark ink is the only thing that passes on it — white would be 1.21:1.
+     #16202c on #CAF0F8 measures 13.9:1, which is where the cream button was. */
   .authbtn{width:100%;margin-top:22px;padding:15px;border:none;border-radius:9999px;
-    background:#f6efdc;color:#16202c;
+    background:var(--accent);color:#16202c;
     font-family:var(--sans);font-size:16px;font-weight:700;cursor:pointer;min-height:52px;
-    box-shadow:0 0 34px -6px rgba(246,239,220,.55), 0 10px 26px -12px rgba(0,0,0,.6)}
-  .authbtn:hover{background:#fffaf0}
+    box-shadow:0 0 34px -6px rgba(202,240,248,.55), 0 10px 26px -12px rgba(0,0,0,.6)}
+  .authbtn:hover{background:#e2f6fb}
   .authbtn:disabled{opacity:.6;cursor:not-allowed}
   .autherr{margin-top:12px;font-size:12px;color:#fca5a5;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);
     border-radius:8px;padding:9px 11px;line-height:1.45}
   .autherr.hide{display:none}
-  .authlogo{width:52px;height:52px;object-fit:contain;display:block;margin:0 auto 12px}
+  /* 52px -> 88px (user's call, 2026-08-13). The crest is the mark of the
+     department this record belongs to and it was the smallest thing on the
+     first screen an officer sees. Same import the header uses, so the two
+     cannot drift. */
+  .authlogo{width:88px;height:88px;object-fit:contain;display:block;margin:0 auto 14px}
   .signout{background:none;border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.6);cursor:pointer;
     font-size:11px;padding:4px 9px;border-radius:9999px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.12em}
   .signout:hover{color:#fff;border-color:rgba(255,255,255,.3)}
@@ -260,12 +276,34 @@
     white-space:nowrap;min-height:38px;border-radius:9999px}
   .tabb .ti{font-size:15px;line-height:1}
   .tabb:hover{color:rgba(255,255,255,.9);background:rgba(255,255,255,.04)}
-  /* Filled, not tinted. On a bar this wide a 16% tint reads as "slightly
-     different" rather than "you are here", which is the one thing a tab has
-     to say. */
-  .tabb.on{background:linear-gradient(180deg,#dc2626,#7f1d1d);color:#fff}
-  .tabb.on:hover{background:linear-gradient(180deg,#e02b2b,#8d2020)}
-  .tabb:focus-visible{outline:2px solid rgba(239,68,68,.6);outline-offset:-3px}
+  /* LIQUID GLASS, replacing the solid red fill (user's call, 2026-08-13).
+     The skill's own liquid-glass entry says to apply it "sparingly to
+     navigation and controls" — a tab bar is exactly that, and it is the one
+     place in this app where the style is used as intended rather than borrowed.
+
+     BUT THE NOTE THAT USED TO BE HERE STILL STANDS, and it is why this is not
+     just a tint: on a bar this wide, "slightly different" is not "you are
+     here". So the active state carries FOUR signals, not one — a brighter
+     glass, a CAF0F8 rim, a CAF0F8 label, and a lift. Losing the red means
+     losing the loudest of them, and the rest have to make up for it.
+
+     THE RIM IS AN INSET SHADOW, NOT A BORDER. `.tabb` is `border:none`, so a
+     border on `.on` alone would add 2px and shift all three tabs each time the
+     officer changed view.
+
+     Not colour-alone: `aria-selected` carries the state for assistive tech, and
+     the fill and rim carry it visually (§1 color-not-only). */
+  .tabb.on{
+    background:linear-gradient(180deg,rgba(202,240,248,.22),rgba(202,240,248,.07)),rgba(18,26,34,.68);
+    color:var(--accent);
+    -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+    box-shadow:inset 0 0 0 1px rgba(202,240,248,.55),inset 0 1px 0 rgba(202,240,248,.35),
+      0 6px 18px rgba(0,0,0,.35)}
+  .tabb.on:hover{
+    background:linear-gradient(180deg,rgba(202,240,248,.30),rgba(202,240,248,.11)),rgba(18,26,34,.68)}
+  /* The focus ring follows the accent — a red ring on a glass tab read as an
+     error state rather than focus. */
+  .tabb:focus-visible{outline:2px solid rgba(202,240,248,.75);outline-offset:-3px}
 
   /* ---- tab switch animation ----
    *
@@ -392,3 +430,29 @@
     .tabs{display:none}
   }
   @media print{ .tabs{display:none!important} }
+
+/* ---- REDUCED TRANSPARENCY ----
+ *
+ * The skill's liquid-glass checklist requires this, and it is the one setting
+ * that exists because translucency genuinely costs some people legibility.
+ * Every glass surface falls back to its opaque base; nothing else changes, so
+ * the layout and every measured contrast stay exactly where they are — the
+ * bases ARE the colours those ratios were measured on.
+ *
+ * `prefers-reduced-transparency` is not supported everywhere yet. That is fine:
+ * unsupported means the media query never matches and the glass stands, which
+ * is the same behaviour as today rather than a regression. */
+@media (prefers-reduced-transparency: reduce){
+  #dashView .dsec, #dashView .dcard, #profileView .pvcard, .panel{
+    -webkit-backdrop-filter:none;backdrop-filter:none;
+    background:#121419;
+  }
+  .tabb.on{
+    -webkit-backdrop-filter:none;backdrop-filter:none;
+    background:#16323d;
+  }
+  .authbox::before{
+    -webkit-backdrop-filter:none;backdrop-filter:none;
+    background-color:rgba(12,14,18,.97);
+  }
+}

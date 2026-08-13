@@ -22,6 +22,37 @@
      halves drift, which is what the note above is about. Used by the login
      wordmark. 6.9:1 on the gate's #0a0b0d. */
   --brand:#f97316;
+
+  /* ---- LIQUID GLASS, and the one number that makes it safe ----
+     User's call, 2026-08-13: liquid glass on the login card, the active tab and
+     the Dashboard / Profil / Registry cards, with #CAF0F8 as the colour.
+
+     **CAF0F8 IS AN ACCENT, NEVER A SURFACE.** Its relative luminance is 0.82 —
+     near white. Measured against it as a background, every text colour in this
+     app fails: body text 1.04:1, the wordmark 2.31:1, the dashboard's green /
+     blue / red figure ink 1.44 / 2.10 / 2.28:1. Only near-black passes. Used
+     the other way round it is excellent — 14.8:1 on a card, 16.3:1 on the gate.
+     So the surfaces stay DARK and CAF0F8 does the rim light, the sheen and the
+     active label. That was the user's choice when shown these numbers, and it
+     is the whole reason the dashboard's measured ink survives this change.
+
+     --glass-bg is rgba(18,20,25,.88), and 18,20,25 IS #121419 — the exact panel
+     colour the figure ink was measured on. Over a dark ground the composite
+     lands within a shade of where it started, which is why those ratios hold.
+     Raising the transparency is not a free "more glass": it lifts the panel
+     toward the artwork's gold lines and drags every figure down with it.
+
+     The skill's own liquid-glass entry says: apply sparingly to navigation and
+     controls, keep content on a separate layer, apply colour judiciously, and
+     test reduced transparency. The reduced-transparency fallback is at the
+     bottom of this file. */
+  --accent:#CAF0F8;
+  --glass-blur:blur(18px) saturate(1.35);
+  --glass-bg:rgba(18,20,25,.88);
+  --glass-rim:rgba(202,240,248,.28);
+  --glass-sheen:rgba(202,240,248,.10);
+  --glass-inset:inset 0 1px 0 rgba(202,240,248,.18);
+  --glass-shadow:0 18px 40px rgba(0,0,0,.5);
 }
 
 /* The reset, copied VERBATIM from index.html. It is a token in the sense that

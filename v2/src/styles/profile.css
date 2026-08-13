@@ -25,9 +25,15 @@
   color:#e7e5e4; margin:0 0 10px; letter-spacing:.2px;
 }
 
+/* Liquid glass, same material as the dashboard panels and the map's registry
+   card — one card material across all three tabs (user's call, 2026-08-13).
+   Surfaces stay dark; CAF0F8 is the rim and the sheen, never the ground. */
 #profileView .pvcard{
-  background:#121419; border:1px solid #232830; border-radius:14px;
-  padding:16px; margin-bottom:14px;
+  border-radius:14px; padding:16px; margin-bottom:14px;
+  background:linear-gradient(180deg,var(--glass-sheen),transparent 42%),var(--glass-bg);
+    border:1px solid var(--glass-rim);
+    -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+    box-shadow:var(--glass-shadow),var(--glass-inset);
 }
 
 /* ---- identity ---- */

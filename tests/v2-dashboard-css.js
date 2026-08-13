@@ -174,8 +174,34 @@ const READ = (probes) => {
   await p2.waitForTimeout(300);
   const v2 = await p2.evaluate(READ, PROBES);
 
+  /* DECLARED DIVERGENCES.
+   *
+   * This suite's whole job is "V2 matches V1", so a deliberate difference has
+   * to be written down rather than have the probe deleted — deleting it would
+   * stop checking the property altogether, and that is how a real regression
+   * would slip through later.
+   *
+   * Both halves are asserted, the same way the inspStatus divergence is pinned
+   * in v2-dashboard-parity.js: V2 must equal the new value AND V1 must still
+   * equal the old one. If V1's dashboard is ever restyled, this goes red and
+   * someone has to decide again, instead of the two drifting quietly. */
+  const DIVERGENCES = {
+    '#dashView .dcard|background-color': {
+      v2: 'rgba(18, 20, 25, 0.88)',
+      v1: 'rgb(18, 20, 25)',
+      why: 'LIQUID GLASS on the V2 cards (user, 2026-08-13). The base is the '
+         + 'SAME rgb(18,20,25) V1 uses — only the alpha and a backdrop-filter '
+         + 'are new — which is exactly why the measured figure ink survives it.',
+    },
+  };
   PROBES.forEach(([sel, prop]) => {
     const k = sel + '|' + prop;
+    const d = DIVERGENCES[k];
+    if (d) {
+      check(sel + ' { ' + prop + ' } — V2 diverges deliberately', v2[k], d.v2);
+      check(sel + ' { ' + prop + ' } — ...and V1 is unchanged', v1[k], d.v1);
+      return;
+    }
     check(sel + ' { ' + prop + ' }', v2[k], v1[k]);
   });
 
