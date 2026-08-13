@@ -113,12 +113,33 @@ function menuSignOut() { menuOpen.value = false; emit('signOut'); }
               @click="menuOpen = !menuOpen">
         <span></span><span></span><span></span>
       </button>
+      <!-- On a phone this menu IS the navigation. `.tabs` is display:none below
+           640px, so these five rows are the only way to change view or sign
+           out, and every one of them has to work — no other test viewport
+           exercises them (T22).
+
+           The Email and Peranan rows that used to sit at the top are gone: the
+           Profil tab shows both, and it is now one tap away inside this same
+           menu. -->
       <div class="menupanel" :class="{ hide: !menuOpen }" id="menuPanel" role="menu" aria-labelledby="menuBtn">
-        <div class="mrow mid"><span class="mlab">Email</span><span class="mval" id="mEmail">{{ email || '—' }}</span></div>
-        <div class="mrow mid"><span class="mlab">Peranan</span><span class="mval" id="mRole">{{ isAdmin ? 'Admin' : 'Viewer' }}</span></div>
+        <button class="mitem" :class="{ on: tab === 'map' }" id="mTabMap" role="menuitem"
+                :aria-current="tab === 'map' ? 'page' : undefined" @click="pick('map')">
+          <span class="mi">🗺️</span> Peta Pili
+        </button>
+        <button class="mitem" :class="{ on: tab === 'dash' }" id="mTabDash" role="menuitem"
+                :aria-current="tab === 'dash' ? 'page' : undefined" @click="pick('dash')">
+          <span class="mi">📊</span> Dashboard
+        </button>
+        <button class="mitem" :class="{ on: tab === 'profile' }" id="mTabProfile" role="menuitem"
+                :aria-current="tab === 'profile' ? 'page' : undefined" @click="pick('profile')">
+          <span class="mi">👤</span> Profil
+        </button>
+        <div class="msep"></div>
         <button class="mitem" :class="{ 'ro-hidden': !isAdmin }" id="mAdd" role="menuitem" @click="menuAdd">
           <span class="mi">+</span> Tambah Pili
         </button>
+        <!-- `danger` is V1's colour (#fca5a5). The mockup showed an amber Sign
+             Out; the user's call was to keep V1's, so this class stays. -->
         <button class="mitem danger" id="mSignOut" role="menuitem" @click="menuSignOut">Sign out</button>
       </div>
     </div>

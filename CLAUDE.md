@@ -191,7 +191,7 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Zone rows vs odd labels | **No row**, but reported in the caption | User's call — zone rows only. But the add form validates the label as non-empty and nothing else, so a typo can exist. A panel whose rows silently sum to less than the register is misinformation, so the count of unparsed labels is stated rather than a "Lain-lain" row added |
 | Zone range vs count | **Both shown, and flagged when they disagree** | A range implies contiguity. Every zone is gap-free today, so the warning is dormant — but delete one pili and `A01 – A114` would keep claiming 114 |
 | Zone panel markup | **Buttons, not a table** | `#dashView table` carries `min-width:460px` for the wide record tables; reusing it inside the narrow grid column would push the page sideways on a phone — §4.9 again |
-| Mobile header | Hamburger menu for account actions; tabs left-aligned with pills | User sketch |
+| **Mobile header: the hamburger IS the navigation** ⚠ **V2 ONLY** | Below 640px `.tabs` is `display:none` and the menu holds **Peta Pili / Dashboard / Profil / Tambah Pili / Sign out**, with the current view marked. The Email and Peranan readouts come out — the Profil tab shows both. The pills get row 2 to themselves | User's call, 2026-08-10. Was: tabs left-aligned sharing row 2 with the pills, which stopped fitting once **Profil** became a third tab — three tabs plus two pills plus the clear chip on a 360px screen. **Tambah Pili stays in the menu**: it is the only way an admin adds a hydrant on a phone. **Sign out keeps V1's `#fca5a5`**, not the mockup's amber, and T22 asserts the computed colour so the decision is not just a comment. `display:none` rather than `v-if`, and in the **last** of the two mobile blocks — §4.7 shipped `.menubtn`'s base rule after its own override once and the phone menu vanished. Header measured 217px → **127px**, about 90px of map returned |
 | Mobile kicker | Shows **"BBP KUNAK"** only; `· Sabah · Bomba Malaysia` hidden | Full string is ~200px and forced an extra header row. Short form costs nothing |
 | Zoom buttons | 34px on mobile | User asked, and confirmed fine in the field. Below the 44px touch minimum — accepted |
 | Archive on period reset | Keep the **full hydrant list** | Already inherent: the dashboard recomputes per hydrant from dated `hydrant_records`, so an archived period keeps full detail and its status filters still work on the map |
@@ -668,6 +668,35 @@ Draw order: caps → walls → top faces (painter's algorithm).
       `sync.save()` already returned. A button that looks identical whether the
       work reached the server or was parked locally is the §4.10 failure mode
       wearing a friendlier face.
+
+26. **The scope pills stacked one per line on every phone, from the first day
+    of the port.** Found 2026-08-10 while screenshotting the new phone header —
+    not reported, and it had been shipping the whole time.
+
+    V1 renders `<div class="pills" id="pills">`. **V2's `Pills.vue` rendered
+    only the id.** Every rule that lays that row out is written `.pills` — the
+    base `display:flex` in `map.css` and the entire mobile block in `shell.css`
+    (`flex-wrap:nowrap`, `overflow-x:auto`, the hidden scrollbar) — so all of
+    them matched nothing. `#pills` was an unstyled `<div>`, and its buttons
+    stacked as block-level children.
+
+    Three things worth carrying:
+
+    - **`tests/v2-parity-surface.js` was green over it for months, and would
+      have stayed green.** Its class check asks whether the *name* appears in
+      the built bundle, and `id="pills"` supplies the token `pills` on its own.
+      The guard cannot tell a class from an id. Its own header already says it
+      catches *absence, not wrongness* — this is a third category it also
+      misses, and the reason T22 asserts the row's **geometry** (all pills share
+      one `top`) rather than a class or a computed style. A measurement was the
+      only thing that could see it.
+    - **Nothing about it errored, and the desktop was fine.** At >640px the
+      pills wrap into a short row anyway, so the missing rules changed nothing
+      an assertion or a screenshot at 1280px would show. Every suite ran at
+      1280px until T22.
+    - **It surfaced from a screenshot taken for something else.** The tabs move
+      was the task; the stacked pills were just visible in the frame. Worth
+      remembering the next time a visual check feels like a formality.
 
 ## 5. Things I got wrong (so they aren't repeated)
 

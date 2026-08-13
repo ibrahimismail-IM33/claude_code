@@ -93,7 +93,10 @@ const JADUAL = [
 
   async function mount(opts) {
     const o = Object.assign({ role: 'admin', rows: REG, records: RECORDS, failScan: false, bigScan: 0, noSession: false, jadual: [], jadualError: null, saveFails: false, profileSig: null, base }, opts);
-    const p = await b.newPage({ viewport: { width: 1280, height: 950 } });
+    // Every case before T22 ran at 1280px, which is why nothing in this suite
+    // could see the phone header at all. `viewport` is an option now, not a
+    // constant.
+    const p = await b.newPage({ viewport: o.viewport || { width: 1280, height: 950 } });
     p.on('pageerror', (e) => { console.log('  PAGEERROR ' + e.message); fail++; });
     await p.addInitScript((cfg) => {
       window.__scanCalls = [];
@@ -1129,6 +1132,120 @@ const JADUAL = [
   await p.waitForTimeout(300);
   check('a viewer is not offered the uploader', await p.$('#pvAddSig'), null);
   check('...and is told why', await p.$eval('#profileView .pvnote', (n) => n.textContent.includes('admin')), true);
+  await p.close();
+
+  /* ---------- T22: the phone header — where the navigation actually is ------
+   *
+   * On a phone `.tabs` is `display:none` and the hamburger IS the navigation.
+   * That makes these five rows the only way to change view or sign out on the
+   * device this app is used on, in gloves, in a field.
+   *
+   * **Every other case in this suite mounts at 1280px**, so all of this could
+   * be completely broken and the suite would stay green — the same shape as
+   * §4.21, where the mobile registry sheet was a 52px sliver with no way to
+   * open it because only the media-query overrides had been ported. A viewport
+   * nobody tests at is a viewport nobody tests. */
+  console.log('T22  the phone menu is the navigation, and the tabs step aside');
+  p = await mount({ viewport: { width: 360, height: 740 } });
+  await p.waitForTimeout(800);
+
+  check('the tab bar is hidden on a phone',
+    await p.$eval('.tabs', (n) => getComputedStyle(n).display), 'none');
+  /* The half that matters more. A media query written one breakpoint off takes
+   * navigation away from every desktop user, and no other assertion here would
+   * notice — they all click #tabDash directly, which works on a hidden button. */
+  const wide = await mount();
+  await wide.waitForTimeout(600);
+  check('...and is still there on a desktop',
+    await wide.$eval('.tabs', (n) => getComputedStyle(n).display !== 'none'), true);
+  await wide.close();
+
+  check('the hamburger is showing',
+    await p.$eval('#menuBtn', (n) => getComputedStyle(n).display !== 'none'), true);
+  await p.click('#menuBtn');
+  await p.waitForTimeout(250);
+
+  // Read the LABELS, not just the count: five rows in the right order is the
+  // menu; five rows of anything is not.
+  check('the menu carries all five items, in order',
+    await p.evaluate(() => Array.from(document.querySelectorAll('#menuPanel .mitem'))
+      .filter((n) => getComputedStyle(n).display !== 'none')
+      .map((n) => n.textContent.replace(/\s+/g, ' ').trim())),
+    ['🗺️ Peta Pili', '📊 Dashboard', '👤 Profil', '+ Tambah Pili', 'Sign out']);
+
+  check('it marks the view you are on',
+    await p.$eval('#mTabMap', (n) => n.classList.contains('on')), true);
+
+  // The Email/Peranan readouts moved to the Profil tab. Asserted as ABSENT so
+  // the relocation is a checked fact and not just a waiver entry.
+  check('the old Email/Peranan rows are gone',
+    await p.evaluate(() => !document.querySelector('#mEmail') && !document.querySelector('#mRole')), true);
+
+  await p.click('#mTabProfile');
+  await p.waitForTimeout(500);
+  check('tapping Profil lands on the tab',
+    await p.evaluate(() => !!document.querySelector('#profileView') &&
+      getComputedStyle(document.querySelector('#profileView')).display !== 'none'), true);
+  // A menu that stays open after a pick covers the view it just opened.
+  check('...and the menu closes behind it',
+    await p.$eval('#menuPanel', (n) => n.classList.contains('hide')), true);
+
+  await p.click('#menuBtn'); await p.waitForTimeout(200);
+  check('the menu now marks Profil instead',
+    await p.evaluate(() => [document.querySelector('#mTabMap').classList.contains('on'),
+      document.querySelector('#mTabProfile').classList.contains('on')]), [false, true]);
+
+  /* V1's colour, asserted rather than assumed. The redesign mockup showed an
+   * amber Sign Out and the user's call was to keep V1's — a decision that lives
+   * in a comment is a decision that gets undone by the next person following
+   * the mockup. rgb(252,165,165) is #fca5a5. */
+  check('Sign out keeps V1\'s colour',
+    await p.$eval('#mSignOut', (n) => getComputedStyle(n).color), 'rgb(252, 165, 165)');
+
+  /* The pills own the second row now, and they must sit ON one row.
+   *
+   * Asserted as GEOMETRY, not as a class or a computed style, because the
+   * defect this catches was neither: `Pills.vue` rendered `id="pills"` without
+   * V1's `class="pills"`, so every rule laying this row out — the base flex in
+   * map.css and the entire mobile block — matched nothing, and the pills
+   * stacked one per line from the first day of the port. `v2-parity-surface.js`
+   * was green throughout: it matches the bare token `pills`, which the id
+   * supplies on its own. Only a measurement could see it. */
+  await p.evaluate(() => { document.querySelector('#menuBtn').click(); });
+  await p.waitForTimeout(200);
+  check('the scope pills sit on a single row',
+    await p.evaluate(() => {
+      const tops = Array.from(document.querySelectorAll('#pills .pill'))
+        .map((n) => Math.round(n.getBoundingClientRect().top));
+      // An empty set would make `new Set([]).size === 1` false anyway, but say
+      // it out loud — §4.18 shipped an assertion over an empty selection.
+      return tops.length >= 2 && new Set(tops).size === 1;
+    }), true);
+
+  // Tambah Pili is the ONLY way an admin adds a hydrant on a phone.
+  check('an admin still gets Tambah Pili',
+    await p.$eval('#mAdd', (n) => getComputedStyle(n).display !== 'none'), true);
+  await p.close();
+
+  /* §4.9 — the defect this whole change is downstream of. The 5-column table
+   * once pushed a 390px page to 438px, and three tabs plus two pills plus the
+   * clear chip is the same pressure on the header row. */
+  for (const w of [360, 390]) {
+    const m = await mount({ viewport: { width: w, height: 740 } });
+    await m.waitForTimeout(700);
+    check('no sideways scroll at ' + w + 'px',
+      await m.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+    await m.close();
+  }
+
+  // A viewer must not be offered a control RLS would refuse.
+  p = await mount({ role: 'viewer', viewport: { width: 360, height: 740 } });
+  await p.waitForTimeout(700);
+  await p.click('#menuBtn');
+  await p.waitForTimeout(250);
+  check('a viewer gets the three tabs and Sign out, but no Tambah Pili',
+    await p.evaluate(() => Array.from(document.querySelectorAll('#menuPanel .mitem'))
+      .filter((n) => getComputedStyle(n).display !== 'none').length), 4);
   await p.close();
 
   await b.close(); server.close();

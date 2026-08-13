@@ -22,7 +22,14 @@ const cfg = (s) => STATUS[s];
 </script>
 
 <template>
-  <div id="pills">
+  <!-- BOTH, exactly as V1 (`<div class="pills" id="pills">`). The class is not
+       decoration: every rule that lays this row out is written `.pills` — the
+       base flex in map.css and the whole mobile block in shell.css — so with
+       only the id they all matched nothing and the pills stacked one per line
+       on a phone, with no nowrap and no horizontal scroll. Dead since the port,
+       and invisible to tests/v2-parity-surface.js because it matches the bare
+       token `pills`, which `id="pills"` supplies on its own. -->
+  <div class="pills" id="pills">
     <button
       v-for="s in ORDER"
       :key="s"

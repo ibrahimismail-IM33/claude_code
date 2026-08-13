@@ -173,7 +173,17 @@ const AWAM = REG.filter((h) => h.status === 'kerajaan').length;
     await p.$eval('#headerAdd', (n) => n.classList.contains('ro-hidden')), true);
   check('the phone menu agrees',
     await p.$eval('#mAdd', (n) => n.classList.contains('ro-hidden')), true);
-  check('the account email is shown', await p.$eval('#mEmail', (n) => n.textContent.trim()), 'officer@bomba.gov.my');
+  /* The account email used to sit in the phone menu as #mEmail. It moved to the
+   * Profil tab when the tabs moved INTO that menu and it needed the room
+   * (CLAUDE.md §3, 2026-08-10). The assertion follows it rather than being
+   * dropped — "an officer can see which account they are signed in as" is the
+   * thing being checked, and it is still true; only the place changed. */
+  await p.evaluate(() => { document.querySelector('#tabProfile').click(); });
+  await p.waitForTimeout(300);
+  check('the account email is shown, on the Profil tab',
+    await p.$eval('#pvEmail', (n) => n.textContent.trim()), 'officer@bomba.gov.my');
+  check('...with the role beside it',
+    await p.$eval('#pvRole', (n) => n.textContent.trim()), 'Viewer');
   await p.close();
 
   p = await mount({ role: 'admin' });
@@ -264,7 +274,16 @@ const AWAM = REG.filter((h) => h.status === 'kerajaan').length;
 
   await p.click('#menuBtn');
   await p.waitForTimeout(150);
-  await p.click('#tabMap');
+  /* Tap the MAP, not a tab.
+   *
+   * This used to click #tabMap, which closed the menu through `pick()` — an
+   * explicit close, not the outside-click handler this case is named for. The
+   * tabs are `display:none` on a phone now (CLAUDE.md §3), so that click could
+   * no longer land at all, and rewriting it to a menu item would have kept the
+   * name while testing the same explicit path. The map is genuinely outside the
+   * header, so this exercises the document listener, which is the only thing
+   * standing between an officer and a menu left open over the map. */
+  await p.click('#map', { position: { x: 20, y: 20 } });
   await p.waitForTimeout(200);
   check('and so does tapping elsewhere', await p.$eval('#menuPanel', (n) => n.classList.contains('hide')), true);
   await p.close();

@@ -31,6 +31,8 @@
 
   "ids": {
     "modalRoot": "V1's single mount point for string-built modals. V2 renders real components (HydrantDetail, AddHydrantModal, SignPopup) so there is nothing to mount into.",
-    "ftoast": "V1 shows signature/save errors in a transient toast. V2 shows the same information inline in SignPopup via :sign-error, which persists until dismissed rather than vanishing after 2.4s. Different mechanism, same information, arguably better on a phone in sunlight."
+    "ftoast": "V1 shows signature/save errors in a transient toast. V2 shows the same information inline in SignPopup via :sign-error, which persists until dismissed rather than vanishing after 2.4s. Different mechanism, same information, arguably better on a phone in sunlight.",
+    "mEmail": "RELOCATED, not dropped. V1 shows the signed-in email inside the phone menu. V2 shows it on the Profil tab (#pvEmail), which V1 has no equivalent of, and the menu now links straight to it. Removing it from the menu was the user's call, 2026-08-10, once the tabs moved in there and the menu needed the room. The information is still one tap away and is asserted in T20.",
+    "mRole": "RELOCATED, not dropped. Same change as mEmail — the role badge now lives on the Profil tab as #pvRole, where it also renders as a coloured badge rather than plain text. Asserted in T22."
   }
 }

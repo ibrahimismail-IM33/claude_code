@@ -61,7 +61,16 @@ function readAll(dir, test) {
 }
 
 const v1 = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-const v2css = readAll(path.join(ROOT, 'v2', 'src', 'styles'), /\.css$/).join('\n');
+/* Comments are STRIPPED before selectors are extracted.
+ *
+ * These stylesheets are heavily commented, and a comment explaining why a rule
+ * was removed naturally names it — ".mrow / .mlab / .mval moved to the Profil
+ * tab" reported three classes as styled-but-never-rendered, when the rules had
+ * just been deleted. A guard that fails on its own documentation trains people
+ * to reword comments instead of reading the failure, which is worse than the
+ * false positive itself. */
+const v2css = readAll(path.join(ROOT, 'v2', 'src', 'styles'), /\.css$/)
+  .join('\n').replace(/\/\*[\s\S]*?\*\//g, ' ');
 
 /* Read the BUILT BUNDLE, not the source tree.
  *
