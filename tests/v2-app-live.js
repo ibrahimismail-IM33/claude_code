@@ -104,6 +104,13 @@ const JADUAL = [
       window.__upserts = [];
       window.__saved = [];   // rows the app has written, seen by later scans
       window.__uploads = [];         // { path, upsert } per storage write
+      /* Objects ALREADY IN THE BUCKET when the page loads. An officer's
+       * signature was uploaded in some earlier session; the stub has to know
+       * that or it treats every replacement as a first upload and the
+       * INSERT-only policy never bites — which is exactly how the defect got
+       * past this suite. */
+      window.__existing = cfg.profileSig ? [cfg.profileSig] : [];
+      window.__storageDeletes = 0;
       window.__profileUpdates = [];  // every value written to profiles.signature
       window.__profileSig = cfg.profileSig || null;   // what the database holds
       const ok = (data) => Promise.resolve({ data, error: null });
@@ -130,9 +137,33 @@ const JADUAL = [
           storage: {
             from: () => ({
               createSignedUrls: () => ok([]),
+              /* Counted, not implemented. There is no delete policy on this
+               * bucket by design, so any call here would fail in production —
+               * the assertion is that the app never makes one. */
+              remove: (paths) => { window.__storageDeletes = (window.__storageDeletes || 0) + 1;
+                return Promise.resolve({ data: null,
+                  error: { message: 'new row violates row-level security policy' } }); },
               createSignedUrl: (p) => ok({ signedUrl: cfg.base + 'sig/' + encodeURIComponent(p) }),
+              /* MODELS THE REAL POLICY, and this is the point of the stub.
+               *
+               * The `signatures` bucket has exactly one write rule — INSERT —
+               * and deliberately no UPDATE and no DELETE, because that absence
+               * is what makes a filed signature permanent. So an upload to a
+               * path that already exists is an UPDATE, and Postgres refuses it.
+               *
+               * The previous stub returned success unconditionally: it modelled
+               * a bucket that allows everything, and hid a defect where
+               * replacing a Profile signature failed for every officer. §4.24
+               * records a stub being wrong in the PERMISSIVE direction and
+               * inventing a defect; this is the same fault inverted. */
               upload: (p, blob, o) => {
+                const exists = window.__existing.indexOf(p) >= 0
+                  || window.__uploads.some((u) => u.path === p);
                 window.__uploads.push({ path: p, upsert: !!(o && o.upsert) });
+                if (exists) {
+                  return Promise.resolve({ data: null,
+                    error: { message: 'new row violates row-level security policy' } });
+                }
                 return ok({ path: p });
               },
             }),
@@ -1220,20 +1251,58 @@ const JADUAL = [
   const after = await p.evaluate(() => ({
     uploads: window.__uploads.map((u) => u),
     updates: window.__profileUpdates.slice(),
+    err: (document.querySelector('#pvErr') || {}).textContent || '',
   }));
-  check('replacing writes only to the Profile path',
-    after.uploads.every((u) => u.path === 'profile/u1.png'), true);
-  check('...at least one write happened (an empty set proves nothing)',
-    after.uploads.length > 0, true);
-  check('...and it IS allowed to overwrite — replacement is the feature',
-    after.uploads.every((u) => u.upsert === true), true);
+  /* REPLACEMENT HAS TO LAND, and this is what the shipped defect walked past.
+   *
+   * The bucket allows INSERT and nothing else — no UPDATE, no DELETE — because
+   * that absence is what keeps a filed signature permanent. Writing to a FIXED
+   * path with `upsert:true` is therefore an UPDATE the second time round, and
+   * every officer's "Tukar tandatangan" failed with "new row violates
+   * row-level security policy". The FIRST save worked, which is why it looked
+   * fine in testing and in use.
+   *
+   * The old assertion here checked that `upsert:true` was SENT — the client's
+   * intent — while the stubbed upload accepted everything. It proved a request
+   * was made, never that the server would take it. */
+  check('replacing a signature actually succeeds', after.err, '');
+  check('...writing to a NEW path, so it is an INSERT the policy allows',
+    after.uploads.length >= 1
+      && after.uploads.every((u) => /^profile\/u1_\d+\.png$/.test(u.path)), true);
+  check('...and never overwriting, so a collision is an error not a silent replace',
+    after.uploads.every((u) => u.upsert === false), true);
   // Stated as "not a profile path" rather than matching a hydrant pattern: a
   // pattern that happens not to match proves nothing, and an earlier version of
   // this line used one that could never have matched (§4.18).
   check('nothing outside the Profile path was touched',
     after.uploads.filter((u) => !u.path.startsWith('profile/')).length, 0);
-  check('the profile row points at the profile object',
-    after.updates[after.updates.length - 1], 'profile/u1.png');
+  check('the profile row is repointed at the NEW object',
+    /^profile\/u1_\d+\.png$/.test(after.updates[after.updates.length - 1] || ''), true);
+  check('...which is not the one it replaced',
+    after.updates[after.updates.length - 1] === 'profile/u1.png', false);
+
+  /* ---- Buang tandatangan ----
+   * Clears the REFERENCE only. There is no delete policy on the bucket, and
+   * adding one would be adding the very rule that keeps filed signatures
+   * permanent — so the image stays where it is, unreferenced. */
+  p.once('dialog', (d) => d.dismiss());
+  await p.click('#pvRemoveSig');
+  await p.waitForTimeout(500);
+  check('dismissing the confirm removes nothing',
+    await p.evaluate(() => !!document.querySelector('#pvRemoveSig')), true);
+
+  p.once('dialog', (d) => d.accept());
+  await p.click('#pvRemoveSig');
+  await p.waitForTimeout(800);
+  check('accepting it nulls the stored signature',
+    await p.evaluate(() => window.__profileUpdates[window.__profileUpdates.length - 1]), null);
+  check('...the button offers an ADD again',
+    await p.evaluate(() => { const n = document.querySelector('#pvAddSig'); return n ? n.textContent.trim() : null; }),
+    'Tambah tandatangan');
+  check('...and Buang is gone, with nothing left to remove',
+    await p.evaluate(() => !!document.querySelector('#pvRemoveSig')), false);
+  check('...and no storage delete was attempted — there is no policy for one',
+    await p.evaluate(() => window.__storageDeletes || 0), 0);
   await p.close();
 
   /* A viewer has no update path to profiles at all — `admins manage profiles`

@@ -20,9 +20,11 @@ import { resizeImage, dataUrlToBlob } from '../lib/signature-capture.js';
  *
  * That copy is the whole safety property. If a row referenced this object
  * instead, an officer replacing a bad photo would break every record that
- * pointed at it — and those records cannot be corrected, by design. So
- * `upsert: true` below is correct precisely because nothing durable depends
- * on this object's contents.
+ * pointed at it — and those records cannot be corrected, by design.
+ *
+ * Replacement is done by writing a NEW object each time, never by overwriting:
+ * the bucket allows INSERT and nothing else, and that is deliberate. See
+ * save() for what happened when this wrote to a fixed path.
  *
  * ── Admin only, and the server already agreed ────────────────────────────
  *
@@ -105,14 +107,29 @@ export const useProfileStore = defineStore('profile', {
         const user = u && u.data && u.data.user;
         if (!user) { this.error = 'Sesi tamat. Sila log masuk semula.'; return { ok: false }; }
 
-        // `profile/` keeps these clear of the per-row objects, which are keyed
-        // by hydrant id. `upsert: true` is the opposite of signRow's
-        // `upsert: false` and is correct here: replacement IS the feature, and
-        // nothing filed points at this object. One object per officer, so a
-        // replacement leaves no orphan behind.
-        const path = 'profile/' + user.id + '.png';
+        /* A NEW PATH EVERY TIME, and `upsert: false`.
+         *
+         * The bucket has exactly one write rule — INSERT — and deliberately no
+         * UPDATE and no DELETE, because that absence is what makes a filed
+         * record's signature permanent. An earlier version of this wrote to a
+         * FIXED path with `upsert: true`, which is an UPDATE the second time
+         * round: the first signature saved fine and every replacement failed
+         * with "new row violates row-level security policy". The comment here
+         * said "replacement IS the feature" and was never checked against the
+         * policy sitting in sql/supabase-records-setup.sql.
+         *
+         * Timestamping the path makes every save an INSERT, so replacement
+         * works without loosening the bucket by one line. `upsert: false` for
+         * the same reason it is right in signRow(): a collision should be an
+         * error — and with a timestamp in the name, a collision means
+         * something is badly wrong.
+         *
+         * THE COST, stated: the previous image stays in the bucket,
+         * unreferenced and undeletable from the app. ~120 KB per replacement.
+         * CLAUDE.md §7 carries it as a watch item. */
+        const path = 'profile/' + user.id + '_' + Date.now() + '.png';
         const up = await sb.storage.from('signatures')
-          .upload(path, dataUrlToBlob(durl), { contentType: 'image/png', upsert: true });
+          .upload(path, dataUrlToBlob(durl), { contentType: 'image/png', upsert: false });
         if (up && up.error) { this.error = 'Muat naik gagal: ' + (up.error.message || ''); return { ok: false }; }
 
         // Order matters, as it does in signRow: the image exists before
@@ -153,6 +170,37 @@ export const useProfileStore = defineStore('profile', {
           fr.readAsDataURL(blob);
         });
       } catch (e) { return ''; }
+    },
+
+    /* Forget the officer's signature.
+     *
+     * Clears the REFERENCE only — `profiles.signature` goes null and Sign stops
+     * pre-filling. The image itself stays in the bucket: there is no delete
+     * policy, by design, and adding one to tidy up here would be adding the
+     * exact rule that keeps filed signatures permanent (user's call,
+     * 2026-08-13).
+     *
+     * Nothing already filed is affected. A signed row holds its own copy at its
+     * own path — that is the whole reason this is safe.
+     */
+    async remove(sb) {
+      this.error = '';
+      if (!sb) { this.error = 'Perlu sambungan pelayan.'; return { ok: false }; }
+      this.busy = true;
+      try {
+        const u = await sb.auth.getUser();
+        const user = u && u.data && u.data.user;
+        if (!user) { this.error = 'Sesi tamat. Sila log masuk semula.'; return { ok: false }; }
+        const res = await sb.from('profiles').update({ signature: null }).eq('id', user.id);
+        if (res && res.error) { this.error = 'Gagal membuang: ' + (res.error.message || ''); return { ok: false }; }
+        this.path = ''; this.url = '';
+        return { ok: true };
+      } catch (e) {
+        this.error = 'Gagal membuang (rangkaian).';
+        return { ok: false };
+      } finally {
+        this.busy = false;
+      }
     },
 
     reset() {

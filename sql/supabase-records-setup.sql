@@ -202,6 +202,25 @@ create policy "signatures write" on storage.objects
   for insert to authenticated
   with check (bucket_id = 'signatures' and public.is_admin());
 
+-- DO NOT ADD AN UPDATE OR DELETE POLICY HERE.
+--
+-- Their absence is not an oversight — it is what makes a filed signature
+-- permanent. The row-level lock stops the RECORD changing; this stops the
+-- IMAGE it points at being swapped underneath it.
+--
+-- The Profile signature (profiles.signature) is replaceable, and it does NOT
+-- need one: v2/src/stores/profile.js writes a NEW timestamped object on every
+-- save, so each one is an INSERT this policy already allows, and the profile
+-- row is repointed at it. An earlier version wrote to a fixed path with
+-- `upsert:true`, which is an UPDATE the second time round — the first save
+-- worked and every replacement failed with "new row violates row-level
+-- security policy". The fix was in the client, not here.
+--
+-- The cost of that approach is that superseded profile images stay in the
+-- bucket, unreferenced. That is deliberate and cheap. Adding a DELETE rule to
+-- tidy them would hand the app the ability to erase a filed signature's image.
+-- CLAUDE.md §7 carries it as a watch item.
+
 
 -- ---------------------------------------------------------------------------
 -- 5. Check it worked

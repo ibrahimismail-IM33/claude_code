@@ -167,8 +167,8 @@ same severity as losing the record itself.
 **Decided by Ibrahim Ismail, 2026-08-09. Binding.**
 
 An officer stores one signature on their **Profile** tab
-(`profiles.signature`, a path under `profile/<uid>.png` in the same private
-bucket). Pressing **Sign** on a Kad Rekod fills the popup's preview from it,
+(`profiles.signature`, a path under `profile/<uid>_<timestamp>.png` in the same
+private bucket). Pressing **Sign** on a Kad Rekod fills the popup's preview from it,
 instead of asking for a photograph every time — five taps in the field became
 two, for something done dozens of times a week.
 
@@ -189,9 +189,17 @@ and by §5 those records can never be corrected. The copy is what makes
 Two consequences worth stating, because both look like inconsistencies to
 tidy away and neither is:
 
-- `upsert: true` on the Profile upload and `upsert: false` on the row's upload
-  are **both correct**, and for opposite reasons. Replacement is the point of
-  one; a collision must be an error on the other.
+- **Both uploads use `upsert: false`.** The Profile signature is replaceable,
+  but not by overwriting: each save writes a **new timestamped object** and the
+  profile is repointed at it. That is not a style choice — the bucket has one
+  write rule, INSERT, and no UPDATE or DELETE, because that absence is what
+  makes a filed signature permanent. An earlier version wrote to a fixed path
+  with `upsert: true`; the first save worked and every replacement failed with
+  *"new row violates row-level security policy"*. **Do not add an UPDATE or
+  DELETE policy to make overwriting work** — that policy is the guarantee.
+- **Buang tandatangan** clears `profiles.signature` and nothing else. The image
+  stays in the bucket, unreferenced. Records already signed are untouched, as
+  always, because each holds its own copy.
 - The Sign button **fills the preview and stops there.** It does not confirm.
   Confirming is permanent, and the only thing standing between a mis-tap and an
   unremovable record is the officer looking at what they are about to file.

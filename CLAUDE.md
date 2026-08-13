@@ -160,7 +160,7 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Card redraw | Only when the cloud copy **differs** from what is on screen (`formFingerprint`) | The card drew twice on every open — once from cache, once from the cloud — which reads as a blink on a phone. The two copies are usually identical, so the second draw was pure flicker |
 | Bucket flip | **Client first, bucket second** | Flipping the bucket while officers are on the old build would break every signature on screen. The client change is backwards compatible, so it can go out on its own and the bucket follows once it is live |
 | **Inspection status: the LATEST inspection decides** ⚠ **V2 DIVERGES FROM V1** | Rows on the newest Pengujian date in the period: all signed → **Diperiksa**, otherwise → **Belum di-sign**. V1 asked "is *any* row signed?" | User's call, 2026-08-09, with the live data in front of us. C22 and C25 each had a signed row from 08/08 and a fresh **unsigned** row from 09/08, so V1 called them Diperiksa while an inspection sat waiting for a signature — and the card's own words are *"Belum di-sign — Pengujian sudah diisi, tandatangan belum"*, which was true of them. It also made **Pemeriksaan terkini look broken**: that table lists **rows**, the counter counts **pili**, so it showed three unsigned rows beside a count of 1. Both were correct and could not be reconciled. Under the new rule "Belum di-sign" is a **complete list of what still needs signing**, which is the question it is asked. On the real register it moved 3 pili: 24/1/178 → **21/4/178**. An **older** unsigned row under a **newer** signed one stays Diperiksa — that is finished work, and `tests/v2-app-live.js` T15 asserts both halves so "any unsigned row" cannot creep in. The divergence is pinned in `tests/v2-dashboard-parity.js`, which asserts **V1's answer and V2's**, so neither can change unnoticed |
-| **Profile signature: a stencil, not evidence** ⚠ **V2 ONLY** | An officer stores one signature on a new **Profil** tab (`profiles.signature`, a path under `profile/<uid>.png` in the existing private bucket). **Sign** on the Kad Rekod fills the popup from it. That signature **may be replaced**; a **filed row's may never be**, and the two are compatible only because `signRow()` **copies** the stencil into the row's own object (`upsert:false`) and stores *that* path. A record never points at `profile/<uid>.png` | User's call, 2026-08-09, with the bucket and admin-only both specified. The old popup asked for a photo every single time — five taps, on a phone, in gloves, for something done dozens of times a week with the same image. **The copy is the whole safety property:** a row referencing the stencil would let an officer replacing a badly-lit photo silently rewrite the evidence on every record that pointed at it, and §5 says those records can never be corrected. **`upsert:true` on the profile and `upsert:false` on the row are both right, for opposite reasons** — replacement is the point of one, a collision must be an error on the other. Sign **fills the preview and stops**; confirming stays a separate tap, because the officer looking at what they are about to file is the only thing between a mis-tap and an unremovable record. The file picker stays as *Guna gambar lain* — an officer signing on a colleague's device has no stencil there. **No new RLS policy was needed**: `admins manage profiles` is already `for all to authenticated using (is_admin())`, and adding a self-update rule scoped to `auth.uid() = id` would hand every viewer their own `role`. Binding write-up in `docs/KAD-REKOD.md` §5; guarded by `tests/v2-app-live.js` T19–T21 |
+| **Profile signature: a stencil, not evidence** ⚠ **V2 ONLY** | An officer stores one signature on a new **Profil** tab (`profiles.signature`, a path under `profile/<uid>.png` in the existing private bucket). **Sign** on the Kad Rekod fills the popup from it. That signature **may be replaced**; a **filed row's may never be**, and the two are compatible only because `signRow()` **copies** the stencil into the row's own object (`upsert:false`) and stores *that* path. A record never points at `profile/<uid>.png` | User's call, 2026-08-09, with the bucket and admin-only both specified. The old popup asked for a photo every single time — five taps, on a phone, in gloves, for something done dozens of times a week with the same image. **The copy is the whole safety property:** a row referencing the stencil would let an officer replacing a badly-lit photo silently rewrite the evidence on every record that pointed at it, and §5 says those records can never be corrected. ****Replacement writes a NEW timestamped object every time** (`profile/<uid>_<ts>.png`, `upsert:false`) — it is never an overwrite. The bucket allows INSERT and nothing else, deliberately, and an earlier version wrote to a fixed path with `upsert:true`: the first save worked and **every replacement failed with an RLS error** (§4.29). So both uploads are now `upsert:false`, for the same reason — a collision must be an error — and the *replaceability* comes from the path, not the flag. The cost is superseded profile images left unreferenced in the bucket; adding a DELETE rule to tidy them would hand the app the ability to erase a filed signature's image. **Buang tandatangan** clears `profiles.signature` only, behind a confirm. Sign **fills the preview and stops**; confirming stays a separate tap, because the officer looking at what they are about to file is the only thing between a mis-tap and an unremovable record. The file picker stays as *Guna gambar lain* — an officer signing on a colleague's device has no stencil there. **No new RLS policy was needed**: `admins manage profiles` is already `for all to authenticated using (is_admin())`, and adding a self-update rule scoped to `auth.uid() = id` would hand every viewer their own `role`. Binding write-up in `docs/KAD-REKOD.md` §5; guarded by `tests/v2-app-live.js` T19–T21 |
 | Chart palette | Cream `#FDF0D5` / steel `#669BBC` / navy `#003049` | User-supplied. Ordered lightest = most complete |
 | Navy as text | **Never** — substitute `#9CAAB6` | Navy is 1.42:1 on dark, unreadable. Fill-only colour |
 | Figure ink | Green `#4ADE80` / blue `#60A5FA` / red `#F87171` on the **card numbers and the chart percentages only** | Status reads at a glance: pass / pending / outstanding. Measured on the card base `#121419` — 10.6 : 7.3 : 6.7, all above 4.5:1. The donut fill and the word under each percentage keep the cream/steel/`#9CAAB6` ink, so a label still matches the slice its leader line points at |
@@ -771,6 +771,48 @@ Draw order: caps → walls → top faces (painter's algorithm).
       `opacity`** — never from a filter on the blended element. Noted in both
       rules so it does not get re-added.
 
+
+29. **I shipped a feature the database was configured to refuse, and wrote the
+    contradiction into a comment.** Reported from the live app 2026-08-13:
+    *Tukar tandatangan* fails with **"new row violates row-level security
+    policy"**.
+
+    `profile.save()` uploaded to a FIXED path `profile/<uid>.png` with
+    `upsert: true`. The `signatures` bucket has exactly one write rule —
+    **INSERT** — and deliberately no UPDATE and no DELETE, because that absence
+    is what makes a filed record's signature permanent. So the first save is an
+    INSERT and succeeds; a **replacement is an UPDATE** and Postgres refuses it.
+    *Tambah* worked, *Tukar* could never work.
+
+    Both halves were written by me in the same change. `profile.js` says
+    *"replacement IS the feature"* two lines from the `upsert: true`, and the
+    policy that forbids it was sitting in `sql/supabase-records-setup.sql` in
+    the same repo.
+
+    Fixed in the CLIENT, not the policy: every save now writes a **new
+    timestamped object**, which is an INSERT the existing rule already allows,
+    and the profile row is repointed at it. Nothing about the bucket loosened.
+
+    Three things worth carrying, and the middle one is the general lesson:
+
+    - **The test asserted INTENT, not OUTCOME.** T21 checked that `upsert: true`
+      was *sent*. It proved a request was made and never that the server would
+      take it — while the stubbed `upload()` returned success unconditionally,
+      modelling a bucket that allows everything.
+    - **§4.24 recorded a stub that was wrong in the PERMISSIVE direction and
+      INVENTED a defect. This is the same fault inverted: a permissive stub
+      HIDING one.** A stub is a claim about the server. If it does not enforce
+      what the server enforces, every assertion built on it is about the client
+      talking to itself. The stub now refuses an upload to a path that already
+      exists — and seeds the objects that existed before the page loaded, since
+      without that every replacement looks like a first upload and the rule
+      never bites.
+    - **The first save always worked**, which is why it survived a review, a
+      test suite and a deploy. Same shape as §4.18, where the first open of the
+      dashboard was correct and every later one multiplied.
+
+    Verified by reproduction before any fix: teaching the stub the real rule
+    turned the shipped code red with the officer's exact error string.
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"
@@ -1021,6 +1063,13 @@ Watch items:
 - **Publishing is automatic** — `publish-to-site.yml` copies `index.html`,
   `_headers` and `vendor/` to the site repo on every push to main, using the
   `SITE_REPO_TOKEN` secret. Verified working 2026-08-03. Do not hand-copy.
+- **Superseded Profile signatures accumulate in the bucket.** Replacing one
+  writes a new object and repoints `profiles.signature`; the old image stays,
+  unreferenced, and the app cannot delete it — there is no DELETE policy, and
+  adding one would let the app erase a filed signature's image. ~120 KB each,
+  a handful per officer. If it ever needs clearing, do it out-of-band with the
+  service-role key against objects under `profile/` that no `profiles` row
+  points at — never by loosening the bucket.
 - **An open record card does not refresh** while it is open. It re-reads on
   open, which is enough, and refreshing under someone would throw away what
   they are typing. Left deliberately.

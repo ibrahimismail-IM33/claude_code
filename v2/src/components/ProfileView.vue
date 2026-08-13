@@ -29,11 +29,24 @@ const props = defineProps({
   error: { type: String, default: '' },
   active: { type: Boolean, default: false },
 });
-const emit = defineEmits(['pickSignature', 'signOut']);
+const emit = defineEmits(['pickSignature', 'removeSignature', 'signOut']);
 
 const fileEl = ref(null);
 const saved = ref(false);
 let savedTimer = null;
+
+/* Removing the stored signature.
+ *
+ * The confirm names what is and is not affected, because the one thing an
+ * officer might reasonably fear here is that it touches records they have
+ * already signed. It does not — each filed row holds its own copy. */
+function askRemove() {
+  const ok = window.confirm(
+    'Buang tandatangan anda?\n\n'
+    + 'Tandatangan pada rekod yang sudah disahkan TIDAK akan berubah. '
+    + 'Anda perlu tambah semula sebelum boleh guna butang Sign.');
+  if (ok) emit('removeSignature');
+}
 
 function onPick(e) {
   const file = e.target.files && e.target.files[0];
@@ -111,6 +124,15 @@ watch(() => props.active, (on) => {
           <button class="pvbtn primary" id="pvAddSig" :disabled="busy"
                   @click="fileEl && fileEl.click()">
             {{ busy ? 'Memuat naik…' : (hasSignature ? 'Tukar tandatangan' : 'Tambah tandatangan') }}
+          </button>
+          <!-- Only when there is something to remove, so the row does not carry
+               a permanently dead control. Behind a confirm: it is recoverable —
+               a signature can be added again — but it sits beside a button
+               pressed often and it changes what Sign does. Same reasoning as
+               the Jadual delete (§3). -->
+          <button v-if="hasSignature" class="pvbtn danger" id="pvRemoveSig" :disabled="busy"
+                  @click="askRemove">
+            Buang tandatangan
           </button>
           <input ref="fileEl" type="file" accept="image/*" id="pvSigFile"
                  style="display:none" @change="onPick">

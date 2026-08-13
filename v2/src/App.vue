@@ -199,6 +199,14 @@ async function saveProfileSignature(file) {
   await profile.save(sb.value, file);
 }
 
+/* Forget the stored signature. Clears the reference only — the image stays in
+ * the private bucket, because there is no delete policy and adding one would be
+ * adding the very rule that keeps filed signatures permanent. */
+async function removeProfileSignature() {
+  if (!sb.value) return;
+  await profile.remove(sb.value);
+}
+
 async function signOut() {
   try { if (sb.value) await sb.value.auth.signOut(); } finally { window.location.reload(); }
 }
@@ -528,6 +536,7 @@ onBeforeUnmount(() => {
       :busy="profile.busy" :error="profile.error"
       :active="tab === 'profile'"
       @pick-signature="saveProfileSignature"
+      @remove-signature="removeProfileSignature"
       @sign-out="signOut"
     />
 
