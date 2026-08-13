@@ -13,6 +13,12 @@
  *      print went from 5.7% dark to 95.8%.
  *   3. Very nearly, the signature ERASED ENTIRELY. An absolute cutoff of 0.65
  *      wiped a signature whose ink sat at alpha 158.
+ *   4. And then it DID erase one. A01 printed as a stray diagonal and four
+ *      dots: a relative cutoff is still 0.65 of a SINGLE pixel, and that
+ *      signature holds near-opaque blobs and pale sweeps at once, so the blobs
+ *      set the peak and the sweeps fell under it. Measured off the officer's
+ *      own PDF — 1.48% of the frame survived, against ~3.5% of visible ink.
+ *      See SIG_PRINT_MAX_COVER.
  *
  * Three things here are load-bearing and must not be "simplified":
  *
@@ -34,6 +40,48 @@
  */
 export const SIG_PRINT_CUT = 0.65;
 
+/* The cutoff may be walked DOWN from SIG_PRINT_CUT, but only while what
+ * survives still covers less than this much of the frame.
+ *
+ * ── Why a second number exists at all (2026-08-13) ───────────────────────
+ *
+ * `SIG_PRINT_CUT` alone is 0.65 of the image's own PEAK alpha, and a peak is a
+ * single pixel. A01's signature is a blue ballpoint with a few near-opaque
+ * blobs where the pen pressed and long PALE sweeps where it barely touched.
+ * The blobs set the peak at 255, so the cutoff landed at 166 and every pale
+ * sweep — most of the signature — was thrown away. Measured from the officer's
+ * own printed PDF: the embedded image is pure black with binary alpha and
+ * covers **1.48%** of its frame, against ~3.5% of visible ink. What reached
+ * paper was a stray diagonal and four dots.
+ *
+ * That is §4.15's third defect actually happening: "a signature missing from a
+ * filed legal record is far worse than a grey box". The relative cutoff fixed
+ * the case where ALL the ink is faint. It cannot fix the case where one
+ * signature contains both, because then the peak describes the blobs and says
+ * nothing about the strokes.
+ *
+ * ── Why AREA is the right discriminator ──────────────────────────────────
+ *
+ * Lowering the cutoff risks the opposite defect: leftover paper that
+ * `stripSignatureBg` could not key out sits at low-but-non-zero alpha, and
+ * flooding it black is the BLACK BOX. Pale ink and pale residue can sit at the
+ * SAME alpha, so no level alone separates them.
+ *
+ * What separates them is how much of the frame they cover. A trimmed signature
+ * is a few percent of its own frame; leftover paper is most of it. So the
+ * cutoff is walked down from 0.65×peak and stops the moment the surviving area
+ * stops looking like ink.
+ *
+ * 6% was measured against both fixtures. On A01's shape the walk reaches the
+ * floor and recovers the whole signature (1.15% → 3.55%, and at the printed
+ * size 1.08% → 3.52% dark). On the residue fixture it stops at 77 instead of
+ * 103 and keeps 5.35% instead of 5.02% — still a signature, nowhere near a box.
+ *
+ * THE SAFETY ARGUMENT IS THAT THIS CAN ONLY EVER LOWER THE CUTOFF. It can
+ * never erase more ink than the old rule did; the only new risk is admitting
+ * background, and that is exactly what the cap bounds. */
+export const SIG_PRINT_MAX_COVER = 0.06;
+
 /* Threshold alpha into binary and flood the survivors black.
  * Returns "" when there is nothing to print. Throws SecurityError on a tainted
  * canvas; the caller treats that as "no print copy" and leaves the fallback. */
@@ -47,10 +95,25 @@ export function signatureForPrint(img) {
   x.drawImage(img, 0, 0);
   const im = x.getImageData(0, 0, w, h);       // throws if tainted
   const d = im.data;
+
+  const hist = new Uint32Array(256);
   let peak = 0;
-  for (let i = 3; i < d.length; i += 4) if (d[i] > peak) peak = d[i];
+  for (let i = 3; i < d.length; i += 4) { const a = d[i]; hist[a]++; if (a > peak) peak = a; }
   if (!peak) return '';                        // nothing visible at all
-  const t = peak * SIG_PRINT_CUT;
+
+  const total = w * h;
+  const ceil = Math.round(peak * SIG_PRINT_CUT);
+  // A floor, so a frame of pure noise can never be flooded black.
+  const floor = Math.max(4, Math.round(peak * 0.06));
+  let cover = 0;
+  for (let a = 255; a >= ceil; a--) cover += hist[a];
+  let t = ceil;
+  for (let a = ceil - 1; a >= floor; a--) {
+    cover += hist[a];
+    if (cover / total > SIG_PRINT_MAX_COVER) break;   // background is coming in
+    t = a;
+  }
+
   for (let i = 0; i < d.length; i += 4) {
     if (d[i + 3] >= t) { d[i] = 0; d[i + 1] = 0; d[i + 2] = 0; d[i + 3] = 255; }
     else { d[i + 3] = 0; }

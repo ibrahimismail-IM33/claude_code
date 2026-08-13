@@ -205,3 +205,12 @@ jobs:
       # Reads the BUILT BUNDLE, so an unimported component counts as absent.
       - name: V2 parity surface (nothing V1 shows has gone missing)
         run: npm run test:v2parity
+
+      # THE PRINTED SIGNATURE, in both apps at once. The same algorithm is now
+      # written twice — index.html and v2/src/lib/signature-print.js — and it
+      # decides what reaches a legal record, so the two copies are compared
+      # byte for byte. It also pins both ends of one dial: a pale signature must
+      # not be ERASED (§4.31, found on paper) and a residue one must not be
+      # flooded into a BLACK BOX (§4.15, also found on paper).
+      - name: Printed signature (V1 vs V2, erasure and black box)
+        run: npm run test:v2sigprint

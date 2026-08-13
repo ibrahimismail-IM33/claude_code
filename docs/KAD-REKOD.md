@@ -6,7 +6,10 @@ convenience, tidiness or a framework migration. If a change to the app would
 alter what comes out of the printer, it needs the officer's approval first —
 not a code review.
 
-Guarded by `tests/kad-rekod.js` (34 assertions). Implemented in `index.html`.
+Guarded by `tests/kad-rekod.js` (41 assertions) and, for the printed
+signature specifically, `tests/v2-signature-print-parity.js` — which runs V1's
+implementation and V2's over the same fixtures and requires byte-identical
+output. Implemented in `index.html`.
 
 > ## MS ISO 9001:2015 — procedure **PS-8 PILI BOMBA**
 >
@@ -306,6 +309,34 @@ printout came out visibly faded.
 > second origin that answers a `fetch` with the CORS header and an image request
 > without one. Verified red on the pre-fix bundle — 4 assertions fail, and the
 > printed ink measures 95.8% dark.
+>
+> **That hardening was NOT the cause of the faded print, and this paragraph is
+> the correction.** The officer's own PDF showed the embedded image was pure
+> black with strictly binary alpha — `signatureForPrint`'s output — so the copy
+> was built and was what printed. It covered **1.48% of the frame** against
+> ~3.5% of visible ink: a stray diagonal and four dots. The signature had been
+> **erased**, which this document calls the worst outcome available here.
+>
+> **The cutoff needs a second number, and here it is.** `SIG_PRINT_CUT` is 0.65
+> of the image's PEAK alpha, and a peak is one pixel. A01 is a blue ballpoint
+> carrying near-opaque blobs where the pen pressed and long pale sweeps where it
+> barely touched; the blobs set the peak at 255, the cutoff landed at 166, and
+> the sweeps went. A relative cutoff rescues a uniformly faint signature and can
+> do nothing for one that is faint and dark at once.
+>
+> `SIG_PRINT_MAX_COVER = 0.06` walks the cutoff DOWN from 0.65×peak while what
+> survives still covers less than 6% of the frame. **Area is the only thing that
+> separates pale ink from pale leftover paper** — they sit at the same alpha,
+> but a trimmed signature is a few percent of its frame and leftover paper is
+> most of it. It can only ever LOWER the cutoff, so it cannot reintroduce the
+> erasure; the cap is what stops it reintroducing the black box. Measured:
+> A01's shape 1.15% → 3.55%, the residue fixture 5.02% → 5.35%.
+>
+> **Both apps carry it.** `index.html` is what officers print from until
+> cutover and it has the same code; fixing only V2 helped nobody, and that
+> mistake cost a printout. `tests/v2-signature-print-parity.js` runs both
+> implementations over both fixtures and asserts the outputs are byte-identical,
+> so the two copies cannot drift.
 
 The print CSS **used to** apply
 `filter: brightness(0)` plus **three** `drop-shadow(0 0 0 #000)` passes.

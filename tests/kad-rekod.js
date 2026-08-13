@@ -366,6 +366,96 @@ const tops = p => p.evaluate(()=>[...document.querySelectorAll('.fcard')]
   await p.emulateMedia({ media:'screen' });
   await p.close();
 
+  /* ---------- T8: a signature must not be ERASED by the print threshold ------
+   *
+   * Reported from the field 2026-08-13 and diagnosed from the officer's own
+   * printed PDF: A01 printed as a stray diagonal and four dots. The embedded
+   * image was pure black with binary alpha covering 1.48% of its frame, so the
+   * print copy WAS built and WAS what printed — the threshold had thrown the
+   * signature away.
+   *
+   * The fixture is the shape that does it, and no other fixture in this file
+   * can: ONE signature carrying near-opaque blobs (where the pen pressed) AND
+   * long pale sweeps (where it barely touched). `SIG_PRINT_CUT` is 0.65 of the
+   * image's PEAK alpha, and a peak is a single pixel — the blobs set it to 255,
+   * the cutoff landed at 166, and every sweep fell under it.
+   *
+   * Both halves are asserted, because the two defects are opposite ends of one
+   * dial and this file has now shipped each of them once:
+   *   - enough ink survives that the signature is still a signature (T7's
+   *     residue fixture guards the other end, the black box);
+   *   - and the recovered ink is real ink, not flooded background.
+   *
+   * The measure is coverage against what is VISIBLE ON SCREEN, not an absolute
+   * — an officer's own screen is the reference for what their signature is. */
+  console.log('T8  the print threshold must not erase a pale signature');
+  p = await boot(b, [done(0, true)]);
+  /* THE APP'S OWN FUNCTION, lifted out of index.html rather than copied here.
+   * It lives inside the page's IIFE and is not reachable from a test, and a
+   * copy in this file would be a test of the copy — the donut parity suite
+   * takes V1's source the same way for the same reason. */
+  {
+    const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
+    const a = src.indexOf('  var SIG_PRINT_CUT = 0.65;');
+    const z = src.indexOf('  /* Attach a print copy', a);
+    if (a < 0 || z < 0) { console.log('  FAIL  could not lift signatureForPrint out of index.html'); fail++; }
+    else await p.addScriptTag({ content: src.slice(a, z) });
+  }
+  const cover = await p.evaluate(() => {
+    const W = 600, H = 444;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    const stroke = (a, lw, pts) => {
+      x.globalAlpha = a; x.strokeStyle = '#26364f'; x.lineWidth = lw;
+      x.lineCap = 'round'; x.lineJoin = 'round';
+      x.beginPath(); x.moveTo(pts[0], pts[1]);
+      for (let i = 2; i < pts.length; i += 6) x.bezierCurveTo(pts[i], pts[i+1], pts[i+2], pts[i+3], pts[i+4], pts[i+5]);
+      x.stroke(); x.globalAlpha = 1;
+    };
+    stroke(0.35, 5, [20, 420, 180, 380, 380, 300, 560, 190]);   // the long pale sweep
+    stroke(0.40, 6, [30, 160, 120, 20, 300, 20, 330, 120]);     // the pale loop
+    stroke(0.85, 7, [90, 350, 200, 250, 260, 160, 320, 60]);    // the firmer diagonal
+    x.fillStyle = '#101c2e';                                     // blobs — these set the peak
+    [[505, 40, 7], [530, 34, 5], [575, 95, 6], [545, 115, 4], [95, 225, 9]]
+      .forEach(([cx, cy, r]) => { x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); });
+
+    const d = x.getImageData(0, 0, W, H).data;
+    let peak = 0, vis = 0;
+    for (let i = 3; i < d.length; i += 4) { if (d[i] > peak) peak = d[i]; if (d[i] >= 25) vis++; }
+
+    // Through the app's OWN function, not a copy of it.
+    const im = new Image();
+    return new Promise((res) => {
+      im.onload = () => {
+        const out = document.createElement('canvas');
+        out.width = W; out.height = H;
+        const ox = out.getContext('2d');
+        const url = signatureForPrint(im);
+        const im2 = new Image();
+        im2.onload = () => {
+          ox.drawImage(im2, 0, 0);
+          const dd = ox.getImageData(0, 0, W, H).data;
+          let kept = 0;
+          for (let i = 3; i < dd.length; i += 4) if (dd[i] >= 128) kept++;
+          res({ peak, visPct: +(vis / (W * H) * 100).toFixed(2),
+                keptPct: +(kept / (W * H) * 100).toFixed(2),
+                keptOfVis: +(kept / vis * 100).toFixed(1) });
+        };
+        im2.src = url;
+      };
+      im.src = c.toDataURL('image/png');
+    });
+  });
+  // Pre-fix this printed 33% of the ink — a fragment. The signature has to
+  // survive; "far worse than a grey box" is the rule this defends.
+  check('most of a pale signature reaches paper',
+    cover.keptOfVis > 80, true);
+  // ...and the other end of the same dial: nothing has flooded.
+  check('...without flooding the frame', cover.keptPct < 6, true);
+  console.log('     peak=' + cover.peak + '  visible=' + cover.visPct
+    + '%  printed=' + cover.keptPct + '%  (' + cover.keptOfVis + '% of the ink)');
+  await p.close();
+
   await b.close();
   console.log('\n'+pass+' passed, '+fail+' failed');
   process.exit(fail?1:0);

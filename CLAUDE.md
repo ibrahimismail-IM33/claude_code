@@ -855,56 +855,76 @@ Draw order: caps → walls → top faces (painter's algorithm).
       something that had no business being on the page at all, added three
       commits earlier for a screen.
 
-31. **The printed signature was faded again, and the threshold was not the
-    reason.** Reported 2026-08-13, on hydrant A01 — a row signed 2026-07-31 and
-    never printed before.
+31. **The printed signature was faded again — and it was the threshold, which
+    I had just finished ruling out.** Reported 2026-08-13, on hydrant A01.
 
-    §4.15 fixed the faded print by pre-rendering a **print copy**:
-    `signatureForPrint()` thresholds alpha in a canvas and emits a plain black
-    PNG, because a CSS filter cannot be relied on to survive the print
-    pipeline. Everything about that still holds. What was never guarded is
-    whether the copy gets **built** at all.
+    **Read §4.15 first, then this. The two together are the whole story, and
+    this entry corrects the first version of itself.**
 
-    Building it means reading the image's pixels, and in V2 the image comes
-    from **Supabase Storage — a different origin**. The read was a second
-    request for a URL the page had already fetched, made with
-    `crossOrigin="anonymous"`; whether that succeeds depends on how the
-    browser's cache treats the two request modes and on the header surviving a
-    revalidation. When it fails, nothing errors, nothing looks wrong on screen,
-    and the row silently falls back to the old amplifying CSS filter.
+    My first answer was that the print copy was never being BUILT: V2 reads the
+    signature's pixels across an origin (Supabase Storage), and the read used a
+    second `crossOrigin="anonymous"` request for a URL the page had already
+    fetched, which can fail on a cache or a revalidation. I made that read
+    robust — `fetch` first, data URL, no taint possible — shipped it, and the
+    officer printed again. **Still faded.** That hardening is worth keeping and
+    is not the fix.
 
-    Now: the bytes are taken with a **`fetch`** and read from a data URL, so the
-    canvas is same-origin and cannot be tainted (the same round trip
-    `stores/profile.js` already makes with these links — not a new capability).
-    The `crossOrigin` probe stays as the fallback. A failed attempt **no longer
-    latches**, so pressing Print retries it, and `doPrint()` **waits** for the
-    copies instead of the flat 60ms it used to guess at a network read.
+    **The officer's own PDF settled it in one measurement.** The embedded image
+    on page 2 is 600×444, **every pixel rgb(0,0,0)**, alpha strictly binary —
+    262,459 transparent, 3,941 opaque, nothing between. That is
+    `signatureForPrint`'s output exactly. So the copy *was* built and *was* what
+    printed, and it covered **1.48% of its frame** against ~3.5% of visible ink.
+    Rendered at 300 dpi it is a stray diagonal and four dots. **The signature
+    had been erased, not faded.**
 
-    Four things worth carrying:
+    `SIG_PRINT_CUT` is 0.65 of the image's **peak** alpha — and a peak is a
+    single pixel. A01 is a blue ballpoint holding both extremes at once:
+    near-opaque blobs where the pen pressed, long pale sweeps where it barely
+    touched. The blobs set the peak at 255, the cutoff landed at 166, and every
+    sweep fell under it. §4.15 made the cutoff relative precisely so a uniformly
+    faint signature would survive; it cannot help when one signature is faint
+    and dark together, because then the peak describes the blobs and says
+    nothing about the strokes.
 
-    - **I could not reproduce the fade, and the measurements are what redirected
-      me.** Driving the assembled app, every path that builds a copy printed
-      black — 5.1% dark, against 95.8% for the fallback. Then eight photo
-      qualities through the real capture→print pipeline: **the printed coverage
-      never fell below the screen's**, in any of them. So the threshold could
-      not be making a signature faint, and "no copy was built" was the only
-      remaining shape. A fix aimed at the threshold would have been aimed at the
-      one component the evidence had cleared.
-    - **The fallback's two outcomes are the same defect.** Whether a failed read
-      prints faded or as a black box depends on whether the print pipeline keeps
-      the CSS filter — dropped in the run §4.15 measured, kept in mine. §4.15
-      called those two defects "one defect seen from either side"; they are also
-      one defect seen from either *printer*. That is why the copy is what got
-      made reliable, not the fallback.
-    - **The old guard could not see this, and its shape is now familiar.**
-      `tests/kad-rekod.js` T7 has covered the printed signature since the first
-      faded printout — but it drives **V1**, and serves the image from the
-      **same origin** as the page. The one property that broke was the one the
-      fixture could not have. Same family as the clean signature fixture, the
-      donut band, and the stub that allowed every upload.
-    - **A capture-side "improvement" would still have been the wrong lever, for
-      the third time.** The row was signed on 2026-07-31 and can never be
-      re-uploaded.
+    Fixed with a second number, `SIG_PRINT_MAX_COVER = 0.06`: the cutoff is
+    walked DOWN from 0.65×peak while what survives still covers less than 6% of
+    the frame. **Area is the only thing that separates pale ink from pale
+    leftover paper** — they sit at the same alpha, but a trimmed signature is a
+    few percent of its frame and leftover paper is most of it. The safety
+    argument is that this can only ever *lower* the cutoff, so it cannot
+    reintroduce the erasure; the cap is what stops it reintroducing the black
+    box. Measured: A01's shape 1.15% → 3.55% (and 1.08% → 3.52% dark at the
+    printed size), the residue fixture 5.02% → 5.35%, still nowhere near a box.
+
+    Five things worth carrying:
+
+    - **I fixed V2 and the officers print from V1.** `index.html` is what
+      epilibomba.com serves until cutover, its `signatureForPrint` is the same
+      code, and I never touched it — so even a correct fix would not have
+      reached the person reporting the defect. CLAUDE.md's own header says to
+      work in `index.html` and merge *down*; I did the reverse without noticing.
+      Both apps carry the fix now, and `tests/v2-signature-print-parity.js`
+      compares them byte for byte so the two copies cannot drift.
+    - **Every measurement I made was correct and I was still wrong.** The print
+      copy does print black; eight photo qualities did print at or above screen
+      coverage; five stroke weights did survive the downscale. All true, all
+      about images whose alpha was *uniform*. **The fixture never held the one
+      property that mattered**, so the sweep that looked exhaustive was
+      exhaustive over the wrong dimension. Same family as the clean signature
+      fixture (§4.15) and the single-row parity fixtures (§4.24), and this is
+      the third time it has decided an outcome.
+    - **The artefact ended it.** Two rounds of reasoning cost the user two
+      printouts; one PDF gave the answer in a single query, because the printed
+      image is the evidence and everything else was inference about it. Ask for
+      the artefact earlier — §4.24 already says query the production data before
+      theorising, and a PDF is production data.
+    - **"Faded" and "erased" are not the same report, and I heard the first.**
+      §4.15 lists erasure as the worst outcome available here — worse than
+      either defect it replaced — and I spent two rounds on brightness. Holding
+      the printout beside the signature would have shown it immediately.
+    - **A capture-side change would still have been wrong.** A01 was signed on
+      2026-07-31 and its image can never be re-uploaded. Whatever the cause, the
+      fix had to be render-side, and that constraint held throughout.
 
 ## 5. Things I got wrong (so they aren't repeated)
 
