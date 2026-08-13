@@ -16,6 +16,12 @@
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,monospace;
   --display:"Bricolage Grotesque","DM Sans",sans-serif;
   --gov:#ef4444; --pvt:#facc15;
+  /* V2-ONLY, and the one token here NOT from V1's :root — the redesign's
+     orange, taken from the mockups (2026-08-10). It lives with the rest of the
+     palette on purpose: splitting a palette across two files is how the two
+     halves drift, which is what the note above is about. Used by the login
+     wordmark. 6.9:1 on the gate's #0a0b0d. */
+  --brand:#f97316;
 }
 
 /* The reset, copied VERBATIM from index.html. It is a token in the sense that

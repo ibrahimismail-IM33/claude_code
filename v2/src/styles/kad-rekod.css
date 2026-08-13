@@ -43,68 +43,19 @@
   .ftitle{font-family:var(--display);font-weight:700;font-size:15px;color:#fff}
   .ftitle b{color:#f87171}
   .factions{display:flex;gap:8px}
-  /* ---------- login gate ---------- */
-  #authGate{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;
-    background:#0a0b0d url("/login-bg.jpg") center center / cover no-repeat}
-  /* scrim: keeps the white text readable wherever the smoke happens to be bright */
-  #authGate::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
-    background:radial-gradient(1100px 620px at 50% 48%,rgba(0,0,0,.18),rgba(0,0,0,.72))}
-  #authGate.hide{display:none}
+  /* The login gate lived here TOO — all 18 of its selectors duplicated
+     byte-for-byte from shell.css. Removed 2026-08-10, leaving shell.css as
+     the single definition.
 
-  /* frosted-glass login panel floating over the smoke */
-  .authbox{
-    /* noise is generated here rather than fetched from another site */
-    --filter-glass3d: blur(20px) brightness(1.1) saturate(2.6);
-    --color-glass3d: rgba(10,12,16,.42);
-    --noise-glass3d: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.28'/%3E%3C/svg%3E");
-    position:relative;z-index:4;
-    width:100%;max-width:360px;border-radius:18px;padding:26px 22px;
-    background:transparent;border:none;
-    box-shadow:
-      0 0 0.75px hsl(205 20% 10% / 0.2),
-      0.7px 0.8px 1.2px -0.4px hsl(205 20% 10% / 0.1),
-      1.3px 1.5px 2.2px -0.8px hsl(205 20% 10% / 0.1),
-      2.3px 2.6px 3.9px -1.2px hsl(205 20% 10% / 0.1),
-      3.9px 4.4px 6.6px -1.7px hsl(205 20% 10% / 0.1),
-      6.5px 7.2px 10.9px -2.1px hsl(205 20% 10% / 0.1),
-      8px 9px 14px -2.5px hsl(205 20% 10% / 0.2),
-      0 30px 70px rgba(0,0,0,.55);
-  }
-  .authbox::before{
-    content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;overflow:hidden;z-index:3;
-    -webkit-backdrop-filter:var(--filter-glass3d); backdrop-filter:var(--filter-glass3d);
-    background-color:var(--color-glass3d);
-    background-image:var(--noise-glass3d);
-    background-size:100px; background-repeat:repeat;
-  }
-  .authbox::after{
-    content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;overflow:hidden;z-index:5;
-    box-shadow:
-      inset 2px 2px 1px -3px hsl(205 20% 90% / 0.8),
-      inset 4px 4px 2px -6px hsl(205 20% 90% / 0.3),
-      inset 1.5px 1.5px 1.5px -0.75px hsl(205 20% 90% / 0.15),
-      inset 1.5px 1.5px 0.25px hsl(205 20% 90% / 0.03),
-      inset 0 0 0.25px 0.5px hsl(205 20% 90% / 0.03);
-  }
-  .authbox > *{position:relative;z-index:6}
-  /* fallback: if the browser cannot blur, fall back to a solid dark panel */
-  @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-    .authbox::before{background-color:rgba(12,14,18,.88)}
-  }
-  .authbox h2{font-family:var(--display);font-size:20px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:-.01em;line-height:1.1}
-  .authbox .sub{font-family:var(--mono);font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:rgba(252,165,165,.8);margin-bottom:14px}
-  .authbox label{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.2em;color:rgba(255,255,255,.45);margin:12px 0 6px}
-  .authbox input{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);border-radius:9px;
-    padding:11px 12px;color:#fff;font-size:15px;outline:none;font-family:var(--sans)}
-  .authbox input:focus{border-color:rgba(59,130,246,.65);box-shadow:0 0 0 3px rgba(59,130,246,.18)}
-  .authbtn{width:100%;margin-top:18px;padding:12px;border:none;border-radius:9px;background:#2563eb;color:#fff;
-    font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 10px 26px -10px #2563eb}
-  .authbtn:hover{background:#1d4ed8}
-  .authbtn:disabled{opacity:.6;cursor:not-allowed}
-  .autherr{margin-top:12px;font-size:12px;color:#fca5a5;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);
-    border-radius:8px;padding:9px 11px;line-height:1.45}
-  .autherr.hide{display:none}
-  .authlogo{width:52px;height:52px;object-fit:contain;display:block;margin:0 auto 12px}
+     It was not harmless. This file is imported LAST (main.js, so the print
+     rules win), so THIS copy was the one that applied — a change made in
+     shell.css alone would have been silently overridden by an identical
+     rule in a stylesheet about the record card. Found while restyling the
+     login wordmark, by checking which copy actually wins rather than
+     assuming.
+
+     The gate has nothing to do with the Kad Rekod. If something here ever
+     needs to override it, write that one rule and say why. */
   .rolebadge{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:9999px;
     background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
   .rolebadge .r{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:rgba(255,255,255,.75)}

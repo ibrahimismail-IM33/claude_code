@@ -24,7 +24,6 @@
     "add-t": "DEAD IN V1 TOO — part of the same unused .add-row block.",
     "add-d": "DEAD IN V1 TOO — part of the same unused .add-row block.",
     "add-open": "DEAD IN V1 TOO — part of the same unused .add-row block.",
-    "authlogo": "DEAD IN V1 TOO — appears once in index.html, the CSS rule, with no markup.",
     "jpg": "Not a class. Matched out of url(\"/login-bg.jpg\") by the selector regex.",
     "ftoast": "V1 shows signature/save errors in a transient toast. V2 shows the same information inline in SignPopup via :sign-error, which persists instead of vanishing after 2.4s — arguably better on a phone in sunlight. The CSS is kept so the toast can be restored without re-deriving it. Same reason as the ftoast id waiver below."
   },

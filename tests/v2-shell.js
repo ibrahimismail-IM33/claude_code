@@ -125,6 +125,28 @@ const AWAM = REG.filter((h) => h.status === 'kerajaan').length;
   check('the header sits below it but above the search row (§4.8)',
     await p.$eval('header', (n) => getComputedStyle(n).zIndex), '1000');
 
+  /* The crest and wordmark (redesign, 2026-08-10).
+   *
+   * The crest is asserted LOADED — `complete && naturalWidth > 0` — not merely
+   * present. A broken <img> still renders an element and still has a src, and
+   * the gate declares a dark background of its own, so a crest that 404s looks
+   * like a design choice. That is precisely how login-bg.jpg shipped missing
+   * (§4 / T9 in the live suite), and the same trap applies to any asset here.
+   *
+   * `.authlogo` had a rule in V1's stylesheet and no markup — it was carried in
+   * parity-waivers.json as dead. This is that rule finally rendering, so the
+   * waiver was removed with it. */
+  check('the crest is there AND actually loaded',
+    await p.evaluate(() => { const n = document.querySelector('.authlogo');
+      return !!n && n.complete && n.naturalWidth > 0; }), true);
+  check('the wordmark is the product\'s name, in mixed case',
+    await p.$eval('.authbox h2', (n) => n.textContent.trim()), 'e-Pili Bomba');
+  // The brand orange, read as computed colour so --brand cannot quietly drift.
+  check('...in the brand orange', await p.$eval('.authbox h2', (n) => getComputedStyle(n).color),
+    'rgb(249, 115, 22)');
+  check('and BBP Kunak sits under it',
+    await p.$eval('.authbox .sub', (n) => n.textContent.trim()), 'BBP Kunak');
+
   // Empty fields must not reach the network at all.
   await p.click('#authBtn');
   await p.waitForTimeout(150);

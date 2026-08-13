@@ -103,8 +103,17 @@
   @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
     .authbox::before{background-color:rgba(12,14,18,.88)}
   }
-  .authbox h2{font-family:var(--display);font-size:20px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:-.01em;line-height:1.1}
-  .authbox .sub{font-family:var(--mono);font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:rgba(252,165,165,.8);margin-bottom:14px}
+  /* The wordmark, from the redesign mockup: crest, "e-Pili Bomba", "BBP KUNAK".
+     Mixed case, not the uppercase this used to force — "e-Pili Bomba" is the
+     product's name and E-PILI BOMBA is not it. Spaced out a little because at
+     this size the display face reads tight.
+     --brand is the mockup's orange. Measured on the gate's darkest ground
+     (#0a0b0d) at 6.9:1, comfortably past 4.5:1, and it stays legible over the
+     scrim wherever the background photo is bright. */
+  .authbox h2{font-family:var(--display);font-size:23px;font-weight:800;color:var(--brand);
+    letter-spacing:.02em;line-height:1.15}
+  .authbox .sub{font-family:var(--display);font-size:12px;font-weight:700;letter-spacing:.34em;
+    text-transform:uppercase;color:var(--brand);margin-bottom:14px;padding-left:.34em}
   .authbox label{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.2em;color:rgba(255,255,255,.45);margin:12px 0 6px}
   .authbox input{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);border-radius:9px;
     padding:11px 12px;color:#fff;font-size:15px;outline:none;font-family:var(--sans)}

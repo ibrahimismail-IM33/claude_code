@@ -22,6 +22,10 @@ import { ref } from 'vue';
  * and no password reset here. Officers each have their own login because
  * signatures record who signed, which is meaningless on a shared account.
  */
+// The same crest the header uses. One import, one emitted file, one cache
+// entry — and it cannot drift from the header's the way a second copy would.
+import logo from '../assets/logo.png';
+
 defineProps({
   busy: { type: Boolean, default: false },
   error: { type: String, default: '' },
@@ -39,8 +43,16 @@ function submit() {
 <template>
   <div id="authGate">
     <div class="authbox">
-      <div class="sub" style="text-align:center">BBP Kunak · Sabah</div>
-      <h2 style="text-align:center;margin-bottom:4px">Pili Bomba</h2>
+      <!-- The crest and the wordmark, from the redesign mockup.
+           `.authlogo` was already in V1's stylesheet and never rendered — a
+           rule with no markup, sitting in parity-waivers.json as dead. V1
+           meant to put the crest here and never did; this is that rule finally
+           doing its job, so the waiver goes.
+           The wordmark reads "e-Pili Bomba", matching the header's h1: the app
+           is one product and the login is not a different brand (§10). -->
+      <img class="authlogo" :src="logo" alt="Jabatan Bomba dan Penyelamat Malaysia">
+      <h2 id="authWordmark" style="text-align:center;margin-bottom:2px">e-Pili Bomba</h2>
+      <div class="sub" style="text-align:center">BBP Kunak</div>
       <p style="text-align:center;color:rgba(255,255,255,.45);font-size:12px;margin-bottom:6px">Sign in to continue</p>
 
       <label for="authEmail">Email</label>
