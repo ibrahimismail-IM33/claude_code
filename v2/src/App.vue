@@ -464,7 +464,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app">
+  <!-- `bg-alt` swaps the app's ground for the Dashboard and Profil: the same
+       circuit artwork rotated to vertical traces and pushed further back, which
+       is what the reference draws for those two screens. Peta Pili keeps the
+       horizontal original, so the map tab is unchanged. A class rather than a
+       second stylesheet: one artwork, one rotation, decided in one place. -->
+  <div class="app" :class="{ 'bg-alt': tab === 'dash' || tab === 'profile' }">
     <AppHeader
       :tab="tab" :counts="counts" :status-filter="statusFilter"
       :email="auth.email" :is-admin="auth.isAdmin" :signed-in="auth.ready"

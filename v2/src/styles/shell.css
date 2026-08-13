@@ -39,6 +39,61 @@
  */
 
   .app{position:fixed;inset:0;display:flex;flex-direction:column;width:100%;height:100%}
+
+  /* ---- the Dashboard / Profil ground (.bg-alt) ----
+   *
+   * The same circuit artwork ROTATED to vertical traces, as the reference draws
+   * those two screens, and pushed further back so the content reads over it.
+   * Peta Pili keeps the horizontal original on `body`; App.vue toggles the class.
+   *
+   * TWO pseudo-elements, because one cannot do both jobs: `mix-blend-mode`
+   * blends an element with its BACKDROP, so the 50 needs to be a separate layer
+   * sitting over the circuit rather than another background layer inside it.
+   * ::before paints first, ::after over it — hence circuit below, 50 above.
+   *
+   * `.app` is `position:fixed`, so it forms a stacking context: the negative
+   * z-indexes stay inside it, behind the header and the panels and in front of
+   * body's own background, and the blend is contained.
+   *
+   * THE TRANSFORM IS ON THE PSEUDO-ELEMENT, NEVER ON `.app`. A transform on a
+   * Leaflet ANCESTOR makes it the containing block for the map's absolutely
+   * positioned panes — §4.16/§4.17 are both what that costs. A sibling
+   * pseudo-element is not an ancestor and cannot do it.
+   *
+   * 100vh × 100vw before a 90° rotation is 100vw × 100vh after it, so the layer
+   * covers the viewport exactly at any aspect ratio. */
+  .app::before, .app::after{
+    content:"";position:fixed;pointer-events:none;
+    opacity:0;transition:opacity .22s ease-out;
+  }
+  /* ONLY THE CIRCUIT ROTATES. The 50 stays upright — it is a logo with words in
+     it, and a quarter-turned wordmark is not a watermark, it is a mistake.
+     These were one shared rule for a moment and the 50 came out sideways with
+     the layer; they are separate because they must be. */
+  .app::before{
+    z-index:-2;
+    top:50%;left:50%;width:100vh;height:100vw;   /* 100vh × 100vw ... */
+    transform:translate(-50%,-50%) rotate(90deg); /* ... is 100vw × 100vh after */
+    background:
+      /* Subdued to match the map tab, which is the "blend in" the reference
+         asks for — the artwork present but quiet behind the figures. */
+      linear-gradient(180deg,rgba(6,14,24,.52),rgba(6,14,24,.68)),
+      #0e1a24 url("/app-bg.png") center center / cover no-repeat;
+  }
+  .app::after{
+    z-index:-1;
+    inset:0;                                      /* upright, no transform */
+    /* Half the page, as the reference draws it. */
+    background:url("/logo-50.png") left 4% center / auto 52vh no-repeat;
+    /* No `filter` — see tokens.css: a filter isolates the element and its
+       mix-blend-mode stops blending, so the artwork's white plate paints as a
+       visible rectangle. */
+    mix-blend-mode:multiply;
+  }
+  .app.bg-alt::before, .app.bg-alt::after{opacity:1}
+  @media (prefers-reduced-motion: reduce){
+    .app::before, .app::after{transition:none}
+  }
   .app>header{flex:0 0 auto}
   .hide{display:none!important}
   header{position:relative;z-index:1000;border-bottom:1px solid rgba(255,255,255,.06);
@@ -89,18 +144,22 @@
   /* frosted-glass login panel floating over the smoke */
   .authbox{
     /* noise is generated here rather than fetched from another site */
-    --filter-glass3d: blur(20px) brightness(1.1) saturate(2.6);
-    /* .42 → .88, and this is the ONE value the light background forced.
+    /* Stronger blur and saturation than V1's: on a light, detailed ground the
+       refraction is what says "glass", and at .80 tint a weak blur just looks
+       like a flat panel with a slightly blurry edge. */
+    --filter-glass3d: blur(26px) brightness(1.16) saturate(3.1);
+    /* .42 → .80, and this value is a balance, not a preference.
        This card is GLASS: it tints whatever is behind it. Against the old dark
        photograph .42 produced a dark panel; against the near-white page it
        produced a mid-grey one (measured rgb(152,152,152)), and every light
        text colour on it collapsed — the wordmark to 1.03:1, the footer note to
-       1.44:1. Unreadable, on the first screen an officer sees.
-       Raising the card's own tint keeps the glass treatment, the shape, the
-       blur and every text colour exactly as they were, and is the smallest
-       change that makes the card legible on the new ground. Re-measured after:
-       nothing below its threshold. */
-    --color-glass3d: rgba(10,12,16,.88);
+       1.44:1, unreadable on the first screen an officer sees.
+       .88 fixed that but flattened the glass into a plain dark rectangle. .80
+       is the lowest tint at which every colour still clears its threshold
+       while the blur, the refraction and the edge highlights read as glass
+       again. Measured, not guessed — T9 holds the floor, so this cannot be
+       nudged down later without the suite saying so. */
+    --color-glass3d: rgba(10,12,16,.80);
     --noise-glass3d: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.28'/%3E%3C/svg%3E");
     position:relative;z-index:4;
     width:100%;max-width:360px;border-radius:18px;padding:26px 22px;
@@ -191,8 +250,9 @@
      header, so the header's own z-index and stacking context still apply
      (§4.8 — do not give this its own).
      Hidden entirely below 640px; the hamburger is the navigation there. */
-  .tabs{position:relative;z-index:1;display:flex;gap:0;
+  .tabs{position:relative;z-index:1;display:flex;gap:6px;
     margin:-14px -28px 12px;                 /* cancel header padding: full bleed */
+    padding:6px 8px;
     background:linear-gradient(180deg,#15171c,#0e1013);
     border-bottom:1px solid rgba(255,255,255,.08)}
   .tabb{appearance:none;border:none;cursor:pointer;
@@ -200,7 +260,9 @@
     display:flex;align-items:center;justify-content:center;gap:8px;
     padding:12px 16px;font-family:var(--sans);font-size:14px;font-weight:700;
     color:rgba(255,255,255,.6);background:none;transition:all .18s;
-    white-space:nowrap;min-height:46px;border-radius:0}
+    /* Rounded, as the reference draws them: three pills sharing the bar rather
+       than three panels butted together. */
+    white-space:nowrap;min-height:46px;border-radius:9999px}
   .tabb .ti{font-size:15px;line-height:1}
   .tabb:hover{color:rgba(255,255,255,.9);background:rgba(255,255,255,.04)}
   /* Filled, not tinted. On a bar this wide a 16% tint reads as "slightly

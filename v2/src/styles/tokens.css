@@ -68,14 +68,16 @@
      paints its own card, so nothing needs a z-index. Nothing is layered over
      the MAP — .leaflet-container paints its own ground, and a background on a
      Leaflet ancestor is one edit away from a transform on one (§4.16/§4.17). */
+  /* NO `filter` HERE, AND THAT IS NOT A STYLE CHOICE.
+     A `filter` on an element ISOLATES it, and its `mix-blend-mode` then stops
+     blending with the backdrop — so the artwork's white plate paints as a plain
+     light rectangle. It rendered exactly that way behind the crest and I read
+     it as "the watermark is too subtle" rather than "the blend is off". Proven
+     by removing the filter and watching the rectangle disappear.
+     If the engraving ever needs more weight, it has to come from the ASSET or
+     from opacity — never from a filter on the blended element. */
   body::before{content:"";position:fixed;inset:0;pointer-events:none;
     background:url("/logo-50.png") left -40px top 40px / auto 560px no-repeat;
-    /* The engraving is light-grey linework on white. Multiplied straight onto
-       an already-dark ground it darkens by almost nothing and vanishes — the
-       first attempt was invisible on the header. contrast() pushes the lines
-       down toward black first, so the multiply has something to bite on and
-       the 50 reads as embossed INTO the background, as in the reference. */
-    filter:contrast(1.9) brightness(.62);
     mix-blend-mode:multiply;
     opacity:1}
   .mono{font-family:var(--mono)} .disp{font-family:var(--display)}
