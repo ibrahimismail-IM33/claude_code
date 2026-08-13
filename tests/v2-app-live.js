@@ -1158,10 +1158,34 @@ const JADUAL = [
   await wide.waitForTimeout(600);
   check('...and is still there on a desktop',
     await wide.$eval('.tabs', (n) => getComputedStyle(n).display !== 'none'), true);
+  /* The tab bar spans the full width now, so assert that too — three equal
+     tabs sharing one row, edge to edge. Geometry rather than a class, for the
+     same reason §4.26 needed it: a bar that has silently collapsed to three
+     buttons in a corner still carries every class it should. */
+  const bar = await wide.evaluate(() => {
+    const t = document.querySelector('.tabs').getBoundingClientRect();
+    const bs = Array.from(document.querySelectorAll('.tabs .tabb')).map((n) => n.getBoundingClientRect());
+    return { spans: Math.round(t.width) >= document.documentElement.clientWidth,
+      count: bs.length, oneRow: new Set(bs.map((b) => Math.round(b.top))).size === 1,
+      equal: bs.length === 3 && Math.max(...bs.map((b) => b.width)) - Math.min(...bs.map((b) => b.width)) < 2 };
+  });
+  check('the tab bar spans the full width', bar.spans, true);
+  check('...with three equal tabs on one row',
+    [bar.count, bar.oneRow, bar.equal], [3, true, true]);
+  const wideSignOut = await wide.$eval('#signOutBtn', (n) => getComputedStyle(n).color);
   await wide.close();
 
   check('the hamburger is showing',
     await p.$eval('#menuBtn', (n) => getComputedStyle(n).display !== 'none'), true);
+
+  /* Sign Out's colour, in the HEADER as well as the menu.
+   *
+   * The redesign mockup shows an amber Sign Out and the user's instruction —
+   * given twice — was to keep the colour it already has. Both places are
+   * asserted because the decision applies to both, and a decision that lives
+   * only in a comment gets undone by the next person following the mockup. */
+  check('the header Sign Out keeps its current colour',
+    wideSignOut, 'rgba(255, 255, 255, 0.6)');
   await p.click('#menuBtn');
   await p.waitForTimeout(250);
 

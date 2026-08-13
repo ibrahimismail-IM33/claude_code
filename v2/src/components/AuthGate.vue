@@ -35,6 +35,18 @@ const emit = defineEmits(['signIn']);
 const email = ref('');
 const pass = ref('');
 
+/* Reveal the password.
+ *
+ * Officers type this on a phone, one-handed, sometimes in gloves and often in
+ * sun where the dots are hard to count — and a wrong password here says only
+ * "Wrong email or password", deliberately, so there is no other way to tell a
+ * typo from a real failure.
+ *
+ * Defaults to HIDDEN, and stays a per-attempt choice: nothing remembers it, so
+ * a shared or borrowed device never opens with the password already on screen.
+ */
+const showPass = ref(false);
+
 function submit() {
   emit('signIn', { email: email.value.trim(), password: pass.value, clear: () => { pass.value = ''; } });
 }
@@ -60,8 +72,29 @@ function submit() {
              placeholder="nama@contoh.com" @keydown.enter="submit" />
 
       <label for="authPass">Password</label>
-      <input id="authPass" v-model="pass" type="password" autocomplete="current-password"
-             placeholder="••••••••" @keydown.enter="submit" />
+      <div class="authpwrap">
+        <!-- `:type` is bound, NOT a class swap on the icon: the input's own
+             type is the only thing that actually masks the field, and an icon
+             that changes while the dots stay put is the failure worth catching.
+             The test asserts the type for that reason. -->
+        <input id="authPass" v-model="pass" :type="showPass ? 'text' : 'password'"
+               autocomplete="current-password"
+               placeholder="••••••••" @keydown.enter="submit" />
+        <button type="button" class="autheye" id="authEye"
+                :aria-pressed="String(showPass)"
+                :aria-label="showPass ? 'Sembunyikan kata laluan' : 'Tunjukkan kata laluan'"
+                :title="showPass ? 'Sembunyikan kata laluan' : 'Tunjukkan kata laluan'"
+                @click="showPass = !showPass">
+          <!-- Inline SVG, not an emoji or an icon font: it inherits currentColor,
+               renders identically on every device, and adds no request. -->
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z" />
+            <circle cx="12" cy="12" r="2.7" />
+            <line v-if="showPass" x1="4" y1="20" x2="20" y2="4" />
+          </svg>
+        </button>
+      </div>
 
       <button class="authbtn" id="authBtn" :disabled="busy" @click="submit">
         {{ busy ? 'Signing in…' : 'Sign In' }}

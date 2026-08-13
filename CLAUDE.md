@@ -192,6 +192,7 @@ Draw order: caps → walls → top faces (painter's algorithm).
 | Zone range vs count | **Both shown, and flagged when they disagree** | A range implies contiguity. Every zone is gap-free today, so the warning is dormant — but delete one pili and `A01 – A114` would keep claiming 114 |
 | Zone panel markup | **Buttons, not a table** | `#dashView table` carries `min-width:460px` for the wide record tables; reusing it inside the narrow grid column would push the page sideways on a phone — §4.9 again |
 | **Mobile header: the hamburger IS the navigation** ⚠ **V2 ONLY** | Below 640px `.tabs` is `display:none` and the menu holds **Peta Pili / Dashboard / Profil / Tambah Pili / Sign out**, with the current view marked. The Email and Peranan readouts come out — the Profil tab shows both. The pills get row 2 to themselves | User's call, 2026-08-10. Was: tabs left-aligned sharing row 2 with the pills, which stopped fitting once **Profil** became a third tab — three tabs plus two pills plus the clear chip on a 360px screen. **Tambah Pili stays in the menu**: it is the only way an admin adds a hydrant on a phone. **Sign out keeps V1's `#fca5a5`**, not the mockup's amber, and T22 asserts the computed colour so the decision is not just a comment. `display:none` rather than `v-if`, and in the **last** of the two mobile blocks — §4.7 shipped `.menubtn`'s base rule after its own override once and the phone menu vanished. Header measured 217px → **127px**, about 90px of map returned |
+| **Header: full-width tab bar on top** ⚠ **V2 ONLY** | Peta Pili / Dashboard / Profil span the viewport as three equal tabs above the brand row, active one filled red. The brand row is the crest, the orange **e-Pili Bomba** wordmark and **BBP KUNAK**; `MYT` is relabelled `TIME`; **Sign Out keeps its current colour**, not the mockup's amber | User's call, 2026-08-10, from the redesign mockups. **Desktop only** — below 640px the bar is still `display:none` and the hamburger is the navigation, and T22 asserts both halves, so the phone is unaffected. `· Sabah · Bomba Malaysia` (`.kx`) is now hidden at **every** width, not just on phones: at the wordmark's new size it ran ~400px and pushed Tambah Pili, the clocks and Sign Out onto a second row — a 168px header where 120px does the job. It stays in the markup because `v2-shell.js` T8 asserts that class computes to `none` on a phone. The wordmark rules live in `map.css`, where `h1`/`.kicker` already were: `shell.css` is imported **before** `map.css`, so a copy written there would silently lose — §4.27 |
 | **Login gate: crest + wordmark** ⚠ **V2 ONLY** | The JBPM crest above an orange **e-Pili Bomba** / **BBP KUNAK** wordmark, replacing a plain white "PILI BOMBA". `--brand:#f97316` is the redesign's orange and the **only** token in `tokens.css` not carried from V1's `:root` | User's call, 2026-08-10, from the redesign mockups. Mixed case on purpose — the product is called *e-Pili Bomba* and `E-PILI BOMBA` is not its name, so the old `text-transform:uppercase` came off. The crest is the **same import** the header uses, not a second copy, so the two cannot drift. `.authlogo` already existed in V1's stylesheet **with no markup** and sat in `parity-waivers.json` as dead — V1 meant to put a crest here and never did; the waiver is gone now that the rule finally renders. The brand orange measures 6.9:1 on the gate's `#0a0b0d`. `v2-shell.js` T1 asserts the crest is **loaded** (`complete && naturalWidth > 0`), not merely present: a broken `<img>` still renders, and the gate paints its own dark ground, so a 404 looks like a design choice — which is exactly how `login-bg.jpg` shipped missing once |
 | Mobile kicker | Shows **"BBP KUNAK"** only; `· Sabah · Bomba Malaysia` hidden | Full string is ~200px and forced an extra header row. Short form costs nothing |
 | Zoom buttons | 34px on mobile | User asked, and confirmed fine in the field. Below the 44px touch minimum — accepted |
@@ -726,6 +727,20 @@ Draw order: caps → walls → top faces (painter's algorithm).
       win. That is correct and documented. Nobody intended it to also make that
       file authoritative for the login screen — but a stylesheet does not know
       why it was ordered.
+
+    **The login gate was not the only one.** Audited afterwards (2026-08-10):
+    **44 selectors are defined in more than one stylesheet, 29 of them as
+    identical copies.** Most of the rest are legitimate base-vs-mobile pairs.
+    The header block — `.brand`, `.bar`, `.logo`, `.hrow`, `.rolebadge`,
+    `.signout` — is duplicated between `map.css` and `kad-rekod.css`, and the
+    `kad-rekod.css` copy is the one that wins. Confirmed by accident: a mutation
+    changing `.signout`'s colour in `kad-rekod.css` reached the header.
+
+    **Not cleaned up yet — deliberately.** De-duplicating 29 rules across five
+    stylesheets on a live app is its own change with its own verification, not
+    a side quest inside a design task. Until it is done, the rule stands:
+    **grep a selector across `v2/src/styles/` before editing it, and count the
+    files.**
 
 ## 5. Things I got wrong (so they aren't repeated)
 

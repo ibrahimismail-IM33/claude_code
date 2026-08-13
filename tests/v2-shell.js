@@ -147,6 +147,31 @@ const AWAM = REG.filter((h) => h.status === 'kerajaan').length;
   check('and BBP Kunak sits under it',
     await p.$eval('.authbox .sub', (n) => n.textContent.trim()), 'BBP Kunak');
 
+  /* The password reveal.
+   *
+   * Asserted on the INPUT'S TYPE, never on the icon. An icon that swaps while
+   * the field stays masked looks exactly like a working toggle and is the
+   * failure worth catching; the type is the only thing that actually reveals
+   * anything. Checked in all three states — masked, revealed, masked again —
+   * because a toggle that only works once is its own bug. */
+  await p.fill('#authPass', 'secret123');
+  check('the password starts masked',
+    await p.$eval('#authPass', (n) => n.type), 'password');
+  check('...and says so to a screen reader',
+    await p.$eval('#authEye', (n) => n.getAttribute('aria-pressed')), 'false');
+  await p.click('#authEye');
+  check('the eye reveals it', await p.$eval('#authPass', (n) => n.type), 'text');
+  check('...and updates aria-pressed',
+    await p.$eval('#authEye', (n) => n.getAttribute('aria-pressed')), 'true');
+  await p.click('#authEye');
+  check('and it masks again — the toggle is not one-way',
+    await p.$eval('#authPass', (n) => n.type), 'password');
+  // 44px is the touch minimum. This is tapped one-handed, in gloves, in sun.
+  check('the eye is a full-size touch target',
+    await p.$eval('#authEye', (n) => { const r = n.getBoundingClientRect();
+      return r.width >= 44 && r.height >= 44; }), true);
+  await p.fill('#authPass', '');
+
   // Empty fields must not reach the network at all.
   await p.click('#authBtn');
   await p.waitForTimeout(150);

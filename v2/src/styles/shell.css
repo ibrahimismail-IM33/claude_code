@@ -118,6 +118,18 @@
   .authbox input{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);border-radius:9px;
     padding:11px 12px;color:#fff;font-size:15px;outline:none;font-family:var(--sans)}
   .authbox input:focus{border-color:rgba(59,130,246,.65);box-shadow:0 0 0 3px rgba(59,130,246,.18)}
+  /* The reveal toggle. `position:relative` on the wrapper only — the input keeps
+     its own full width and the button overlays its right edge, so nothing about
+     the field's layout changes. */
+  .authpwrap{position:relative}
+  /* Room for the button, so a long password never runs under it. */
+  .authpwrap input{padding-right:48px}
+  .autheye{position:absolute;right:4px;top:50%;transform:translateY(-50%);
+    display:grid;place-items:center;width:44px;height:44px;   /* the touch minimum */
+    background:none;border:none;cursor:pointer;border-radius:8px;
+    color:rgba(255,255,255,.55)}
+  .autheye:hover{color:#fff;background:rgba(255,255,255,.07)}
+  .autheye:focus-visible{outline:2px solid rgba(59,130,246,.7);outline-offset:-2px}
   .authbtn{width:100%;margin-top:18px;padding:12px;border:none;border-radius:9px;background:#2563eb;color:#fff;
     font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 10px 26px -10px #2563eb}
   .authbtn:hover{background:#1d4ed8}
@@ -136,15 +148,29 @@
   .signout:hover{color:#fff;border-color:rgba(255,255,255,.3)}
   .ro-hidden{display:none!important}
 
-  /* ---- tabs ---- */
-  .tabs{display:flex;gap:4px;padding:3px;border-radius:9999px;
-    background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
-  .tabb{appearance:none;border:none;cursor:pointer;border-radius:9999px;
-    padding:7px 16px;font-family:var(--sans);font-size:13px;font-weight:600;
-    color:rgba(255,255,255,.55);background:none;transition:all .18s;white-space:nowrap;min-height:36px}
-  .tabb:hover{color:rgba(255,255,255,.85)}
-  .tabb.on{background:rgba(239,68,68,.16);border:1px solid rgba(239,68,68,.45);color:#fff}
-  .tabb:focus-visible{outline:2px solid rgba(239,68,68,.6);outline-offset:2px}
+  /* ---- tabs: a full-width bar across the very top (redesign, 2026-08-10) ----
+     Three equal tabs, the active one filled. It sits above .hrow inside the
+     header, so the header's own z-index and stacking context still apply
+     (§4.8 — do not give this its own).
+     Hidden entirely below 640px; the hamburger is the navigation there. */
+  .tabs{position:relative;z-index:1;display:flex;gap:0;
+    margin:-14px -28px 12px;                 /* cancel header padding: full bleed */
+    background:linear-gradient(180deg,#15171c,#0e1013);
+    border-bottom:1px solid rgba(255,255,255,.08)}
+  .tabb{appearance:none;border:none;cursor:pointer;
+    flex:1 1 0; min-width:0;                 /* equal thirds, as the mockup */
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    padding:12px 16px;font-family:var(--sans);font-size:14px;font-weight:700;
+    color:rgba(255,255,255,.6);background:none;transition:all .18s;
+    white-space:nowrap;min-height:46px;border-radius:0}
+  .tabb .ti{font-size:15px;line-height:1}
+  .tabb:hover{color:rgba(255,255,255,.9);background:rgba(255,255,255,.04)}
+  /* Filled, not tinted. On a bar this wide a 16% tint reads as "slightly
+     different" rather than "you are here", which is the one thing a tab has
+     to say. */
+  .tabb.on{background:linear-gradient(180deg,#dc2626,#7f1d1d);color:#fff}
+  .tabb.on:hover{background:linear-gradient(180deg,#e02b2b,#8d2020)}
+  .tabb:focus-visible{outline:2px solid rgba(239,68,68,.6);outline-offset:-3px}
 
   /* ---- tab switch animation ----
    *

@@ -68,28 +68,45 @@ function menuSignOut() { menuOpen.value = false; emit('signOut'); }
 
 <template>
   <header ref="root">
+    <!-- The tab bar, pinned across the top (redesign mockup, 2026-08-10).
+         It sits OUTSIDE .hrow so it can span the full width; .hrow keeps the
+         brand, pills and account controls below it.
+         Still `.tabs`, deliberately: below 640px shell.css hides this whole bar
+         and the hamburger is the navigation, and T22 asserts exactly that
+         selector both ways — visible at 1280, hidden at 360. Renaming it here
+         would take navigation away from every phone with nothing to catch it. -->
+    <div class="tabs" role="tablist" aria-label="Paparan">
+      <button class="tabb" :class="{ on: tab === 'map' }" id="tabMap" data-tab="map"
+              role="tab" :aria-selected="String(tab === 'map')" @click="pick('map')">
+        <span class="ti" aria-hidden="true">🗺️</span> Peta Pili
+      </button>
+      <button class="tabb" :class="{ on: tab === 'dash' }" id="tabDash" data-tab="dash"
+              role="tab" :aria-selected="String(tab === 'dash')" @click="pick('dash')">
+        <span class="ti" aria-hidden="true">📊</span> Dashboard
+      </button>
+      <button class="tabb" :class="{ on: tab === 'profile' }" id="tabProfile" data-tab="profile"
+              role="tab" :aria-selected="String(tab === 'profile')" @click="pick('profile')">
+        <span class="ti" aria-hidden="true">👤</span> Profil
+      </button>
+    </div>
+
     <div class="hrow">
       <div class="brand">
         <span class="bar"></span>
         <div class="logo"><img :src="logo" alt="Jabatan Bomba dan Penyelamat Malaysia"></div>
         <div>
-          <!-- .kx is dropped at 640px: the full string is ~200px and pushed the
-               tabs onto a row of their own, costing a line of map (§3). -->
+          <!-- Wordmark FIRST, kicker under it — the mockup's order, and the same
+               arrangement the login gate uses. One product, one wordmark (§10):
+               both read var(--brand), so the header and the sign-in screen
+               cannot drift into two different brands.
+               .kx is dropped at 640px: the full string is ~200px and used to
+               push the tabs onto a row of their own (§3). -->
+          <h1 class="disp" id="brandWordmark">e-Pili Bomba</h1>
           <div class="kicker">BBP Kunak<span class="kx"> · Sabah · Bomba Malaysia</span></div>
-          <h1 class="disp" style="font-size:20px;font-weight:800;color:#fff;line-height:1.1">e-Pili Bomba</h1>
         </div>
       </div>
 
       <div class="divider"></div>
-
-      <div class="tabs" role="tablist" aria-label="Paparan">
-        <button class="tabb" :class="{ on: tab === 'map' }" id="tabMap" data-tab="map"
-                role="tab" :aria-selected="String(tab === 'map')" @click="pick('map')">Peta Pili</button>
-        <button class="tabb" :class="{ on: tab === 'dash' }" id="tabDash" data-tab="dash"
-                role="tab" :aria-selected="String(tab === 'dash')" @click="pick('dash')">Dashboard</button>
-        <button class="tabb" :class="{ on: tab === 'profile' }" id="tabProfile" data-tab="profile"
-                role="tab" :aria-selected="String(tab === 'profile')" @click="pick('profile')">Profil</button>
-      </div>
 
       <Pills :counts="counts" :active="statusFilter"
              @pick="(s) => emit('pickStatus', s)" @clear="emit('pickStatus', null)" />
@@ -99,7 +116,10 @@ function menuSignOut() { menuOpen.value = false; emit('signOut'); }
           <span style="font-size:16px;line-height:1">+</span> Tambah Pili
         </button>
         <div class="clock"><span class="u">DATE</span><span class="t" id="dateNow">{{ dateNow }}</span></div>
-        <div class="clock"><span class="u">MYT</span><span class="t" id="clock">{{ clock }}</span></div>
+        <!-- "TIME", not "MYT" — the mockup's label. The value is unchanged and
+             still Malaysian time; MYT was telling officers the timezone they
+             are standing in. -->
+        <div class="clock"><span class="u">TIME</span><span class="t" id="clock">{{ clock }}</span></div>
         <div class="live"><span class="d soft-pulse"></span><span class="l">Live</span></div>
         <div class="rolebadge" :class="{ hide: !signedIn, admin: isAdmin }" id="roleBadge">
           <span class="r" id="roleTxt">{{ isAdmin ? 'Admin' : 'Viewer' }}</span>

@@ -36,9 +36,28 @@
     box-shadow:0 0 14px rgba(239,68,68,.6)}
   .logo{height:46px;width:46px;display:grid;place-items:center}
   .logo img{height:100%;width:100%;object-fit:contain;display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
-  .kicker{font-family:var(--mono);font-size:10px;letter-spacing:.32em;text-transform:uppercase;color:rgba(252,165,165,.8)}
-  h1{font-family:var(--display);font-size:26px;font-weight:800;letter-spacing:-.01em;text-transform:uppercase;line-height:1;margin-top:2px}
+  /* The wordmark (redesign, 2026-08-10). Same treatment as the login gate, and
+     for the same reason — one product, one wordmark (§10), so an officer does
+     not meet two brands between signing in and using the app.
+     Mixed case on purpose: the product is called e-Pili Bomba, and
+     E-PILI BOMBA is not its name, so text-transform:uppercase came off.
+     BOTH of these rules are here, not in shell.css: shell.css is imported
+     BEFORE map.css, so a copy written there would lose to this one. §4.27 is
+     what that mistake costs when nobody checks which copy wins. */
+  h1{font-family:var(--display);font-size:26px;font-weight:800;letter-spacing:.01em;
+    color:var(--brand);line-height:1.05}
   h1 span{color:#f87171}
+  .kicker{font-family:var(--display);font-size:13px;font-weight:700;letter-spacing:.30em;
+    text-transform:uppercase;color:var(--brand);margin-top:1px}
+  /* The "· Sabah · Bomba Malaysia" tail is now hidden at EVERY width, not just
+     on phones. At the wordmark's new size that string runs ~400px and pushed
+     Tambah Pili, the clocks and Sign Out onto a second row — a 168px header
+     where 120px did the job. The mockup's brand block is the wordmark and
+     "BBP KUNAK", nothing else.
+     Kept in the markup rather than deleted: v2-shell.js T8 asserts this exact
+     class computes to `none` on a phone, and it is the cheapest place to put
+     the full name back if it is ever wanted. */
+  .kx{display:none}
   .divider{width:1px;height:40px;background:rgba(255,255,255,.1);margin:0 4px}
 
   .pills{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
