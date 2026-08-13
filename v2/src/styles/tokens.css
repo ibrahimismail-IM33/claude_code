@@ -30,10 +30,36 @@
  * the failure this project has already shipped once. */
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;width:100%;overflow:hidden;overscroll-behavior:none}
+  /* The app ground: the 50th-anniversary watermark over the circuit-board
+     artwork (user-supplied, 2026-08-10).
+     WHERE THIS IS ACTUALLY VISIBLE: behind the header, the dashboard and the
+     Profil tab. NOT behind the map — .leaflet-container paints its own #0a0b0d
+     over the whole pane, which is correct and must stay that way. The mockup
+     looks full-bleed because it does not draw the map.
+     Nothing is layered *over* the map either: a background on a Leaflet
+     ancestor is one edit away from a transform on one, and §4.16/§4.17 are
+     both what happens when Leaflet's geometry stops matching the page.
+     Root-absolute urls, for the reason spelled out on #authGate. */
   body{font-family:var(--sans);color:#e7e5e4;-webkit-font-smoothing:antialiased;
     background:
-      radial-gradient(1100px 520px at 88% -12%, rgba(239,68,68,.16), transparent 60%),
-      radial-gradient(820px 460px at -5% 115%, rgba(250,204,21,.08), transparent 60%),
-      linear-gradient(180deg,#0e0f12 0%,#0a0b0d 100%);}
+      linear-gradient(180deg,rgba(6,14,24,.42),rgba(6,14,24,.66)),
+      url("/app-bg.jpg") center center / cover no-repeat,
+      #0a1622;
+    background-attachment:fixed,fixed,fixed;}
+  /* The 50th watermark, on its OWN layer.
+     Two things a background-image layer cannot do and this needs: an opacity,
+     and a filter. At full colour the red "50" and the red "BOMBA DAN
+     PENYELAMAT" read as CONTENT — measured on the dashboard, where it sat over
+     a section heading and pulled the eye off the figures. Desaturated to a
+     blue-grey ghost it does what a watermark is for.
+     It is a body pseudo-element, so it paints under .app (which comes later in
+     source order and is positioned); every panel above it is transparent or
+     paints its own card, so nothing needs a z-index. Nothing is layered over
+     the MAP — .leaflet-container paints its own ground, and a background on a
+     Leaflet ancestor is one edit away from a transform on one (§4.16/§4.17). */
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;
+    background:url("/logo-50.png") left -70px top 56px / auto 420px no-repeat;
+    filter:grayscale(.9) brightness(.6);
+    opacity:.30}
   .mono{font-family:var(--mono)} .disp{font-family:var(--display)}
   .tab{font-variant-numeric:tabular-nums}

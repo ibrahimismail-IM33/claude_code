@@ -22,17 +22,18 @@
  * body, .mono, .disp and .tab are in tokens.css with the rest of V1's reset,
  * so each has exactly one definition.
  *
- * NOTE: #authGate's background is `url("/login-bg.jpg")` — ROOT-ABSOLUTE, and
- * the leading slash is load-bearing. The file now lives in v2/public/, so Vite
- * copies it to the site root; but the built stylesheet is emitted at
+ * NOTE: every artwork url here is ROOT-ABSOLUTE (`url("/logo-50.png")`) and the
+ * leading slash is load-bearing. The files live in v2/public/, so Vite copies
+ * them to the site root; but the built stylesheet is emitted at
  * /assets/style-*.css, and a RELATIVE url() in CSS resolves against the
- * stylesheet, not the page. Written as url("login-bg.jpg") the browser asks for
- * /assets/login-bg.jpg and gets a 404.
+ * STYLESHEET, not the page — written as url("logo-50.png") the browser asks for
+ * /assets/logo-50.png and gets a 404.
  *
- * It fails quietly, which is the problem: the rule declares #0a0b0d as well, so
- * a missing image degrades to a plain dark panel that looks deliberate. V1 has
- * the same declaration and has never looked broken, so nothing here would have
- * announced the regression. tests/v2-app-live.js T9 asserts the image actually
+ * It fails quietly, which is the problem: whatever declares the image declares
+ * a colour too, so a missing file degrades to a plain panel that looks
+ * deliberate. login-bg.jpg shipped missing exactly this way once and nothing
+ * announced it. scripts/verify-bundle.js now fails the DEPLOYMENT on a missing
+ * or relative asset, and tests/v2-app-live.js T9 asserts each image actually
  * loads, by its natural dimensions rather than by the computed style — a
  * computed background-image string is identical whether or not the file exists.
  */
@@ -56,18 +57,41 @@
   .logo img{height:100%;width:100%;object-fit:contain;display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
 
   /* ---- login gate (z-index 100000 — above everything) ---- */
+  /* The BACKGROUND ONLY changed here (user's call, 2026-08-10): the smoke
+     photograph is gone and the ground is the mockup's near-white page with the
+     50th-anniversary logo behind the card. The card itself, its fields and its
+     button are untouched.
+     Root-absolute url. The built stylesheet is /assets/style-*.css, so a
+     relative one asks for /assets/logo-50.png and 404s — and this rule paints a
+     colour underneath, so that failure looks like a deliberate plain page.
+     verify-bundle.js fails the deployment on it; T9 asserts the image loads. */
   #authGate{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;
-    background:#0a0b0d url("/login-bg.jpg") center center / cover no-repeat}
-  /* scrim: keeps the white text readable wherever the smoke happens to be bright */
-  #authGate::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
-    background:radial-gradient(1100px 620px at 50% 48%,rgba(0,0,0,.18),rgba(0,0,0,.72))}
+    background:#f4f5f7}
+  /* The watermark needs its OWN layer: a background-image layer cannot carry an
+     opacity. Sized to bleed past the card so it reads as a ground, not a
+     sticker. */
+  #authGate::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+    background:url("/logo-50.png") center 46% / min(760px, 128vw) no-repeat;
+    opacity:.18}
+  /* The scrim is gone with the photograph it existed for — it was there to hold
+     white text clear of bright smoke, and the page is now light and even. */
   #authGate.hide{display:none}
 
   /* frosted-glass login panel floating over the smoke */
   .authbox{
     /* noise is generated here rather than fetched from another site */
     --filter-glass3d: blur(20px) brightness(1.1) saturate(2.6);
-    --color-glass3d: rgba(10,12,16,.42);
+    /* .42 → .88, and this is the ONE value the light background forced.
+       This card is GLASS: it tints whatever is behind it. Against the old dark
+       photograph .42 produced a dark panel; against the near-white page it
+       produced a mid-grey one (measured rgb(152,152,152)), and every light
+       text colour on it collapsed — the wordmark to 1.03:1, the footer note to
+       1.44:1. Unreadable, on the first screen an officer sees.
+       Raising the card's own tint keeps the glass treatment, the shape, the
+       blur and every text colour exactly as they were, and is the smallest
+       change that makes the card legible on the new ground. Re-measured after:
+       nothing below its threshold. */
+    --color-glass3d: rgba(10,12,16,.88);
     --noise-glass3d: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.28'/%3E%3C/svg%3E");
     position:relative;z-index:4;
     width:100%;max-width:360px;border-radius:18px;padding:26px 22px;
@@ -114,7 +138,12 @@
     letter-spacing:.02em;line-height:1.15}
   .authbox .sub{font-family:var(--display);font-size:12px;font-weight:700;letter-spacing:.34em;
     text-transform:uppercase;color:var(--brand);margin-bottom:14px;padding-left:.34em}
-  .authbox label{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.2em;color:rgba(255,255,255,.45);margin:12px 0 6px}
+  /* .72, not V1's .45. Measured at 3.77:1 on the rendered card — under the 4.5
+     minimum, and it failed on the OLD dark background too (4.37), so this is a
+     pre-existing defect the measurement found rather than one the new ground
+     caused. Semi-transparent text is composited before anyone sees it, so the
+     declared colour says nothing. */
+  .authbox label{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.2em;color:rgba(255,255,255,.72);margin:12px 0 6px}
   .authbox input{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);border-radius:9px;
     padding:11px 12px;color:#fff;font-size:15px;outline:none;font-family:var(--sans)}
   .authbox input:focus{border-color:rgba(59,130,246,.65);box-shadow:0 0 0 3px rgba(59,130,246,.18)}
@@ -127,7 +156,7 @@
   .autheye{position:absolute;right:4px;top:50%;transform:translateY(-50%);
     display:grid;place-items:center;width:44px;height:44px;   /* the touch minimum */
     background:none;border:none;cursor:pointer;border-radius:8px;
-    color:rgba(255,255,255,.55)}
+    color:rgba(255,255,255,.80)}
   .autheye:hover{color:#fff;background:rgba(255,255,255,.07)}
   .autheye:focus-visible{outline:2px solid rgba(59,130,246,.7);outline-offset:-2px}
   .authbtn{width:100%;margin-top:18px;padding:12px;border:none;border-radius:9px;background:#2563eb;color:#fff;

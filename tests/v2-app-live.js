@@ -453,24 +453,101 @@ const JADUAL = [
    * returns the same string whether or not the file exists, so it passes on
    * both bugs. The image is loaded explicitly and its natural size checked —
    * a 404 gives 0x0. Same lesson as §4.15's black box: assert the outcome. */
-  console.log('T9  the login gate background image resolves and loads');
+  console.log('T9  the login gate artwork resolves and loads');
   p = await mount({ noSession: true });
-  const bg = await p.evaluate(async () => {
+  /* Both assets, and BOTH pseudo-elements matter: the circuit background is on
+   * #authGate itself, the 50th watermark on #authGate::before — it needs its
+   * own layer because a background-image layer cannot carry an opacity. */
+  const art = await p.evaluate(async () => {
     const gate = document.querySelector('#authGate');
     if (!gate) return { err: 'no #authGate — the login gate did not render' };
-    const url = (/url\(["']?([^"')]+)/.exec(getComputedStyle(gate).backgroundImage) || [])[1];
-    if (!url) return { err: 'no background-image on #authGate' };
-    const img = new Image();
-    const loaded = await new Promise((res) => {
-      img.onload = () => res(true); img.onerror = () => res(false); img.src = url;
+    const grab = (el, pseudo) =>
+      (/url\(["']?([^"')]+)/.exec(getComputedStyle(el, pseudo).backgroundImage) || [])[1];
+    const load = (url) => new Promise((res) => {
+      if (!url) return res({ loaded: false, w: 0, h: 0 });
+      const img = new Image();
+      img.onload = () => res({ loaded: true, w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = () => res({ loaded: false, w: 0, h: 0 });
+      img.src = url;
     });
-    return { url, loaded, w: img.naturalWidth, h: img.naturalHeight };
+    // The 50th watermark is the GATE's artwork; the circuit board is the APP
+    // shell's, on body. Two different screens, deliberately (the mockups draw
+    // them that way), so both are checked and neither can quietly go missing.
+    const markUrl = grab(gate, '::before');
+    const shellUrl = (/url\(["']?([^"')]+)/
+      .exec(getComputedStyle(document.body).backgroundImage) || [])[1];
+    return { markUrl, shellUrl, mark: await load(markUrl), shell: await load(shellUrl) };
   });
-  check('the login gate is showing', !bg.err, true);
-  check('its background URL is root-absolute, not relative to /assets/',
-    /^https?:\/\/[^/]+\/login-bg\.jpg$/.test(bg.url || ''), true);
-  check('and the image actually loads (a 404 gives 0x0)', bg.loaded, true);
-  check('at its real dimensions', [bg.w, bg.h], [1600, 811]);
+  check('the login gate is showing', !art.err, true);
+  check('the 50th watermark URL is root-absolute, not relative to /assets/',
+    /^https?:\/\/[^/]+\/logo-50\.png$/.test(art.markUrl || ''), true);
+  check('...and it actually loads (a 404 gives 0x0)', art.mark.loaded, true);
+  check('...at its real dimensions', [art.mark.w, art.mark.h], [500, 500]);
+  check('the app shell background URL is root-absolute',
+    /^https?:\/\/[^/]+\/app-bg\.jpg$/.test(art.shellUrl || ''), true);
+  check('...and it loads too', art.shell.loaded, true);
+  check('...at its real dimensions', [art.shell.w, art.shell.h], [1920, 1120]);
+
+  /* Every text colour on the gate, measured against RENDERED PIXELS.
+   *
+   * Not against a computed background-color. The card is glass: `.authbox` is
+   * `background:transparent` and its tint comes from `.authbox::before` plus a
+   * backdrop-filter, so any model built from computed styles reads the ground
+   * as the page behind the card and reports failures that do not exist. The
+   * first version of this check did exactly that and called six passing colours
+   * failures — while a pixel measurement of the same screen passed.
+   *
+   * So: screenshot each element, take its most common colour as the local
+   * ground, composite the text's alpha over it, and compare. It is the only
+   * method that survives glass, gradients and blur.
+   *
+   * Large text is held to 3:1 and normal text to 4.5:1 — the actual standard.
+   * Holding a 23px bold wordmark to 4.5 would be inventing a rule. */
+  const lum = (c) => { const f = (v) => { v /= 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+  const cr = (a, b) => { const x = lum(a), y = lum(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+
+  const GATE_TEXT = [
+    ['.authbox h2', 'wordmark', 3],
+    ['.authbox .sub', 'BBP KUNAK', 3],
+    ['.authbox > p', 'sign in to continue', 4.5],
+    ['.authbox label', 'field label', 4.5],
+    ['#authBtn', 'Sign In', 3],
+    ['.authbox p:last-of-type', 'footer note', 4.5],
+    ['#authEye', 'eye icon', 4.5],
+  ];
+  const contrast = [];
+  for (const [sel, name, need] of GATE_TEXT) {
+    const el = await p.$(sel);
+    if (!el) { contrast.push([name, 0, need]); continue; }
+    const color = await el.evaluate((n) => getComputedStyle(n).color);
+    const shot = await el.screenshot();
+    // Most common colour in the element's own box = what its glyphs sit on.
+    const bg = await p.evaluate(async (d) => {
+      const img = new Image(); img.src = 'data:image/png;base64,' + d; await img.decode();
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+      const im = x.getImageData(0, 0, c.width, c.height).data;
+      const m = new Map();
+      for (let i = 0; i < im.length; i += 4) {
+        const k = [im[i] >> 3, im[i + 1] >> 3, im[i + 2] >> 3].join(',');
+        m.set(k, (m.get(k) || 0) + 1);
+      }
+      return [...m.entries()].sort((a, b) => b[1] - a[1])[0][0].split(',').map((v) => +v << 3);
+    }, shot.toString('base64'));
+    const m = (color.match(/[\d.]+/g) || []).map(Number);
+    const a = m.length > 3 ? m[3] : 1;
+    const eff = [0, 1, 2].map((i) => Math.round(m[i] * a + bg[i] * (1 - a)));
+    contrast.push([name, +cr(eff, bg).toFixed(2), need]);
+  }
+
+  // An empty set would pass a .every() trivially — §4.18. Count first.
+  check('every gate text colour was measured', contrast.length, 7);
+  check('...and every one clears its threshold',
+    contrast.filter(([, r, need]) => r < need), []);
   await p.close();
 
   /* ---------- T10: the figures must not change on re-opening the tab ----------

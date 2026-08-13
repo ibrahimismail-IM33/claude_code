@@ -128,10 +128,16 @@ check(offenders.length === 0,
  * /assets/style-*.css and a relative url() resolves against the STYLESHEET, so
  * `url(login-bg.jpg)` asks for /assets/login-bg.jpg and 404s with the same
  * invisible result. */
-check(fs.existsSync(path.join(DIST, 'login-bg.jpg')),
-  'login-bg.jpg is not in the bundle — the login gate loses its background, '
-  + 'silently (the rule falls back to a plain dark panel)',
-  'login-bg.jpg present');
+[
+  ['app-bg.jpg', 'the circuit-board background — the login gate and the whole app '
+    + 'ground fall back to a flat dark panel'],
+  ['logo-50.png', 'the 50th-anniversary watermark — it simply does not appear, and '
+    + 'nothing anywhere reports it'],
+].forEach(([f, what]) => {
+  check(fs.existsSync(path.join(DIST, f)),
+    f + ' is not in the bundle — ' + what,
+    f + ' present');
+});
 
 /* A dependency's stylesheet can silently not ship, and nothing complains.
  *
@@ -159,10 +165,20 @@ const allCss = cssFiles.join('\n');
     sel + ' rules present');
 });
 
-check(!/url\(["']?login-bg/.test(allCss),
-  'the login-bg URL is relative — it resolves against /assets/style-*.css, so '
-  + 'the browser requests /assets/login-bg.jpg and 404s. It must be "/login-bg.jpg"',
-  'login-bg URL is root-absolute');
+['app-bg.jpg', 'logo-50.png'].forEach((f) => {
+  check(!new RegExp('url\\(["\']?' + f.replace('.', '\\.')).test(allCss),
+    'the ' + f + ' URL is relative — it resolves against /assets/style-*.css, so the '
+    + 'browser requests /assets/' + f + ' and 404s. It must be "/' + f + '"',
+    f + ' URL is root-absolute');
+});
+
+/* The smoke photo is gone (user's call, 2026-08-10). Asserted so a stale
+ * reference cannot survive a merge: it would 404 invisibly, exactly like a
+ * relative URL, because whatever declares it also declares a dark colour. */
+check(!/login-bg/.test(allCss),
+  'the bundle still references login-bg.jpg, which was deleted — that URL 404s '
+  + 'and the rule falls back to a plain dark panel, invisibly',
+  'no stale login-bg reference');
 
 // --- report ------------------------------------------------------------------
 ok.forEach((m) => console.log('  ok    ' + m));

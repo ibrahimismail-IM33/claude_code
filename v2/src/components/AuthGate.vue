@@ -65,7 +65,7 @@ function submit() {
       <img class="authlogo" :src="logo" alt="Jabatan Bomba dan Penyelamat Malaysia">
       <h2 id="authWordmark" style="text-align:center;margin-bottom:2px">e-Pili Bomba</h2>
       <div class="sub" style="text-align:center">BBP Kunak</div>
-      <p style="text-align:center;color:rgba(255,255,255,.45);font-size:12px;margin-bottom:6px">Sign in to continue</p>
+      <p style="text-align:center;color:rgba(255,255,255,.72);font-size:12px;margin-bottom:6px">Sign in to continue</p>
 
       <label for="authEmail">Email</label>
       <input id="authEmail" v-model="email" type="email" autocomplete="username" inputmode="email"
@@ -102,7 +102,7 @@ function submit() {
 
       <div class="autherr" :class="{ hide: !error }" id="authErr">{{ error }}</div>
 
-      <p style="margin-top:14px;font-size:11px;color:rgba(255,255,255,.3);text-align:center;line-height:1.5">
+      <p style="margin-top:14px;font-size:11px;color:rgba(255,255,255,.68);text-align:center;line-height:1.5">
         Accounts are created by the administrator.<br>Contact BBP Kunak if you need access.
       </p>
     </div>
