@@ -129,10 +129,11 @@ check(offenders.length === 0,
  * `url(login-bg.jpg)` asks for /assets/login-bg.jpg and 404s with the same
  * invisible result. */
 [
-  ['app-bg.png', 'the circuit-board background — the login gate and the whole app '
-    + 'ground fall back to a flat dark panel'],
-  ['logo-50.png', 'the 50th-anniversary watermark — it simply does not appear, and '
-    + 'nothing anywhere reports it'],
+  ['percut19_generated.jpg', 'the app ground for Peta Pili, Dashboard and Profil — '
+    + 'every one of them falls back to a flat dark panel'],
+  ['logo-50.png', 'the 50th-anniversary watermark on the LOGIN GATE, which is now '
+    + 'the only surface that carries it — it simply does not appear, and nothing '
+    + 'anywhere reports it'],
 ].forEach(([f, what]) => {
   check(fs.existsSync(path.join(DIST, f)),
     f + ' is not in the bundle — ' + what,
@@ -165,7 +166,7 @@ const allCss = cssFiles.join('\n');
     sel + ' rules present');
 });
 
-['app-bg.png', 'logo-50.png'].forEach((f) => {
+['percut19_generated.jpg', 'logo-50.png'].forEach((f) => {
   check(!new RegExp('url\\(["\']?' + f.replace('.', '\\.')).test(allCss),
     'the ' + f + ' URL is relative — it resolves against /assets/style-*.css, so the '
     + 'browser requests /assets/' + f + ' and 404s. It must be "/' + f + '"',
@@ -175,11 +176,13 @@ const allCss = cssFiles.join('\n');
 /* The smoke photo is gone (user's call, 2026-08-10). Asserted so a stale
  * reference cannot survive a merge: it would 404 invisibly, exactly like a
  * relative URL, because whatever declares it also declares a dark colour. */
-/* Both files that were replaced. A missed rename is the same invisible 404 as a
- * relative URL: whatever declares the image declares a colour too, so the page
- * degrades to a plain panel that looks deliberate. app-bg went .jpg -> .png in
- * the same change, which is exactly the rename that gets half-done. */
-['login-bg', 'app-bg\\.jpg'].forEach((gone) => {
+/* Every artwork that has been replaced. A missed rename is the same invisible
+ * 404 as a relative URL: whatever declares the image declares a colour too, so
+ * the page degrades to a plain panel that looks deliberate. `app-bg` covers
+ * both the .jpg and the .png it briefly became — the circuit board is gone
+ * entirely (2026-08-13), and with it the .app pseudo-element layers that used
+ * a rotated copy of it. */
+['login-bg', 'app-bg'].forEach((gone) => {
   check(!new RegExp(gone).test(allCss),
     'the bundle still references ' + gone.replace('\\', '') + ', which was replaced — '
     + 'that URL 404s and the rule falls back to a plain panel, invisibly',

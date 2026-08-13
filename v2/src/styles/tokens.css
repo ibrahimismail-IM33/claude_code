@@ -30,55 +30,46 @@
  * the failure this project has already shipped once. */
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;width:100%;overflow:hidden;overscroll-behavior:none}
-  /* The app ground: the 50th-anniversary watermark over the circuit-board
-     artwork (user-supplied, 2026-08-10).
+  /* THE APP GROUND — ONE image, on ONE layer, for all three tabs.
+     (User's call, 2026-08-13: use this behind Peta Pili, Dashboard and Profil;
+     remove the old background; remove the 50 from those three tabs.)
+
+     It replaces two separate mechanisms: the circuit-board artwork here, and a
+     pair of `.app` pseudo-elements in shell.css that gave Dashboard and Profil
+     a rotated copy of it plus a 50th-anniversary watermark, toggled by a
+     `.bg-alt` class. All of that is gone — one ground on `body` is now the
+     whole story, and there is nothing left to keep in step between tabs.
+
+     The 50 SURVIVES ON THE LOGIN GATE, and only there (#authGate::before). That
+     is the one surface the user did not ask to change, and it is why
+     logo-50.png is still in the bundle.
+
      WHERE THIS IS ACTUALLY VISIBLE: behind the header, the dashboard and the
      Profil tab. NOT behind the map — .leaflet-container paints its own #0a0b0d
-     over the whole pane, which is correct and must stay that way. The mockup
-     looks full-bleed because it does not draw the map.
+     over the whole pane, which is correct and must stay that way. That was
+     already true of the artwork this replaces, so nothing an officer sees on
+     Peta Pili changes except the colour behind the header.
      Nothing is layered *over* the map either: a background on a Leaflet
      ancestor is one edit away from a transform on one, and §4.16/§4.17 are
      both what happens when Leaflet's geometry stops matching the page.
-     Root-absolute urls, for the reason spelled out on #authGate. */
+
+     NO `mix-blend-mode` AND NO `filter` HERE, unlike everything this replaces.
+     The old artwork was white-backed and needed multiply to stop it painting as
+     a white plate; this one is a dark full-bleed photograph and is simply drawn.
+     If a blended layer is ever added back, read §4.28 first — a `filter` on the
+     blended element isolates it and silently switches the blend off.
+
+     Root-absolute url, for the reason spelled out on #authGate. */
   body{font-family:var(--sans);color:#e7e5e4;-webkit-font-smoothing:antialiased;
     background:
-      linear-gradient(180deg,rgba(6,14,24,.10),rgba(6,14,24,.34)),
-      /* `right center`, not `center`. The artwork's interest — the traces —
-         all enters from the RIGHT edge, and `cover` crops width on anything
-         narrower than 1.71:1, so `center` throws exactly the part that was
-         asked for off the screen. The file needs no rotation; it needed
-         positioning. */
-      url("/app-bg.png") right center / cover no-repeat,
+      /* A light scrim, not a blackout. The artwork is already dark, but its
+         gold and red lines are the brightest thing on the page and the header
+         sets orange text over them; the scrim is what keeps that measured at
+         6.4:1 rather than left to wherever a line happens to fall. T9 asserts
+         the numbers. */
+      linear-gradient(180deg,rgba(6,14,24,.30),rgba(6,14,24,.44)),
+      url("/percut19_generated.jpg") center center / cover no-repeat,
       #0e1a24;
     background-attachment:fixed,fixed,fixed;}
-  /* The 50th watermark, on its OWN layer — a background-image layer can carry
-     neither an opacity nor a blend mode, and this needs both.
-
-     MULTIPLY IS LOAD-BEARING. The artwork is WHITE-BACKED, so painted normally
-     it is a large white block over the circuit board. Multiply drops the white
-     to nothing and lets only the engraved lines darken what is under them,
-     which is the embossed ghost in the reference. The same asset and the same
-     blend serve the light login page — one file, one technique, nothing to
-     drift between two surfaces.
-     The grayscale()/brightness() filter that used to be here is gone with the
-     colour version it was correcting.
-
-     It is a body pseudo-element, so it paints under .app (which comes later in
-     source order and is positioned); every panel above it is transparent or
-     paints its own card, so nothing needs a z-index. Nothing is layered over
-     the MAP — .leaflet-container paints its own ground, and a background on a
-     Leaflet ancestor is one edit away from a transform on one (§4.16/§4.17). */
-  /* NO `filter` HERE, AND THAT IS NOT A STYLE CHOICE.
-     A `filter` on an element ISOLATES it, and its `mix-blend-mode` then stops
-     blending with the backdrop — so the artwork's white plate paints as a plain
-     light rectangle. It rendered exactly that way behind the crest and I read
-     it as "the watermark is too subtle" rather than "the blend is off". Proven
-     by removing the filter and watching the rectangle disappear.
-     If the engraving ever needs more weight, it has to come from the ASSET or
-     from opacity — never from a filter on the blended element. */
-  body::before{content:"";position:fixed;inset:0;pointer-events:none;
-    background:url("/logo-50.png") left -40px top 40px / auto 560px no-repeat;
-    mix-blend-mode:multiply;
-    opacity:1}
   .mono{font-family:var(--mono)} .disp{font-family:var(--display)}
   .tab{font-variant-numeric:tabular-nums}

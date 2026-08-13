@@ -22,8 +22,34 @@
   /* ---- header ---- */
   /* above .searchrow (500) so the phone account menu can drop over it —
      header z-index also forms the stacking context the panel lives in */
+  /* THE SCRIM IS MEASURED, NOT TASTE. The header is the only place text sits
+     directly on the app's artwork — everything else paints its own panel — and
+     the artwork's gold lines are the brightest thing on the page. Against the
+     brightest pixel the artwork puts in this band, the wordmark measured
+     2.31:1 unscrimmed — below the 3:1 large-text floor. At .45 it is 3.47:1,
+     the kicker 5.77:1, the clock value 6.93:1 and the Live label 6.39:1. Light
+     enough that the waves still read through it: the point was to use the
+     artwork, not to hide it behind a panel.
+
+     .45 is both the shipped number and the measured number, and the two are one
+     fact — change it and the measurement has to be redone. Swept .35/.45/.55/
+     .65 and took the lowest that leaves the wordmark real headroom rather than
+     scraping the floor.
+
+     ONE COLOUR STILL DOES NOT PASS AND IS LEFT ALONE: `.clock .u`, the DATE and
+     TIME micro-labels, are rgba(255,255,255,.35) — 2.65:1 here. That is V1's
+     own styling and it fails on V1's flat ground too (~2.7:1 on #0a0b0d), so it
+     is inherited, not caused by the artwork, and no scrim can fix it — even at
+     .65 it only reaches 2.93. Fixing it means changing that alpha, which is a
+     decision about V1's design and not something to slip into a background
+     change.
+
+     IT GOES HERE, NOT IN shell.css. `header{}` is declared in BOTH files (§4.27
+     — 44 selectors are, 29 of them identical), and main.js imports shell.css
+     BEFORE map.css, so this file wins. A background written into shell.css
+     would apply to nothing and look like the rule had no effect. */
   header{position:relative;z-index:1000;border-bottom:1px solid rgba(255,255,255,.06);
-    padding:14px 28px;}
+    padding:14px 28px;background:rgba(8,14,24,.45);}
   header::before{content:"";position:absolute;inset:0;pointer-events:none;
     background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
       linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);

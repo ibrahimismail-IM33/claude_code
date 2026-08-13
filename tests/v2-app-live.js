@@ -571,9 +571,10 @@ const JADUAL = [
       img.onerror = () => res({ loaded: false, w: 0, h: 0 });
       img.src = url;
     });
-    // The 50th watermark is the GATE's artwork; the circuit board is the APP
-    // shell's, on body. Two different screens, deliberately (the mockups draw
-    // them that way), so both are checked and neither can quietly go missing.
+    // The 50th watermark is the GATE's artwork and is now the ONLY place it
+    // appears — the app's three tabs carry a single dark photograph on `body`
+    // instead. Two different screens, two different assets, so both are checked
+    // and neither can quietly go missing.
     const markUrl = grab(gate, '::before');
     const shellUrl = (/url\(["']?([^"')]+)/
       .exec(getComputedStyle(document.body).backgroundImage) || [])[1];
@@ -585,9 +586,9 @@ const JADUAL = [
   check('...and it actually loads (a 404 gives 0x0)', art.mark.loaded, true);
   check('...at its real dimensions', [art.mark.w, art.mark.h], [500, 500]);
   check('the app shell background URL is root-absolute',
-    /^https?:\/\/[^/]+\/app-bg\.png$/.test(art.shellUrl || ''), true);
+    /^https?:\/\/[^/]+\/percut19_generated\.jpg$/.test(art.shellUrl || ''), true);
   check('...and it loads too', art.shell.loaded, true);
-  check('...at its real dimensions', [art.shell.w, art.shell.h], [1920, 1120]);
+  check('...at its real dimensions', [art.shell.w, art.shell.h], [1920, 1133]);
 
   /* THE WATERMARK MUST DARKEN, NOT COVER.
    *
@@ -702,6 +703,98 @@ const JADUAL = [
    *
    * Same family as the clean signature fixture and the donut band in §5: a
    * fixture that cannot reproduce the defect proves nothing. */
+
+  /* ---------- T9b: the HEADER's text over the app artwork ----------
+   *
+   * T9 above covers the login gate. This covers the only other place in the app
+   * where text sits directly on artwork rather than on a panel — the header —
+   * and it exists because the ground changed underneath it (2026-08-13): the
+   * old circuit board gave way to a photograph whose gold and red lines are the
+   * brightest thing on the page, and the wordmark is orange.
+   *
+   * THE GROUND IS THE ARTWORK'S BRIGHTEST PIXEL IN THAT BAND, not its average
+   * and not a token. A 2px gold line under a glyph is exactly the case a mean
+   * hides, and `--brand` on the artwork's darkest patch passes easily — which
+   * is how a header can measure fine and read badly.
+   *
+   * The header's own scrim is deliberately LEFT IN when the ground is sampled:
+   * it is part of what the text sits on, and removing it would measure a ground
+   * no glyph ever sees. Unscrimmed the wordmark is 2.31:1; the assertion is
+   * that the shipped scrim carries it over 3.
+   *
+   * `.clock .u` is NOT in this list. It is rgba(255,255,255,.35) — 2.65:1 here
+   * and ~2.7:1 on V1's own flat ground, so it fails everywhere and no scrim
+   * reaches 4.5. Asserting it would pin a defect this change did not cause;
+   * it is written down in map.css instead. */
+  console.log('T9b the header text clears contrast over the artwork');
+  p = await mount();
+  await p.waitForTimeout(300);
+  const hdr = await p.evaluate(async () => {
+    const sels = ['#brandWordmark', '.kicker', '.clock .t', '.live .l'];
+    const out = sels.map((s) => {
+      const n = document.querySelector(s);
+      if (!n) return { sel: s };
+      const cs = getComputedStyle(n);
+      return { sel: s, color: cs.color, size: parseFloat(cs.fontSize), weight: parseInt(cs.fontWeight, 10) };
+    });
+    return { out, h: document.querySelector('header').getBoundingClientRect().height };
+  });
+  /* Hide the header's CONTENT only — the header box, and its scrim, stay.
+   *
+   * Transitions are killed FIRST, and that is not belt-and-braces. `.pill` and
+   * `.addbtn` carry `transition:all .2s`, and `all` includes `visibility` — so
+   * a plain hide leaves the white Tambah Pili button on screen for the length
+   * of the transition. It landed in the sampled band and made the "brightest
+   * pixel" pure white, which reported every header colour as failing against a
+   * ground that is actually a button two columns away. */
+  await p.evaluate(() => {
+    document.querySelectorAll('header, header *').forEach((n) => {
+      n.style.transition = 'none';
+      n.style.animation = 'none';
+    });
+    document.querySelectorAll('header > *').forEach((n) => { n.style.visibility = 'hidden'; });
+    const m = document.querySelector('.maparea'); if (m) m.style.visibility = 'hidden';
+  });
+  await p.waitForTimeout(400);
+  const band = await p.screenshot({ clip: { x: 0, y: 0, width: 1280, height: Math.ceil(hdr.h) } });
+  const worstGround = await p.evaluate(async (b64) => {
+    const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    const d = x.getImageData(0, 0, c.width, c.height).data;
+    const sr = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    let best = null, bl = -1;
+    for (let i = 0; i < d.length; i += 4) {
+      const L = 0.2126 * sr(d[i]) + 0.7152 * sr(d[i + 1]) + 0.0722 * sr(d[i + 2]);
+      if (L > bl) { bl = L; best = [d[i], d[i + 1], d[i + 2]]; }
+    }
+    return { rgb: best, lum: bl };
+  }, band.toString('base64'));
+
+  const sr1 = (v) => { const u = v / 255; return u <= 0.04045 ? u / 12.92 : Math.pow((u + 0.055) / 1.055, 2.4); };
+  const lumOf = (c) => 0.2126 * sr1(c[0]) + 0.7152 * sr1(c[1]) + 0.0722 * sr1(c[2]);
+  const failures = hdr.out.map((c) => {
+    if (!c.color) return c.sel + ' MISSING';
+    const p4 = (c.color.match(/[\d.]+/g) || []).map(Number);
+    const a = p4.length > 3 ? p4[3] : 1;
+    // Composite the text's own alpha over the ground, or a translucent colour
+    // reads as though it were opaque.
+    const eff = [0, 1, 2].map((i) => p4[i] * a + worstGround.rgb[i] * (1 - a));
+    const l1 = lumOf(eff);
+    const ratio = (Math.max(l1, worstGround.lum) + 0.05) / (Math.min(l1, worstGround.lum) + 0.05);
+    const large = c.size >= 24 || (c.size >= 18.66 && c.weight >= 700);
+    const need = large ? 3 : 4.5;
+    return ratio >= need ? null : c.sel + ' ' + ratio.toFixed(2) + ':1 (needs ' + need + ')';
+  }).filter(Boolean);
+  check('every header colour clears contrast against the artwork\'s brightest pixel',
+    failures, []);
+  // The scrim is what buys that. Unscrimmed the wordmark measured 2.31:1, so a
+  // build that drops it must not pass — the alpha is asserted, not just implied.
+  check('the header keeps its measured scrim',
+    await p.$eval('header', (n) => getComputedStyle(n).backgroundColor),
+    'rgba(8, 14, 24, 0.45)');
+  await p.close();
+
   console.log('T10  the dashboard reads the same on the 1st, 2nd and 3rd open');
   p = await mount();
   const reads = [];

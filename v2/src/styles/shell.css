@@ -40,62 +40,30 @@
 
   .app{position:fixed;inset:0;display:flex;flex-direction:column;width:100%;height:100%}
 
-  /* ---- the Dashboard / Profil ground (.bg-alt) ----
+  /* ---- there is deliberately NO artwork layer on .app ----
    *
-   * The same circuit artwork ROTATED to vertical traces, as the reference draws
-   * those two screens, and pushed further back so the content reads over it.
-   * Peta Pili keeps the horizontal original on `body`; App.vue toggles the class.
+   * Dashboard and Profil used to get their own ground here: the circuit artwork
+   * rotated to vertical traces on `.app::before`, a 50th-anniversary watermark
+   * upright on `.app::after`, both faded in by a `.bg-alt` class from App.vue.
+   * All of it is REMOVED (user's call, 2026-08-13) — one image on `body` is now
+   * the ground for all three tabs, so there is nothing to toggle and nothing to
+   * keep in step. See tokens.css.
    *
-   * TWO pseudo-elements, because one cannot do both jobs: `mix-blend-mode`
-   * blends an element with its BACKDROP, so the 50 needs to be a separate layer
-   * sitting over the circuit rather than another background layer inside it.
-   * ::before paints first, ::after over it — hence circuit below, 50 above.
+   * Two things learned here are worth keeping even though the rules are gone,
+   * because the next person adding a full-page layer will need both:
    *
-   * `.app` is `position:fixed`, so it forms a stacking context: the negative
-   * z-indexes stay inside it, behind the header and the panels and in front of
-   * body's own background, and the blend is contained.
+   *  - IF ONE IS EVER ADDED BACK, THE TRANSFORM GOES ON THE PSEUDO-ELEMENT,
+   *    NEVER ON `.app`. A transform on a Leaflet ANCESTOR makes it the
+   *    containing block for the map's absolutely positioned panes — §4.16/§4.17
+   *    are both what that costs. A sibling pseudo-element is not an ancestor.
+   *  - A full-page layer must be named explicitly in the print block. The
+   *    isolation rule is `body.form-open > *:not(#formOverlay)`, and `body > *`
+   *    matches child ELEMENTS — a pseudo-element is invisible to it, which is
+   *    how the watermark printed across a legal record (§4.30).
    *
-   * THE TRANSFORM IS ON THE PSEUDO-ELEMENT, NEVER ON `.app`. A transform on a
-   * Leaflet ANCESTOR makes it the containing block for the map's absolutely
-   * positioned panes — §4.16/§4.17 are both what that costs. A sibling
-   * pseudo-element is not an ancestor and cannot do it.
-   *
-   * 100vh × 100vw before a 90° rotation is 100vw × 100vh after it, so the layer
-   * covers the viewport exactly at any aspect ratio. */
-  .app::before, .app::after{
-    content:"";position:fixed;pointer-events:none;
-    opacity:0;transition:opacity .22s ease-out;
-  }
-  /* ONLY THE CIRCUIT ROTATES. The 50 stays upright — it is a logo with words in
-     it, and a quarter-turned wordmark is not a watermark, it is a mistake.
-     These were one shared rule for a moment and the 50 came out sideways with
-     the layer; they are separate because they must be. */
-  .app::before{
-    z-index:-2;
-    top:50%;left:50%;width:100vh;height:100vw;   /* 100vh × 100vw ... */
-    transform:translate(-50%,-50%) rotate(90deg); /* ... is 100vw × 100vh after */
-    background:
-      /* Subdued to match the map tab, which is the "blend in" the reference
-         asks for — the artwork present but quiet behind the figures. */
-      linear-gradient(180deg,rgba(6,14,24,.52),rgba(6,14,24,.68)),
-      #0e1a24 url("/app-bg.png") center center / cover no-repeat;
-  }
-  .app::after{
-    z-index:-1;
-    inset:0;                                      /* upright, no transform */
-    /* The SAME placement and size the header uses (tokens.css, body::before) —
-       user's call: the 50 should not move or resize between tabs. Written to
-       match that rule literally so the two cannot drift apart. */
-    background:url("/logo-50.png") left -40px top 40px / auto 560px no-repeat;
-    /* No `filter` — see tokens.css: a filter isolates the element and its
-       mix-blend-mode stops blending, so the artwork's white plate paints as a
-       visible rectangle. */
-    mix-blend-mode:multiply;
-  }
-  .app.bg-alt::before, .app.bg-alt::after{opacity:1}
-  @media (prefers-reduced-motion: reduce){
-    .app::before, .app::after{transition:none}
-  }
+   * kad-rekod.css still names `.app::before` and `.app::after` in its print
+   * block. That is not dead weight: it is the guard above, standing ready, and
+   * v2-app-live T23 asserts it. */
   .app>header{flex:0 0 auto}
   .hide{display:none!important}
   header{position:relative;z-index:1000;border-bottom:1px solid rgba(255,255,255,.06);
