@@ -59,20 +59,81 @@ export function signatureForPrint(img) {
   return c.toDataURL('image/png');
 }
 
+/* Read an image's bytes as a data URL, so the canvas that reads its pixels is
+ * never cross-origin and can never be tainted.
+ *
+ * THIS IS THE FIRST ATTEMPT, not a fallback, and the reason is the one failure
+ * this whole file cannot survive: if the pixels cannot be read there is no
+ * print copy, and the row falls back to the amplifying CSS filter — which
+ * prints either a faded signature (the filter dropped by the print pipeline) or
+ * a black box (§4.15). Both are defects that have reached paper.
+ *
+ * A cross-origin <img crossOrigin="anonymous"> is the fragile way to get those
+ * pixels: it is a SECOND request for a URL the page has already fetched without
+ * CORS, so it depends on how the browser's cache treats the two modes and on
+ * the response carrying its CORS header again on a revalidation. A `fetch` is
+ * one clean CORS request with no image-cache interaction — and it is not a new
+ * capability being introduced here, it is exactly what stores/profile.js
+ * already does with these same signed links.
+ *
+ * `no-store` is deliberate and it is NOT free: the point is to avoid reusing a
+ * response stored under a different request mode, and the cost is that a card
+ * open downloads each signature a second time (they run 100–520 KB) on a phone
+ * in the field. That is bought knowingly. It happens once per signature per
+ * card open — `data-printsrc` stops a copy being rebuilt — and the alternative
+ * is a cache entry that fails the CORS check and puts a faded signature or a
+ * black box on a legal record, which is the defect this file exists for. */
+function bytesAsDataUrl(src) {
+  return fetch(src, { cache: 'no-store' })
+    .then((r) => (r.ok ? r.blob() : Promise.reject(new Error('http ' + r.status))))
+    .then((blob) => new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result || ''));
+      fr.onerror = () => reject(new Error('read'));
+      fr.readAsDataURL(blob);
+    }));
+}
+
+function loadImage(src, anon) {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    if (anon) im.crossOrigin = 'anonymous';
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error('load'));
+    im.src = src;
+  });
+}
+
 /* Attach a print copy beside every signature on the card.
+ *
  * Best-effort by design: the on-screen <img> is never touched or reloaded, so a
- * failure here can only cost print quality, never the signature itself. */
+ * failure here can only cost print quality, never the signature itself.
+ *
+ * Returns a promise that settles once every signature has been ATTEMPTED, so
+ * the Print button can wait for the copies rather than guess at a delay. It
+ * never rejects — a card must always be printable.
+ *
+ * A failed attempt does NOT latch. The old version set `data-printsrc` before
+ * the read had resolved, so one failure was permanent for the life of the card
+ * and pressing Print again could not recover it. The marker now goes on only
+ * when a copy actually exists; `data-noprint` records that the row is printing
+ * through the fallback filter, which is the state worth being able to see.
+ */
 export function addPrintSigs(root) {
-  if (!root) return;
+  if (!root) return Promise.resolve();
+  const jobs = [];
   root.querySelectorAll('img.sigimg').forEach((img) => {
-    if (img.getAttribute('data-printsrc')) return;      // already handled
-    img.setAttribute('data-printsrc', '1');
-    const probe = new Image();
-    probe.crossOrigin = 'anonymous';                    // needed to read pixels
-    probe.onload = () => {
-      let url = '';
-      try { url = signatureForPrint(probe); } catch (e) { return; }  // tainted -> fallback
-      if (!url) return;
+    if (img.getAttribute('data-printsrc')) return;      // already has a copy
+    /* An attempt already running is JOINED, not skipped. Skipping it would let
+     * Print resolve instantly while the read it is waiting for is still in
+     * flight — the exact race the wait exists to remove. */
+    if (img.__sigPrintJob) { jobs.push(img.__sigPrintJob); return; }
+    const src = img.src;
+    if (!src) return;
+
+    const render = (probe) => {
+      const url = signatureForPrint(probe);             // throws if tainted
+      if (!url) throw new Error('empty');
       const out = document.createElement('img');
       out.className = 'sigprint';
       out.alt = '';
@@ -80,8 +141,20 @@ export function addPrintSigs(root) {
       out.src = url;
       if (img.parentNode) img.parentNode.insertBefore(out, img.nextSibling);
       img.classList.add('has-print');
+      img.setAttribute('data-printsrc', '1');
+      img.removeAttribute('data-noprint');
     };
-    probe.onerror = () => { /* CORS refused or gone; the fallback filter stands */ };
-    probe.src = img.src;
+
+    const job = bytesAsDataUrl(src)
+      .then((durl) => loadImage(durl, false))
+      .then(render)
+      // The old path, kept as the fallback: some hosts serve an image to an
+      // <img> that they will not serve to a fetch.
+      .catch(() => loadImage(src, true).then(render))
+      .catch(() => { img.setAttribute('data-noprint', '1'); })
+      .then(() => { img.__sigPrintJob = null; });
+    img.__sigPrintJob = job;
+    jobs.push(job);
   });
+  return Promise.all(jobs).then(() => undefined);
 }

@@ -854,6 +854,58 @@ Draw order: caps → walls → top faces (painter's algorithm).
       was about the record's own ink (§4.15, §4.20). This one was about
       something that had no business being on the page at all, added three
       commits earlier for a screen.
+
+31. **The printed signature was faded again, and the threshold was not the
+    reason.** Reported 2026-08-13, on hydrant A01 — a row signed 2026-07-31 and
+    never printed before.
+
+    §4.15 fixed the faded print by pre-rendering a **print copy**:
+    `signatureForPrint()` thresholds alpha in a canvas and emits a plain black
+    PNG, because a CSS filter cannot be relied on to survive the print
+    pipeline. Everything about that still holds. What was never guarded is
+    whether the copy gets **built** at all.
+
+    Building it means reading the image's pixels, and in V2 the image comes
+    from **Supabase Storage — a different origin**. The read was a second
+    request for a URL the page had already fetched, made with
+    `crossOrigin="anonymous"`; whether that succeeds depends on how the
+    browser's cache treats the two request modes and on the header surviving a
+    revalidation. When it fails, nothing errors, nothing looks wrong on screen,
+    and the row silently falls back to the old amplifying CSS filter.
+
+    Now: the bytes are taken with a **`fetch`** and read from a data URL, so the
+    canvas is same-origin and cannot be tainted (the same round trip
+    `stores/profile.js` already makes with these links — not a new capability).
+    The `crossOrigin` probe stays as the fallback. A failed attempt **no longer
+    latches**, so pressing Print retries it, and `doPrint()` **waits** for the
+    copies instead of the flat 60ms it used to guess at a network read.
+
+    Four things worth carrying:
+
+    - **I could not reproduce the fade, and the measurements are what redirected
+      me.** Driving the assembled app, every path that builds a copy printed
+      black — 5.1% dark, against 95.8% for the fallback. Then eight photo
+      qualities through the real capture→print pipeline: **the printed coverage
+      never fell below the screen's**, in any of them. So the threshold could
+      not be making a signature faint, and "no copy was built" was the only
+      remaining shape. A fix aimed at the threshold would have been aimed at the
+      one component the evidence had cleared.
+    - **The fallback's two outcomes are the same defect.** Whether a failed read
+      prints faded or as a black box depends on whether the print pipeline keeps
+      the CSS filter — dropped in the run §4.15 measured, kept in mine. §4.15
+      called those two defects "one defect seen from either side"; they are also
+      one defect seen from either *printer*. That is why the copy is what got
+      made reliable, not the fallback.
+    - **The old guard could not see this, and its shape is now familiar.**
+      `tests/kad-rekod.js` T7 has covered the printed signature since the first
+      faded printout — but it drives **V1**, and serves the image from the
+      **same origin** as the page. The one property that broke was the one the
+      fixture could not have. Same family as the clean signature fixture, the
+      donut band, and the stub that allowed every upload.
+    - **A capture-side "improvement" would still have been the wrong lever, for
+      the third time.** The row was signed on 2026-07-31 and can never be
+      re-uploaded.
+
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"

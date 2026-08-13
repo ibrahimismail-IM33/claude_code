@@ -273,6 +273,39 @@ printout came out visibly faded.
 > and that the signature is still *there* — a threshold slightly too high
 > erases faint strokes, and a missing signature on a filed record is worse than
 > either defect this replaced.
+>
+> ---
+>
+> **The print copy has to be BUILT, and in V2 that crosses an origin
+> (2026-08-13).** Everything above assumes `signatureForPrint()` ran. When it
+> does, the printed ink is black and covers the same area as the ink on screen
+> — measured across eight photo qualities, from a dark pen in good light to a
+> pale pen thin and overexposed, the printed coverage never fell below the
+> screen's. **So a faded printout does not mean the threshold is wrong; it means
+> no copy was built and the row printed through the old filter.**
+>
+> That read is the fragile part. V2's signatures come from Supabase Storage, a
+> **different origin**, and the copy used to be built by re-requesting the image
+> with `crossOrigin="anonymous"` — a second request for a URL the page has
+> already fetched without CORS, which depends on how the browser's cache treats
+> the two modes and on the response carrying its header again on a
+> revalidation. The bytes are now taken with a **`fetch`** first and read from a
+> data URL, so the canvas is same-origin and cannot be tainted; the old probe
+> remains as the fallback. A failed attempt no longer latches, so pressing Print
+> again retries, and **Print waits for the copies** instead of the 60ms it used
+> to guess at.
+>
+> Both outcomes of a failed read have reached paper, and which one you get
+> depends on the print pipeline rather than on anything in this repo: the CSS
+> filter is dropped by some (**faded**) and applied by others (**black box**,
+> measured at 95.8% dark against 5.1% for real ink). Neither is acceptable on a
+> legal record, which is why the copy is now the thing that is made reliable
+> rather than the fallback that is made better.
+>
+> Guarded by `tests/v2-app-live.js` **T24**, which serves the signature from a
+> second origin that answers a `fetch` with the CORS header and an image request
+> without one. Verified red on the pre-fix bundle — 4 assertions fail, and the
+> printed ink measures 95.8% dark.
 
 The print CSS **used to** apply
 `filter: brightness(0)` plus **three** `drop-shadow(0 0 0 #000)` passes.

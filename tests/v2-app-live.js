@@ -91,8 +91,64 @@ const JADUAL = [
 
   const b = await chromium.launch({ executablePath: CHROMIUM });
 
+  /* ── A signature host that behaves like the real one (T24) ────────────────
+   *
+   * Two things about it are the point, and neither can be modelled by the
+   * server above:
+   *
+   *  - It is a DIFFERENT ORIGIN, like Supabase Storage. The print copy is built
+   *    by reading the image's pixels, and a cross-origin read is the one thing
+   *    that can fail while everything on screen looks perfect.
+   *  - It answers a `fetch` with the CORS header and an IMAGE request without
+   *    one. That is the production-plausible shape of the failure: the second,
+   *    image-mode request for a URL the page has already fetched need not come
+   *    back with the header (a cached no-cors entry, or a 304 that drops it).
+   *    The old code read the pixels ONLY that way, so it got nothing, and the
+   *    row printed through the amplifying CSS filter instead — measured here at
+   *    95.8% dark, which is the black box of §4.15.
+   *
+   * It also answers SLOWLY, so "the Print button waits for the copies" is a
+   * real assertion rather than a lucky race. */
+  const SIG_DELAY_MS = 400;
+  const sigPng = await (async () => {
+    // A photographed signature exactly as stripSignatureBg leaves it: grey-brown
+    // ink at partial alpha over low-alpha paper residue. Same fixture as
+    // tests/kad-rekod.js T7 — a CLEAN one cannot tell black ink from a black box.
+    const g = await b.newPage();
+    const b64 = await g.evaluate(() => {
+      const W = 600, H = 180, c = document.createElement('canvas'); c.width = W; c.height = H;
+      const x = c.getContext('2d');
+      const im0 = x.getImageData(0, 0, W, H), d0 = im0.data;
+      for (let i = 0; i < d0.length; i += 4) {
+        d0[i] = 150; d0[i + 1] = 146; d0[i + 2] = 140; d0[i + 3] = 40 + ((i * 7) % 40);
+      }
+      x.putImageData(im0, 0, 0);
+      x.lineCap = 'round'; x.lineJoin = 'round';
+      x.strokeStyle = 'rgb(70,64,58)'; x.lineWidth = 9;
+      x.beginPath(); x.moveTo(40, 140);
+      x.bezierCurveTo(140, 20, 200, 170, 270, 90);
+      x.bezierCurveTo(330, 20, 360, 160, 430, 80);
+      x.bezierCurveTo(470, 40, 520, 120, 560, 70); x.stroke();
+      const im = x.getImageData(0, 0, W, H), d = im.data;
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 128) d[i + 3] = Math.round(d[i + 3] * 0.62);
+      x.putImageData(im, 0, 0);
+      return c.toDataURL('image/png').split(',')[1];
+    });
+    await g.close();
+    return Buffer.from(b64, 'base64');
+  })();
+
+  const sigServer = http.createServer((req, res) => {
+    const h = { 'Content-Type': 'image/png' };
+    if ((req.headers['sec-fetch-dest'] || '') !== 'image') h['Access-Control-Allow-Origin'] = '*';
+    setTimeout(() => { res.writeHead(200, h); res.end(sigPng); }, SIG_DELAY_MS);
+  });
+  await new Promise((r) => sigServer.listen(0, '127.0.0.1', r));
+  // `localhost` rather than 127.0.0.1 so it is a different ORIGIN to the app.
+  const sigBase = 'http://localhost:' + sigServer.address().port + '/';
+
   async function mount(opts) {
-    const o = Object.assign({ role: 'admin', rows: REG, records: RECORDS, failScan: false, bigScan: 0, noSession: false, jadual: [], jadualError: null, saveFails: false, profileSig: null, base }, opts);
+    const o = Object.assign({ role: 'admin', rows: REG, records: RECORDS, failScan: false, bigScan: 0, noSession: false, jadual: [], jadualError: null, saveFails: false, profileSig: null, cardRows: null, sigBase: null, base }, opts);
     // Every case before T22 ran at 1280px, which is why nothing in this suite
     // could see the phone header at all. `viewport` is an option now, not a
     // constant.
@@ -136,7 +192,11 @@ const JADUAL = [
            * difference between a stencil and a permanent record. */
           storage: {
             from: () => ({
-              createSignedUrls: () => ok([]),
+              /* Real links only when a case asks for them (T24). The default
+               * stays empty so `fallbackRest` is the path under test elsewhere. */
+              createSignedUrls: (paths) => (cfg.sigBase
+                ? ok(paths.map((pp) => ({ signedUrl: cfg.sigBase + 'sig/' + encodeURIComponent(pp) })))
+                : ok([])),
               /* Counted, not implemented. There is no delete policy on this
                * bucket by design, so any call here would fail in production —
                * the assertion is that the app never makes one. */
@@ -247,7 +307,17 @@ const JADUAL = [
                   const [f, t] = this._range || [0, 999];
                   return ok(rows.slice(f, t + 1)).then(res, rej);
                 }
-                if (table === 'hydrant_records') return ok([]).then(res, rej);
+                /* The CARD's own read — `cloudLoad`, filtered by hydrant_id and
+                 * nothing else. Separate from `cfg.records`, which feeds the
+                 * dashboard scan: a case that wants a signed row ON THE CARD has
+                 * to say so, and the filter is the real query's, so a store that
+                 * forgot to scope by hydrant would show every hydrant's rows here
+                 * exactly as it would in the app (§4.24 — the stub that returned
+                 * everything invented a defect). */
+                if (table === 'hydrant_records') {
+                  const hid = this._eq.hydrant_id;
+                  return ok((cfg.cardRows || []).filter((r) => r.hydrant_id === hid)).then(res, rej);
+                }
                 if (table === 'hydrants') return ok(cfg.rows).then(res, rej);
                 return ok([]).then(res, rej);
               },
@@ -1506,7 +1576,104 @@ const JADUAL = [
   await p.emulateMedia({ media: 'screen' });
   await p.close();
 
-  await b.close(); server.close();
+  /* ---------- T24: the signature has to print BLACK from the real app ----------
+   *
+   * Reported from the field, 2026-08-13: "the signature is faded again".
+   *
+   * `tests/kad-rekod.js` T7 has guarded this since the first faded printout —
+   * but it drives V1, and its signature is served from the SAME ORIGIN as the
+   * page. V2's signatures come from Supabase Storage, a different origin, and
+   * the print copy is built by reading their pixels. Nothing in this repo had
+   * ever exercised that read across an origin, so the whole difference between
+   * a black signature and a faded one was untested in V2.
+   *
+   * Three assertions, and the first is the one that matters:
+   *
+   *  1. The print copy EXISTS even though the image-mode CORS read fails. That
+   *     is what the fetch-first path in signature-print.js buys.
+   *  2. The printed ink is black and is NOT a black box — the same pair of
+   *     numbers as T7, because a solid rectangle satisfies "reaches black"
+   *     perfectly and that is how the black box shipped green once (§4.15).
+   *  3. Print WAITS for the copy. The button used to guess 60ms at a network
+   *     read; this host takes 400ms, so a guess loses.
+   */
+  console.log('T24  the signature prints black from a cross-origin store, and Print waits for it');
+  p = await mount({ sigBase,
+    cardRows: [{ hydrant_id: 1, section: 'pengujian', row_index: 0,
+      data: { tarikh: TODAY, penguji: '15595', catatan: 'Baik' },
+      signed: true, signature: '1/pengujian_0_1785467688625.png',
+      signed_by: 'officer@bomba.gov.my', signed_at: TODAY }] });
+  await p.evaluate(() => window.__tapPin(0));
+  await p.waitForTimeout(400);
+  const ob11 = await p.$('#dOpenForm');
+  if (ob11) { await ob11.click(); }
+  // Deliberately SHORT: the point is to press Print while the read is in flight.
+  await p.waitForTimeout(250);
+  await p.evaluate(() => {
+    window.__printedWith = null;
+    window.print = () => {
+      const pr = document.querySelector('img.sigprint');
+      window.__printedWith = { copy: !!pr, len: pr ? pr.src.length : 0 };
+    };
+  });
+  await p.click('#fPrint');
+  await p.waitForTimeout(2200);
+
+  check('a print copy was built despite the image-mode CORS read failing',
+    await p.evaluate(() => !!document.querySelector('img.sigprint')), true);
+  check('...and the row is not marked as printing through the fallback filter',
+    await p.evaluate(() => document.querySelector('img.sigimg').hasAttribute('data-noprint')), false);
+  check('Print waited for the copy instead of guessing at a delay',
+    await p.evaluate(() => !!(window.__printedWith && window.__printedWith.copy)), true);
+
+  await p.emulateMedia({ media: 'print' });
+  await p.waitForTimeout(250);
+  check('the print copy is what prints, not the screen image',
+    await p.evaluate(() => {
+      const pr = document.querySelector('img.sigprint');
+      const im = document.querySelector('img.sigimg');
+      return !!pr && getComputedStyle(pr).display !== 'none'
+        && getComputedStyle(im).display === 'none';
+    }), true);
+
+  /* Measured off the rendered pixels, composited on paper white. Both numbers
+   * are needed: darkest alone passes on a black box, darkPct alone passes on a
+   * blank cell. */
+  const ink = await (async () => {
+    /* Whatever is actually VISIBLE in this medium, exactly as T7 does it. Not
+     * hard-wired to `.sigprint`: when the copy is missing the fallback filter
+     * is what reaches paper, and that is the number worth reading — measuring
+     * only the copy turns a defect into a 30s timeout with nothing to show. */
+    const sel = await p.evaluate(() => {
+      const pr = document.querySelector('img.sigprint');
+      if (pr && getComputedStyle(pr).display !== 'none') return 'img.sigprint';
+      return 'img.sigimg';
+    });
+    const buf = await p.locator(sel).first().screenshot();
+    return p.evaluate(async (b64) => {
+      const img = new Image();
+      await new Promise((r) => { img.onload = r; img.src = 'data:image/png;base64,' + b64; });
+      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      const x = c.getContext('2d');
+      x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+      x.drawImage(img, 0, 0);
+      const d = x.getImageData(0, 0, c.width, c.height).data;
+      let darkest = 255, dark = 0, n = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const L = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;
+        n++; if (L < darkest) darkest = L; if (L < 128) dark++;
+      }
+      return { darkest: Math.round(darkest), darkPct: +(dark / n * 100).toFixed(1) };
+    }, buf.toString('base64'));
+  })();
+  check('the printed ink reaches black', ink.darkest < 40, true);
+  check('there is ink on the page at all', ink.darkPct > 1, true);
+  // Pre-fix, through the fallback filter, this measured 95.8%.
+  check('it is a signature, not a black box', ink.darkPct < 40, true);
+  await p.emulateMedia({ media: 'screen' });
+  await p.close();
+
+  await b.close(); server.close(); sigServer.close();
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();

@@ -116,7 +116,7 @@ const saveLabel = computed(() => SAVE_LABEL[props.saveState] || 'Save');
 
 /* The print copy is built AFTER the DOM settles, and again on every redraw,
  * because a card can gain a signature from another device while it is open. */
-function refreshPrintSigs() { nextTick(() => addPrintSigs(root.value)); }
+function refreshPrintSigs() { return nextTick().then(() => addPrintSigs(root.value)); }
 
 /* Print.
  *
@@ -131,12 +131,20 @@ function refreshPrintSigs() { nextTick(() => addPrintSigs(root.value)); }
  * Globals belong in <script setup>, where they are ordinary globals. If a
  * template expression ever needs one again, that is the signal to move it here.
  *
- * The delay lets the print copies of the signatures paint first — they are
- * drawn into canvases by addPrintSigs, and printing before that lands gives a
- * card with blank signature boxes. */
+ * It WAITS for the print copies of the signatures, because printing before they
+ * land is what puts a faded signature on a legal record: with no copy attached
+ * the row falls back to the amplifying CSS filter, which prints faded or as a
+ * black box depending on the pipeline (§4.15).
+ *
+ * This used to be a flat 60ms, which is a guess against a network read — the
+ * copies are built from the bytes behind a signed link. The wait is now the
+ * real thing, capped so a slow or dead link can only cost a second: a card must
+ * always be printable, even with no signature copy at all. */
+const PRINT_WAIT_MS = 1500;
 function doPrint() {
-  refreshPrintSigs();
-  setTimeout(() => window.print(), 60);
+  const ready = refreshPrintSigs();
+  const capped = new Promise((r) => setTimeout(r, PRINT_WAIT_MS));
+  Promise.race([ready, capped]).then(() => window.print());
 }
 onMounted(() => {
   // V1 hides everything except the overlay when printing, via a body class.
