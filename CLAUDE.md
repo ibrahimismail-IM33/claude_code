@@ -1288,6 +1288,14 @@ a threshold slightly too high erases faint strokes entirely.
 found to be *erasing* signatures rather than fading them (§4.31). The officer
 printed and it works.
 
+**And confirmed from `epilibomba.com` itself**, which is the check that actually
+closes it: the first printout came from a build carrying the fix, but not
+necessarily the one officers use. **V1 is the app they print from until
+cutover**, its `signatureForPrint` is the same code, and for one round it was
+the only copy that had NOT been fixed — the round before this one repaired V2
+and reached nobody. Both apps now carry the rule, `tests/v2-signature-print-
+parity.js` compares them byte for byte, and both have been printed.
+
 Worth keeping the shape of this one, because it is the sharpest example in the
 file of a measurement being right and the conclusion being wrong. Everything I
 measured held up: a built print copy does print black, eight photo qualities did

@@ -338,9 +338,16 @@ printout came out visibly faded.
 > implementations over both fixtures and asserts the outputs are byte-identical,
 > so the two copies cannot drift.
 >
-> **Confirmed on a real printer, 2026-08-13.** A01 prints, and the signature is
-> whole. That is the fourth print defect in this document and the fourth found
-> on paper — no screen, and no measurement I made, caught any of them.
+> **Confirmed on a real printer, 2026-08-13 — from BOTH apps.** A01 prints and
+> the signature is whole, first from the build under test and then from
+> **epilibomba.com**, which is what officers actually print from until cutover.
+> The second printout is the one that closes it: the first proves the rule
+> works, only the second proves it reached the people who need it. A round was
+> lost to exactly that gap — V2 was fixed while V1, the live app, was left
+> carrying the defect.
+>
+> That is the fourth print defect in this document and the fourth found on
+> paper — no screen, and no measurement, caught any of them.
 
 The print CSS **used to** apply
 `filter: brightness(0)` plus **three** `drop-shadow(0 0 0 #000)` passes.
