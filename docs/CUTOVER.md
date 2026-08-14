@@ -25,10 +25,24 @@ understanding rather than discovering.
 >   script and was refused with `script-src 'self'`. That is the vendored-library
 >   security model working in production.
 >
-> **Still open, deliberately deferred by the user:** the `X-Robots-Tag`
-> response header was not checked before the move. If it is present,
-> `EPB_PRODUCTION_BRANCH` is not `release` and the site will not appear in
-> search — a Cloudflare variable change and a rebuild, no code. See §3.
+> - **The response headers, read off the live site** (deferred past the domain
+>   move at the user's call, then checked). All seven authored directives are
+>   present and correct, and `X-Robots-Tag` is **absent** — which is the proof
+>   that `EPB_PRODUCTION_BRANCH=release` really is set, since the build would
+>   have shipped `noindex` and still passed every check if it were wrong:
+>
+>   ```
+>   content-security-policy: default-src 'self'; script-src 'self'; …
+>   permissions-policy: geolocation=(self), camera=(), …
+>   strict-transport-security: max-age=31536000; includeSubDomains
+>   x-frame-options: DENY · x-content-type-options: nosniff
+>   referrer-policy: strict-origin-when-cross-origin
+>   (no x-robots-tag)
+>   ```
+>
+>   Cloudflare adds `Access-Control-Allow-Origin: *`, `Report-To`, `NEL` and its
+>   cache headers of its own accord. The ACAO is on a public static document and
+>   grants nothing — the app's data is behind RLS, not behind origin checks.
 >
 > **The rollback is unchanged and still one minute:** move the domain back to
 > the old Pages project. §5, §6.
