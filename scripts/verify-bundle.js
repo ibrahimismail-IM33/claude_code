@@ -63,6 +63,13 @@ if (fs.existsSync(headersPath)) {
    * scripts/finalize-headers.js decides; this refuses to ship the wrong answer.
    * They are deliberately separate: a script that both applies a rule and
    * confirms its own work cannot fail. */
+  /* The same requirement as finalize-headers.js, asserted independently.
+   * Both scripts read this variable and both reach the same wrong answer
+   * without it, so the usual "one decides, one verifies" split does not
+   * protect against it — only refusing to guess does. */
+  check(!(process.env.CF_PAGES_BRANCH && !process.env.EPB_PRODUCTION_BRANCH),
+    'CF_PAGES_BRANCH is set but EPB_PRODUCTION_BRANCH is not — a Cloudflare build must declare which branch is production, or production ships noindex and every check still passes',
+    'the production branch is declared');
   const PRODUCTION_BRANCH = process.env.EPB_PRODUCTION_BRANCH || 'main';
   const isProduction = process.env.CF_PAGES_BRANCH === PRODUCTION_BRANCH;
   const hasNoindex = /X-Robots-Tag:\s*noindex/.test(h);

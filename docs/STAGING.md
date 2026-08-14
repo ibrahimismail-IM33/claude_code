@@ -9,6 +9,11 @@ feedback arrives early.
 **URL:** `https://epilibomba-staging.pages.dev`
 **Serves:** the `claude/epb-v2` branch of `ibrahimismail-IM33/claude_code`
 **Database:** the **same** Supabase project as production — see the warning below.
+**Required variable:** `EPB_PRODUCTION_BRANCH=release`. Every Cloudflare build
+must declare which branch is production, or the build fails. Staging sets the
+same value the production project does — staging is simply not that branch.
+`docs/CUTOVER.md` §3 has the failure it prevents: without it a production
+deploy silently keeps `X-Robots-Tag: noindex` and every check still passes.
 
 ---
 

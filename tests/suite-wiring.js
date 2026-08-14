@@ -59,5 +59,31 @@ const publish = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'publish
 check('tests.yml is reusable by the publish gate', /workflow_call:/.test(workflow), true);
 check('the publish job still depends on the tests', /needs:\s*test/.test(publish), true);
 
+/* THE RELEASE GATE — what officers receive after cutover.
+ *
+ * Cloudflare Pages builds this repo directly and deploys EVERY push to the
+ * branch it watches, green or red. verify-bundle.js fails the deployment on a
+ * bad artefact but cannot see a logic regression. So `release` is what Pages
+ * watches, and it only moves when the suites pass.
+ *
+ * Same principle as the publish gate, and the same failure if it detaches: a
+ * workflow that reports red while the build ships anyway is decoration. */
+const release = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release-gate.yml'), 'utf8');
+check('the release gate calls tests.yml rather than repeating it',
+  /uses:\s*\.\/\.github\/workflows\/tests\.yml/.test(release), true);
+check('...and promotion depends on it', /needs:\s*test/.test(release), true);
+check('...and it watches main', /branches:\s*\[main\]/.test(release), true);
+/* The push must stay a FAST-FORWARD. `--force` would turn "release has
+ * diverged, a human should look" into "whatever was there is gone", silently.
+ * That is the one edit to this workflow that would defeat its purpose while
+ * still looking like it works.
+ *
+ * COMMENTS ARE STRIPPED FIRST. The file explains --force-with-lease as the
+ * manual recovery, so a naive search matches the prose and reports a defect
+ * that is not there — which is what happened the first time this was written.
+ * A guard that fires on its own documentation gets deleted by the next person. */
+const releaseRun = release.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+check('the promotion never force-pushes', /--force/.test(releaseRun), false);
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

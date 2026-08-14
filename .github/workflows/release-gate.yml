@@ -1,0 +1,81 @@
+# ============================================================================
+#  The release gate — what officers actually receive
+#
+#  WHY THIS EXISTS
+#    At cutover, Cloudflare Pages builds this repository directly and serves
+#    dist/. Cloudflare deploys EVERY push to the branch it watches, green or
+#    red. scripts/verify-bundle.js runs in the build command and fails the
+#    deployment on a bad ARTEFACT — a harness page, a CDN origin, a missing
+#    stylesheet, the wrong X-Robots-Tag — but it cannot see a logic regression.
+#    Nothing else stood between a red suite and a live government record system.
+#
+#    docs/CUTOVER.md §2 recorded that cost as accepted. It is not accepted any
+#    more: in one week V2 shipped a viewer who could type into a legal record's
+#    Kad Rekod, and a print threshold that erased signatures, both with every
+#    suite green at the time they were written and both caught by a person.
+#    A gate does not catch everything. It catches the things the suites know
+#    about, which is the entire reason those suites exist.
+#
+#  WHAT IT DOES
+#    Pages watches `release`, never `main`. A push to main runs the suites; only
+#    if they all pass does `release` fast-forward to main. A red suite simply
+#    never reaches the branch Cloudflare builds — officers keep the last good
+#    build until someone fixes it.
+#
+#    CLAUDE.md §3: "the gate, not the workflow, is the deliverable". This
+#    reuses tests.yml through `workflow_call` rather than repeating its steps,
+#    exactly as publish-to-site.yml does, so there is ONE definition of how the
+#    tests run and the gate cannot drift from the thing it is gating.
+#
+#  THE PUSH IS A FAST-FORWARD, DELIBERATELY
+#    `git push origin main:release` fails if release has diverged, rather than
+#    forcing it. A divergence means someone pushed to release by hand, and the
+#    right response is a loud failure — not silently discarding whatever they
+#    did. Recovering is `git push --force-with-lease origin main:release` once
+#    you have looked at what is there.
+#
+#  ROLLBACK
+#    Two forms now. Move the custom domain back to the old Pages project (no
+#    build, no revert — docs/CUTOVER.md §5), or reset `release` to the previous
+#    commit and let Cloudflare rebuild.
+# ============================================================================
+name: Release gate
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Serialised: two runs racing to move the same branch is how release ends up
+# pointing at something nobody chose.
+concurrency:
+  group: release-gate
+  cancel-in-progress: false
+
+jobs:
+  # The gate itself. If tests.yml ever loses its `workflow_call` trigger this
+  # job fails outright rather than detaching quietly.
+  test:
+    uses: ./.github/workflows/tests.yml
+
+  promote:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          # The full history, or the fast-forward cannot be evaluated.
+          fetch-depth: 0
+
+      - name: Fast-forward release to main
+        run: |
+          set -euo pipefail
+          echo "main is $(git rev-parse --short HEAD)"
+          # No --force. If this fails, release has diverged and a human should
+          # look at why before anything moves.
+          git push origin HEAD:release
+          echo "release now points at $(git rev-parse --short HEAD)"

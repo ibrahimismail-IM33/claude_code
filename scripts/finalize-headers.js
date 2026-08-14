@@ -35,6 +35,35 @@
 const fs = require('fs');
 const path = require('path');
 
+/* ── EVERY CLOUDFLARE BUILD MUST DECLARE ITS PRODUCTION BRANCH ──────────────
+ *
+ * `EPB_PRODUCTION_BRANCH` defaults to 'main' so a local run works with no
+ * setup. That default is a trap on Cloudflare, and it is invisible.
+ *
+ * At cutover Pages watches `release`, not `main`. Forget the variable and this
+ * script computes `release !== 'main'`, decides the build is NOT production,
+ * and keeps `X-Robots-Tag: noindex` — on epilibomba.com. Worse, verify-bundle
+ * agrees, because it reads the SAME variable and reaches the SAME wrong
+ * answer: 20 of 20 checks pass. The site is live, correct, and absent from
+ * every search engine, and nothing anywhere reports it. Reproduced before this
+ * guard was written.
+ *
+ * So on a real Cloudflare build the variable is REQUIRED. Guessing is what
+ * fails silently; refusing to guess fails loudly, which is the whole pattern
+ * this file exists for. Local and CI runs are untouched — they set no
+ * CF_PAGES_BRANCH, so the default still applies. */
+if (process.env.CF_PAGES_BRANCH && !process.env.EPB_PRODUCTION_BRANCH) {
+  console.error('FAIL  CF_PAGES_BRANCH is set (' + process.env.CF_PAGES_BRANCH
+    + ') but EPB_PRODUCTION_BRANCH is not.');
+  console.error('      This is a Cloudflare build and it must say which branch is production,');
+  console.error('      or a production deploy silently keeps X-Robots-Tag: noindex and every');
+  console.error('      check still passes. Set it in the Pages project settings:');
+  console.error('        production project -> EPB_PRODUCTION_BRANCH=release');
+  console.error('        staging project    -> EPB_PRODUCTION_BRANCH=release  (same value;');
+  console.error('                              staging is simply not that branch)');
+  process.exit(1);
+}
+
 // The branch epilibomba.com is served from. If the production branch is ever
 // renamed, this is the one place that has to change.
 const PRODUCTION_BRANCH = process.env.EPB_PRODUCTION_BRANCH || 'main';
