@@ -536,6 +536,36 @@ const JADUAL = [
   check('and each is a full tile', geom.natural, true);
   await p.close();
 
+  /* ---------- T8b: a failed map chunk is a NOTICE, not a blank ----------
+   *
+   * An officer opened Peta Pili and the map was simply gone — no tiles, no
+   * zoom control, no notice, just the page background showing through. The
+   * cause was a chunk-load failure across a deploy (a tab open when a new build
+   * shipped asks for a Leaflet hash the new build purged, so the dynamic import
+   * 404s), and MapView met it with a bare `return` — V1 shows a notice, V2
+   * rendered nothing (§4).
+   *
+   * This boots the real app and ABORTS the Leaflet chunk, reproducing that
+   * 404 exactly, then asserts the officer gets a reload notice instead of a
+   * blank. The one-shot auto-reload (main.js, on vite:preloadError) is
+   * suppressed so the assertion lands on the in-app notice directly. Verified
+   * red on the pre-fix `return`: no #mapErr, and the container count is still
+   * 0, so the second assertion alone would pass on the bug — the notice
+   * assertion is the one that matters. */
+  console.log('T8b a blocked map chunk shows a reload notice, not a blank map');
+  p = await mount({ realLeaflet: true });
+  await p.addInitScript(() => { try { sessionStorage.setItem('epb_preload_reloaded', '1'); } catch (e) { /* storage off */ } });
+  await p.route('**/leaflet-src-*.js', (r) => r.abort());
+  await p.reload({ waitUntil: 'load' });
+  await p.waitForTimeout(1400);
+  check('the map did NOT render — its chunk was blocked',
+    await p.$$eval('.leaflet-container', (n) => n.length), 0);
+  check('...and the officer sees a reload notice, not a blank area',
+    await p.$$eval('#mapErr', (n) => n.length), 1);
+  check('...with a working reload control',
+    await p.$eval('#mapErr .maperr-btn', (n) => n.textContent.trim()), 'Muat semula');
+  await p.close();
+
   /* ---------- T9: the login gate's background image actually LOADS ----------
    *
    * The first thing every officer sees, and it fails silently. The #authGate

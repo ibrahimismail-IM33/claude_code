@@ -38,7 +38,18 @@ export async function loadL() {
   const s = stub();
   if (s) return s;
   if (!real) {
-    const mod = await import('leaflet');
+    let mod;
+    try {
+      mod = await import('leaflet');
+    } catch (e) {
+      /* The Leaflet chunk failed to load — the classic across-a-deploy skew: a
+         tab open when a new build shipped asks for a hashed chunk the new build
+         purged, so the dynamic import 404s. Return null rather than let the
+         rejection propagate: MapView then shows a reload notice instead of a
+         silent blank map (§4). main.js also listens for vite:preloadError and
+         reloads once, which usually fixes it before this is reached. */
+      return null;
+    }
     real = mod.default || mod;
     if (typeof window !== 'undefined') window.L = real;
     try { await import('leaflet.markercluster'); }

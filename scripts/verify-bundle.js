@@ -86,6 +86,19 @@ if (fs.existsSync(headersPath)) {
   check(/Permissions-Policy:.*geolocation=\(self\)/.test(h),
     'geolocation=(self) is missing — "Guna Lokasi Saya" would silently stop working',
     'geolocation=(self) present');
+
+  // Caching, and the failure it prevents: the map vanished for an officer after
+  // a deploy because a stale index pointed at a purged chunk (§4). Hashed assets
+  // must cache forever (a byte change is a new name), and the HTML must NOT — it
+  // names which hashed chunks to fetch, so a cached index is a time bomb.
+  check(/\/assets\/\*[\s\S]*?Cache-Control:[^\n]*immutable/.test(h),
+    'hashed /assets/* must be Cache-Control: immutable — without it the browser '
+    + 'revalidates content-hashed files it never needs to',
+    '/assets/* is immutable');
+  check(/(^|\n)\/(index\.html)?\s*\n\s*Cache-Control:\s*no-cache/i.test(h),
+    'the HTML must be Cache-Control: no-cache — a cached index points at chunk '
+    + 'hashes a later deploy purges, and the map (or worse) silently 404s',
+    'HTML is no-cache');
 }
 
 // --- nothing that must never ship -------------------------------------------

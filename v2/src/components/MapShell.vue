@@ -39,6 +39,11 @@ const props = defineProps({
 const emit = defineEmits(['pick', 'pickLatLng', 'pickStatus', 'clearFilters', 'fitted',
                           'search', 'closeAdd', 'addHydrant']);
 
+/* The map library failed to load (see the notice in the template). Reloading is
+ * the recovery — it fetches the fresh index and the chunk names it references. */
+const mapFailed = ref(false);
+function reloadPage() { if (typeof location !== 'undefined') location.reload(); }
+
 /* A search resets the fit key so the map re-zooms onto the matches. The key
  * belongs to MapView, so the reset is a ref it watches rather than something
  * SearchBox reaches in and sets — the fit rule has exactly one owner. */
@@ -105,6 +110,7 @@ watch(() => props.active, (on) => {
       @pick="(h) => emit('pick', h)"
       @pick-lat-lng="(p) => emit('pickLatLng', p)"
       @fitted="(d) => emit('fitted', d)"
+      @mapfail="mapFailed = true"
     />
 
     <Registry :visible-count="vis.length" :total="hydrants.length" :counts="counts"
@@ -123,6 +129,16 @@ watch(() => props.active, (on) => {
     </div>
 
     <div class="panel chip"><span class="d soft-pulse"></span><span class="t">Tap hydrant · date shown on icon</span></div>
+
+    <!-- Map library failed to load. Almost always a tab left open across a
+         deploy asking for a hashed chunk the new build purged (§4). V2 used to
+         render nothing here — a blank area with no explanation — while V1 has
+         always shown a notice. A reload picks up the fresh index and chunk
+         names, which is the recovery an officer otherwise had to stumble onto. -->
+    <div v-if="mapFailed" class="panel maperr" role="alert" id="mapErr">
+      <div class="maperr-msg">Peta tidak dapat dimuat.</div>
+      <button type="button" class="maperr-btn" @click="reloadPage">Muat semula</button>
+    </div>
 
     <!-- Storage blocked. Ported from V1, and it matters more than it looks:
          every offline guarantee in this app is localStorage. A failed save is

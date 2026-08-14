@@ -24,4 +24,22 @@ import './styles/profile.css';
 // win, and several of them sit at the same specificity as screen rules.
 import './styles/kad-rekod.css';
 
+/* A dynamically-imported chunk failed to load. Vite fires this instead of
+ * leaving the rejection unhandled, and the overwhelming cause is a tab left
+ * open across a deploy: the running build asks for a hashed chunk (Leaflet, a
+ * lazy view) that the new build purged, so it 404s (§4 — "where is the map?").
+ * Reload once to pick up the fresh index and its chunk names. The sessionStorage
+ * guard stops a reload loop if the asset is genuinely gone rather than stale —
+ * in that case MapView's own notice offers a manual retry. */
+if (typeof window !== 'undefined') {
+  window.addEventListener('vite:preloadError', () => {
+    try {
+      if (!sessionStorage.getItem('epb_preload_reloaded')) {
+        sessionStorage.setItem('epb_preload_reloaded', '1');
+        location.reload();
+      }
+    } catch (e) { /* storage blocked; the in-app notice is the fallback */ }
+  });
+}
+
 createApp(App).use(createPinia()).mount('#app');

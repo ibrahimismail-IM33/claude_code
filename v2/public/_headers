@@ -41,3 +41,23 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=(), usb=(), accelerometer=(), gyroscope=(), magnetometer=()
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://isxfhocfkjamjchmicwq.supabase.co; connect-src 'self' https://isxfhocfkjamjchmicwq.supabase.co wss://isxfhocfkjamjchmicwq.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+
+# ── CACHING, and why the two halves are opposite ───────────────────────────
+#   The map vanished for an officer after a deploy: a tab open across the
+#   deploy asked for a Leaflet chunk hash the new build had purged, the dynamic
+#   import 404'd, and the map silently blanked (§4). Explicit caching stops the
+#   REVISIT path from recurring; the in-app reload notice covers the open-tab
+#   path that headers cannot.
+#
+#   Everything under /assets is CONTENT-HASHED by Vite — a byte change is a new
+#   filename — so it is safe to cache forever and never revalidate.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+#   The HTML is the opposite: it is the ONE unhashed file, and it names which
+#   hashed chunks to fetch. It must be revalidated every load, or a returning
+#   browser serves a stale index pointing at chunks that no longer exist.
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache

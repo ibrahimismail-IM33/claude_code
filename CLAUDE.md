@@ -930,6 +930,60 @@ Draw order: caps → walls → top faces (painter's algorithm).
       2026-07-31 and its image can never be re-uploaded. Whatever the cause, the
       fix had to be render-side, and that constraint held throughout.
 
+32. **The map vanished after a deploy, and V2 said nothing.** Reported from the
+    live app 2026-08-15: Peta Pili showed the background artwork where the map
+    should be — no tiles, no zoom control, no attribution, no message. **A hard
+    refresh brought it back**, which was the whole diagnosis in one action.
+
+    Leaflet is a **lazily-imported chunk** (`lib/leaflet.js` → `import('leaflet')`
+    → `leaflet-src-*.js`). When a browser has the app **open across a deploy**,
+    the running old build asks for the **old** chunk hash — which the new build
+    purged — so the dynamic import **404s**. The header, registry and tabs had
+    already rendered from the pre-deploy code, so only the map was missing. This
+    happens on *any* deploy for anyone with the tab open; the login-gate commit
+    that shipped just before it (`c102471`) was **not** the cause — it only
+    rehashed the main chunk, which is what every deploy does.
+
+    What turned a recoverable hiccup into a mystery was a **latent Phase-3 parity
+    gap**: `MapView.vue` met a failed load with a bare `return` — no container,
+    no notice — while the comment on that very line said *"library blocked; V1
+    shows a notice"*. V1 shows a notice; V2 rendered nothing. And
+    `lib/leaflet.js` did not wrap the `import('leaflet')`, so the 404 became an
+    unhandled rejection.
+
+    Fixed on three levels: the import is wrapped and resolves to `null`; MapView
+    emits `mapfail`; MapShell shows a **"Peta tidak dapat dimuat · Muat semula"**
+    notice whose button reloads. `main.js` also listens for `vite:preloadError`
+    and reloads **once** (sessionStorage-guarded against a loop), which fixes the
+    common case seamlessly. And `v2/public/_headers` now caches hashed
+    `/assets/*` `immutable` while forcing the HTML `no-cache`, so a **returning**
+    browser can never serve a stale index — the header path headers *can* fix,
+    as opposed to the open-tab path only the notice fixes.
+
+    Four things worth carrying:
+
+    - **28 green suites did not catch it, correctly.** `v2-app-live` T8 boots the
+      REAL Leaflet — but from the local build with the network stubbed. It proves
+      the code and the built artefact, never the **served deploy**. A
+      purged-chunk / cache-skew failure lives entirely in how the host serves
+      files across a deploy — the §4.17 / §7 family: *what is served can differ
+      from what was built, so the live site must be looked at in a browser.*
+      `verify-bundle.js` now asserts the cache policy so at least the headers
+      cannot regress unseen.
+    - **The hard-refresh test was the whole diagnosis.** "Does Ctrl+Shift+R fix
+      it?" separates a stale-artefact problem from a code bug in one question —
+      ask it first when a live-only failure appears after a deploy.
+    - **T8b reproduces it by aborting the chunk**, not by reasoning about it —
+      `p.route('**/leaflet-src-*.js', abort)` on the real app, then asserts the
+      notice renders. Mutation-verified red on the old `return` with BUILD
+      EXIT=0 (§4.16), because a container count of 0 passes on the bug too — the
+      *notice* assertion is the one that bites.
+    - **A structural guard can't see this and never could.**
+      `v2-parity-surface.js` checks the classes/ids exist in the bundle; the map
+      code existed and was wired — it just did nothing when the library was
+      absent. Fourth defect of that shape (§4.22, §4.23, and the viewer-edit
+      gap): the control is present, the behaviour behind it is missing.
+
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"

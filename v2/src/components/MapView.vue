@@ -54,7 +54,7 @@ const props = defineProps({
    * would misdescribe what the filter does. */
   redraw: { type: Number, default: 0 },
 });
-const emit = defineEmits(['pick', 'pickLatLng', 'fitted']);
+const emit = defineEmits(['pick', 'pickLatLng', 'fitted', 'mapfail']);
 
 const el = ref(null);
 let map = null, layer = null, fittedKey = '';
@@ -92,7 +92,10 @@ onMounted(async () => {
   // await, because the seam only loads the real library when nothing has
   // provided one — a static import would clobber the tests' window.L stub.
   const L = await loadL();
-  if (!L || !L.map) return;                 // library blocked; V1 shows a notice
+  // Library blocked or its chunk 404'd across a deploy. V1 shows a notice; V2
+  // used to just `return` and leave a blank map area with no explanation
+  // (§4 — "where is the map?"). Tell the shell so it can show a reload notice.
+  if (!L || !L.map) { emit('mapfail'); return; }
   map = L.map(el.value, { center: [4.694, 118.239], zoom: 17, zoomControl: false });
   L.control.zoom({ position: 'topright' }).addTo(map);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
