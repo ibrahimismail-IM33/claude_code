@@ -119,26 +119,28 @@
        saturation pull colour out of the artwork behind and smear it through
        the panel. On a light, detailed ground a weak blur just looks like a
        flat panel with a soft edge. */
-    --filter-glass3d: blur(34px) brightness(1.18) saturate(1.5);
-    /* .42 → .80, and this value is a balance, not a preference.
-       This card is GLASS: it tints whatever is behind it. Against the old dark
-       photograph .42 produced a dark panel; against the near-white page it
-       produced a mid-grey one (measured rgb(152,152,152)), and every light
-       text colour on it collapsed — the wordmark to 1.03:1, the footer note to
-       1.44:1, unreadable on the first screen an officer sees.
-       .88 fixed that but flattened the glass into a plain dark rectangle. .80
-       is the lowest tint at which every colour still clears its threshold
-       while the blur, the refraction and the edge highlights read as glass
-       again. Measured, not guessed — T9 holds the floor, so this cannot be
-       nudged down later without the suite saying so. */
-    /* NAVY, not neutral. At rgba(10,12,16,…) the panel came out BROWN: heavy
-       `saturate()` pulls colour from whatever is behind, and behind it is a
-       sepia engraving on cream, so the glass faithfully amplified the sepia.
-       The tint is blue now and the saturation is down to 1.5 — enough for the
-       glass to carry colour through, not enough to dye the panel with it.
-       If this ever looks brown again, that is the cause: check the saturation
-       before the tint. */
-    --color-glass3d: rgba(20,37,58,.91);
+    --filter-glass3d: blur(32px) brightness(1.0) saturate(1.5);
+    /* 0077B6 IS THE GLASS BODY, at 70% (user's call). This card is GLASS: it
+       tints what is behind it, so a lighter panel shows the watermark through
+       but drags every text colour toward the near-white page. At a *bright*
+       0077B6 the orange wordmark fell to 2.1:1 and had to become WHITE; even
+       deepened to this rgba(1,46,74,.70) the wordmark cannot be orange (2.13),
+       which is why h2/.sub are #fff below. Measured against rendered pixels, all
+       seven gate colours clear their bar at .70 — but .70 is the FLOOR: a swept
+       measurement put wordmark at 4.79-and-up here and failing the moment the
+       body text or the tint drops further. T9 in the live suite holds it.
+       Blue, not neutral, and saturation stays 1.5: heavy `saturate()` pulls
+       colour from the sepia watermark behind and would dye a neutral tint
+       BROWN (§4.28-family). If it ever looks brown, check the saturation before
+       the tint. */
+    --color-glass3d: rgba(1,46,74,.70);
+    /* CONTRA accent. The complement of 0077B6 (hue ~201°) is amber (~21°),
+       which is also the brand orange — so the warm accent on the EDGES reads as
+       one colour against the cool glass. It carries the rim, the outer glow,
+       the Sign In button and the focus ring, and NOTHING on the body: 0077B6 is
+       the surface, amber is the trim. The button ink is near-black (8.5:1 on
+       the amber); white on amber would be 2.8:1. */
+    --contra:#F5A524; --contra-ink:#201203;
     --noise-glass3d: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.28'/%3E%3C/svg%3E");
     position:relative;z-index:4;
     width:100%;max-width:360px;border-radius:30px;padding:30px 24px;
@@ -151,6 +153,7 @@
       3.9px 4.4px 6.6px -1.7px hsl(205 20% 10% / 0.1),
       6.5px 7.2px 10.9px -2.1px hsl(205 20% 10% / 0.1),
       8px 9px 14px -2.5px hsl(205 20% 10% / 0.2),
+      0 0 48px -10px rgba(245,165,36,.45),   /* CONTRA outer glow (amber) */
       0 30px 70px rgba(0,0,0,.55);
   }
   .authbox::before{
@@ -160,26 +163,25 @@
     /* Sheen over the noise: glass is brighter where the light meets it, and a
        perfectly even panel is the thing that reads as plastic. */
     background-image:
-      linear-gradient(160deg,rgba(202,240,248,.075) 0%,rgba(202,240,248,.02) 38%,rgba(202,240,248,0) 62%),
+      linear-gradient(158deg,rgba(120,190,235,.16) 0%,rgba(0,119,182,.12) 32%,rgba(0,119,182,0) 62%),
       var(--noise-glass3d);
     background-size:auto, 100px; background-repeat:no-repeat, repeat;
   }
-  /* THE RIM LIGHT TAKES CAF0F8; THE TINT DOES NOT.
-     `--color-glass3d` stays exactly where it was measured. It is the value that
-     decides how dark this card renders, and every one of T9's seven text
-     colours is measured against it — the last time it moved, the wordmark fell
-     to 1.03:1 on the first screen an officer sees. So the accent goes on the
-     EDGES, which is where a glass material shows its colour anyway: the rim,
-     the sheen and the Sign In button. The rim was already a near-white blue-grey
-     (hsl 205 20% 90%); CAF0F8 is the same family, one step more saturated. */
+  /* THE RIM TAKES THE CONTRA (AMBER); THE BODY STAYS 0077B6.
+     The accent lives on the EDGES only — a glass block shows its trim colour at
+     the rim where light catches it, and keeping amber off the surface is what
+     lets 0077B6 remain the body. The top-left specular is a warm near-white so
+     the edge still reads as lit, then the amber carries round. None of this
+     touches --color-glass3d, which is the value all seven contrasts are
+     measured against. */
   .authbox::after{
     content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;overflow:hidden;z-index:5;
     box-shadow:
-      inset 2px 2px 1px -3px rgba(202,240,248,.95),
-      inset 5px 5px 3px -6px rgba(202,240,248,.45),
-      inset 1.5px 1.5px 1.5px -0.75px rgba(202,240,248,.18),
-      inset 1.5px 1.5px 0.25px rgba(202,240,248,.05),
-      inset 0 0 0.25px 0.5px rgba(202,240,248,.05);
+      inset 2px 2px 1px -3px rgba(255,224,170,.95),
+      inset 5px 5px 3px -6px rgba(245,165,36,.60),
+      inset 1.5px 1.5px 1.5px -0.75px rgba(245,165,36,.55),
+      inset -1.5px -1.5px 1.5px -1px rgba(245,165,36,.40),
+      inset 0 0 0 1px rgba(245,165,36,.32);
   }
   .authbox > *{position:relative;z-index:6}
   /* fallback: if the browser cannot blur, fall back to a solid dark panel */
@@ -190,26 +192,28 @@
      Mixed case, not the uppercase this used to force — "e-Pili Bomba" is the
      product's name and E-PILI BOMBA is not it. Spaced out a little because at
      this size the display face reads tight.
-     --brand is the mockup's orange. Measured on the gate's darkest ground
-     (#0a0b0d) at 6.9:1, comfortably past 4.5:1, and it stays legible over the
-     scrim wherever the background photo is bright. */
-  .authbox h2{font-family:var(--display);font-size:23px;font-weight:800;color:var(--brand);
+     WHITE, not the brand orange, and that is forced by the 70% glass, not a
+     preference. On this lighter 0077B6 panel orange measures 2.13:1 and amber
+     2.1:1 — both fail; white is the only mark that clears (≈6:1). The brand
+     orange lives on the button/rim instead, so the gate still carries it. If
+     the glass is ever darkened back toward opaque, the orange wordmark can
+     return — T9 will say when it passes. */
+  .authbox h2{font-family:var(--display);font-size:23px;font-weight:800;color:#fff;
     letter-spacing:.02em;line-height:1.15}
   .authbox .sub{font-family:var(--display);font-size:12px;font-weight:700;letter-spacing:.34em;
-    text-transform:uppercase;color:var(--brand);margin-bottom:14px;padding-left:.34em}
-  /* .72, not V1's .45. Measured at 3.77:1 on the rendered card — under the 4.5
-     minimum, and it failed on the OLD dark background too (4.37), so this is a
-     pre-existing defect the measurement found rather than one the new ground
-     caused. Semi-transparent text is composited before anyone sees it, so the
-     declared colour says nothing. */
-  .authbox label{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.2em;color:rgba(255,255,255,.72);margin:12px 0 6px}
+    text-transform:uppercase;color:#fff;margin-bottom:14px;padding-left:.34em}
+  /* .95, up from .72. The 70% glass is lighter, so semi-transparent labels sink
+     toward it — measured, the label needed near-full opacity to clear 4.5:1
+     (5.49 at .95). Semi-transparent text is composited before anyone sees it,
+     so the declared alpha says nothing; the rendered pixel is what T9 reads. */
+  .authbox label{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.2em;color:rgba(255,255,255,.95);margin:12px 0 6px}
   /* Pills, as the reference draws them. 16px, not 15: below 16px iOS zooms the
      page on focus, which throws an officer into a sideways-scrolled layout
      mid-login. */
   .authbox input{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);
     border-radius:9999px;
     padding:14px 20px;color:#fff;font-size:16px;outline:none;font-family:var(--sans)}
-  .authbox input:focus{border-color:rgba(59,130,246,.65);box-shadow:0 0 0 3px rgba(59,130,246,.18)}
+  .authbox input:focus{border-color:rgba(245,165,36,.90);box-shadow:0 0 0 3px rgba(245,165,36,.30)}
   /* The reveal toggle. `position:relative` on the wrapper only — the input keeps
      its own full width and the button overlays its right edge, so nothing about
      the field's layout changes. */
@@ -219,22 +223,19 @@
   .autheye{position:absolute;right:8px;top:50%;transform:translateY(-50%);
     display:grid;place-items:center;width:44px;height:44px;   /* the touch minimum */
     background:none;border:none;cursor:pointer;border-radius:8px;
-    color:rgba(255,255,255,.80)}
+    color:rgba(255,255,255,.97)}
   .autheye:hover{color:#fff;background:rgba(255,255,255,.07)}
-  .autheye:focus-visible{outline:2px solid rgba(59,130,246,.7);outline-offset:-2px}
-  /* Cream with dark ink, and a glow beneath — the reference's button.
-     Measured, not eyeballed: #16202c on #f6efdc is 14.6:1. The glow is a
-     shadow in the button's OWN colour, which is what makes it look lit from
-     within rather than dropped on top. */
-  /* Cream -> CAF0F8, the accent (user's call, 2026-08-13). The INK stays
-     near-black and that is not a style choice: CAF0F8 has luminance 0.82, so
-     dark ink is the only thing that passes on it — white would be 1.21:1.
-     #16202c on #CAF0F8 measures 13.9:1, which is where the cream button was. */
+  .autheye:focus-visible{outline:2px solid rgba(245,165,36,.85);outline-offset:-2px}
+  /* The CONTRA button — amber fill, near-black ink, and a glow in its own
+     colour so it looks lit from within. Amber (#F5A524) has luminance ~0.44, so
+     dark ink is what passes: --contra-ink on the amber measures 8.5:1, while
+     white would be 2.8:1. It is the one warm primary action against the cool
+     0077B6 glass. */
   .authbtn{width:100%;margin-top:22px;padding:15px;border:none;border-radius:9999px;
-    background:var(--accent);color:#16202c;
-    font-family:var(--sans);font-size:16px;font-weight:700;cursor:pointer;min-height:52px;
-    box-shadow:0 0 34px -6px rgba(202,240,248,.55), 0 10px 26px -12px rgba(0,0,0,.6)}
-  .authbtn:hover{background:#e2f6fb}
+    background:var(--contra);color:var(--contra-ink);
+    font-family:var(--sans);font-size:16px;font-weight:800;cursor:pointer;min-height:52px;
+    box-shadow:0 0 32px -6px rgba(245,165,36,.6), 0 10px 26px -12px rgba(0,0,0,.6)}
+  .authbtn:hover{background:#ffb733}
   .authbtn:disabled{opacity:.6;cursor:not-allowed}
   .autherr{margin-top:12px;font-size:12px;color:#fca5a5;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);
     border-radius:8px;padding:9px 11px;line-height:1.45}

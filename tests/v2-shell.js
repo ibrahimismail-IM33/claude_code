@@ -141,9 +141,12 @@ const AWAM = REG.filter((h) => h.status === 'kerajaan').length;
       return !!n && n.complete && n.naturalWidth > 0; }), true);
   check('the wordmark is the product\'s name, in mixed case',
     await p.$eval('.authbox h2', (n) => n.textContent.trim()), 'e-Pili Bomba');
-  // The brand orange, read as computed colour so --brand cannot quietly drift.
-  check('...in the brand orange', await p.$eval('.authbox h2', (n) => getComputedStyle(n).color),
-    'rgb(249, 115, 22)');
+  // WHITE, not the brand orange: on the 70% 0077B6 glass the orange wordmark
+  // measures 2.13:1 and fails, so it is white and the brand colour moved to the
+  // button/rim. Read as computed colour so a drift back to a failing colour is
+  // caught here; the contrast itself is held by the live suite's gate check.
+  check('...in white (orange cannot hold on the 70% glass)',
+    await p.$eval('.authbox h2', (n) => getComputedStyle(n).color), 'rgb(255, 255, 255)');
   check('and BBP Kunak sits under it',
     await p.$eval('.authbox .sub', (n) => n.textContent.trim()), 'BBP Kunak');
 
