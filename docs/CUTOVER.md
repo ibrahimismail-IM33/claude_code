@@ -4,16 +4,37 @@ The ordered checklist, with the rollback. Read §2 before doing anything: the
 route chosen here changes what gates a release, and that is a decision worth
 understanding rather than discovering.
 
-**Status:** staging has been used against the production database, and V2's Kad
-Rekod printed correctly on a real printer on 2026-08-09.
+> # ✅ CUTOVER DONE — 2026-08-14
+>
+> **epilibomba.com serves V2.** The domain was moved from the old Pages project
+> to `e-pilibomba-v2`, which builds this repository from the **`release`**
+> branch at `cbc4088`.
+>
+> Verified on the live host, in this order:
+>
+> - The `*.pages.dev` URL first, before the domain moved: login gate, map as a
+>   continuous tile grid, dashboard reconciling to real data, header, and
+>   **Guna Lokasi Saya** prompting for location.
+> - The build log read the commit expected — `cbc4088`, not an older one.
+> - **A Kad Rekod printed from the pages.dev build, and again from
+>   epilibomba.com itself.** Different host, different build; both correct.
+>   That re-passes the MS ISO paper gate, which was stale — seven commits had
+>   touched the card since the 2026-08-09 printout.
+> - **The CSP is enforcing on the live site.** Proven the useful way rather than
+>   by reading a header: a browser extension (Kaspersky) tried to inject a
+>   script and was refused with `script-src 'self'`. That is the vendored-library
+>   security model working in production.
+>
+> **Still open, deliberately deferred by the user:** the `X-Robots-Tag`
+> response header was not checked before the move. If it is present,
+> `EPB_PRODUCTION_BRANCH` is not `release` and the site will not appear in
+> search — a Cloudflare variable change and a rebuild, no code. See §3.
+>
+> **The rollback is unchanged and still one minute:** move the domain back to
+> the old Pages project. §5, §6.
 
-**⚠ That paper gate is STALE and must be re-run before the domain moves.** Seven
-commits have touched the card, its print CSS or the signature print path since:
-the viewer read-only change (`.factions` markup, `.ro-note`), the signature
-erasure fix, the print-copy build path, the print isolation fix for the app's
-decoration, and three card/gate changes. `docs/KAD-REKOD.md` is binding under
-MS ISO PS-8 and requires a printout after exactly these. It costs one sheet of
-paper; four print defects have been found on paper and none by any other means.
+**How it was before:** staging had been used against the production database,
+and V2's Kad Rekod printed correctly on a real printer on 2026-08-09.
 
 ---
 
@@ -221,7 +242,39 @@ force-pushes.
 Rollback gains a second form with it: reset `release` to the previous commit and
 let Cloudflare rebuild.
 
-## 8. Still open, not blocking
+## 8. Cloudflare Web Analytics injects a third-party script — turn it OFF
+
+Found in devtools on the live site, 2026-08-14. Cloudflare Pages adds this to
+every served page:
+
+```html
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/…"
+        integrity="sha512-…" data-cf-beacon='{"token":"…"}' crossorigin="anonymous"></script>
+```
+
+**It is injected at SERVE time, not built.** That is why nothing in this repo
+can see it: `scripts/verify-bundle.js` checks the artefact for CDN origins and
+`tests/v2-csp.js` boots the local bundle. Both are correct and both are blind
+to it.
+
+It matters here more than it would elsewhere. `CLAUDE.md` §3 records why every
+library was pulled into `vendor/`: a third-party script on this page runs with
+full access to the signed-in session and every record card, and removing that
+path is what let `script-src` drop to `'self'`.
+
+And it does not even work — `script-src 'self'` blocks it. So it is a failed
+request and a logged CSP violation on every page load, buying no analytics.
+
+**Fix:** Pages project → Settings → **Web Analytics** → disable. Check the
+staging project too; it has probably been doing this all along.
+
+**The general lesson is worth more than the fix:** a host can add things to a
+page after the build. Every guard in this repo checks what we produce, so what
+is *served* has to be looked at at least once, in a browser, on the real host.
+
+---
+
+## 9. Still open, not blocking
 
 - ~~The register showed 203 pili where the notes said 188.~~ **Closed
   2026-08-09.** An officer added 15 pili with Tambah Pili on 2026-08-08 —

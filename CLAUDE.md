@@ -1186,6 +1186,14 @@ Watch items:
   a handful per officer. If it ever needs clearing, do it out-of-band with the
   service-role key against objects under `profile/` that no `profiles` row
   points at — never by loosening the bucket.
+- **Cloudflare Web Analytics injects a third-party script into the served page**
+  (`static.cloudflareinsights.com/beacon.min.js`), found in devtools on the live
+  site 2026-08-14. It is added at SERVE time, so `verify-bundle.js` and
+  `v2-csp.js` cannot see it — both check what we build. `script-src 'self'`
+  blocks it, so it buys no analytics and logs a CSP violation on every load.
+  Turn it off in the Pages project settings; check staging too. The wider point:
+  **a host can add things to a page after the build, so what is served has to be
+  looked at in a browser at least once.** `docs/CUTOVER.md` §8.
 - **An open record card does not refresh** while it is open. It re-reads on
   open, which is enough, and refreshing under someone would throw away what
   they are typing. Left deliberately.
@@ -1197,6 +1205,15 @@ Watch items:
 ---
 
 ## 8. Verified vs not
+
+**⚠ V2 IS LIVE. epilibomba.com serves the V2 bundle as of 2026-08-14.**
+Cloudflare Pages project `e-pilibomba-v2` builds this repository from the
+**`release`** branch; `release` only moves when `release-gate.yml` sees all 28
+suites pass on `main`. The old Pages project, the `e-pili-bomba` repo and
+`publish-to-site.yml` are all still in place and are the rollback — moving the
+domain back takes about a minute. `docs/CUTOVER.md` has the record and what was
+verified on the live host, including a Kad Rekod printed from epilibomba.com
+itself. **Fix V1 in `index.html` only for a rollback; new work goes to V2.**
 
 **Verified in a real browser** (Playwright, Chromium):
 - Lokasi sync: card save updates the hydrant, sends the upsert, and the popup

@@ -1,5 +1,16 @@
 # V2 staging — setup and operating rules
 
+**Cutover happened 2026-08-14 — epilibomba.com now serves V2** from the
+`release` branch (`docs/CUTOVER.md`). Staging's job changes with it: it was
+where officers met V2 before the day; it is now where changes are seen before
+they reach officers. It still points at the **production** database, which was
+an accepted trade when it was only a preview and is worth revisiting now that
+it is a test bed — noted, not yet decided.
+
+Two settings it needs: `EPB_PRODUCTION_BRANCH=release` (below), and **Web
+Analytics disabled** — Cloudflare injects a third-party beacon into the served
+page that `script-src 'self'` then blocks (`docs/CUTOVER.md` §8).
+
 Staging exists so officers meet V2 **before** cutover rather than on the day.
 Every serious defect this app has had — §4.10 (offline data destroyed), §4.13
 (a row that could never be cleared), and three print defects — was found by a
