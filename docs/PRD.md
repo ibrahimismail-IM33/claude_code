@@ -287,7 +287,34 @@ load flat** — Kunak-sized whether there are 2 districts or 30. Caching does no
 help here: it makes a correct answer cheaper, but it cannot make a truncated
 answer correct.
 
-### 7.3 The change, when it is wanted
+### 7.3 The change — DONE (foundation landed 2026-08-15)
+
+**Status: the district-ready foundation is implemented.** Owner's call this
+session: build the foundation now as insurance, without onboarding any second
+district (the "foundation only" ambition). What shipped:
+
+- **DB** (`sql/`): `district text not null default 'KUNAK'` on `hydrants`,
+  `hydrant_records`, `jadual_pemeriksaan` and `profiles`; a new
+  `public.can_write(target)` (SECURITY DEFINER, pinned search_path) that returns
+  `is_admin() AND caller's profile.district = target`; the three write policies
+  on each table repointed from `is_admin()` to `can_write(district)` — **reads
+  stay global for mutual aid**, only writes are scoped; the signed-row guard is
+  preserved exactly; `hardening` closes `can_write`'s RPC endpoint to anon while
+  `authenticated` keeps EXECUTE; labels unique per `(district,label)`, added
+  guarded (skipped-with-notice if a dup already exists).
+- **App** (V2): the officer's home district comes from `profiles.district`
+  (`auth.js`, default KUNAK, fails closed); every query is filtered by it
+  (`cloudLoad`, jadual `load`, dashboard scan) and every write stamps it
+  (Tambah Pili, record save/flush/signRow, jadual add). **No visible selector
+  yet** — a one-option selector is noise; it arrives with district #2. V1 is
+  untouched (frozen rollback), and rollback stays safe *while single-district*.
+- **Tests**: `tests/v2-record-sync.js` T9 proves an officer is refused writing
+  another district and succeeds in their own (stub models `can_write`, §4.29),
+  mutation-checked red; T10 pins the read-scope + schedule stamp.
+
+The rest of §7.3 below is the original design note, kept for the record.
+
+### 7.3 (original) The change, when it is wanted
 
 **Database** — add `district` to `hydrants`, `hydrant_records` and
 `jadual_pemeriksaan` (default `'KUNAK'`) and to `profiles`; extend `is_admin()`

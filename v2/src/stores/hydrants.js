@@ -35,11 +35,16 @@ export const useHydrantsStore = defineStore('hydrants', {
      * came back. A partial or empty read is worse than no read: on screen it
      * looks exactly like hydrants were deleted.
      */
-    async pull(sb, quiet) {
+    async pull(sb, quiet, district = 'KUNAK') {
       if (!sb) return false;
+      // District-scoped (PRD §7.3): an officer loads only their own district's
+      // register, which is what keeps each phone's load flat (§7.2 item 5) no
+      // matter how many districts exist. Reads are global at the RLS layer for
+      // mutual aid; this is the app's default view, not a permission.
       const paged = await pageAll((from, to) =>
         sb.from('hydrants')
           .select('id,label,lat,lng,status,location,last_inspected')
+          .eq('district', district)
           .order('id', { ascending: true })
           .range(from, to));
       if (!paged || !shouldApply(paged.rows)) return false;   // keep the local copy
@@ -67,31 +72,35 @@ export const useHydrantsStore = defineStore('hydrants', {
      * saved, so a failed write costs the officer nothing now and is corrected
      * on the next save; blocking the card's Save on a field connection would be
      * the worse trade. */
-    async saveOne(sb, h) {
+    async saveOne(sb, h, district = 'KUNAK') {
       if (!sb || !h) return false;
       try {
         const res = await sb.from('hydrants').upsert({
           id: h.id, label: h.label, lat: h.lat, lng: h.lng, status: h.status,
           location: h.location || null, last_inspected: h.lastInspected || null,
+          // Stamp the officer's district (§7.3). The register was loaded filtered
+          // to it, so every row this can touch is already that district; RLS
+          // (can_write) refuses anything else regardless.
+          district,
         });
         return !(res && res.error);
       } catch (e) { return false; }
     },
 
     // Throttled so flicking between tabs does not hammer a field connection.
-    async pullFresh(sb, force) {
+    async pullFresh(sb, force, district = 'KUNAK') {
       const now = Date.now();
       if (!shouldPull(now, this.lastPull, force)) return false;
       this.lastPull = now;
-      return this.pull(sb, true);
+      return this.pull(sb, true, district);
     },
 
     // Foreground/focus/online plus a poll — a device left open on the counter
     // never fires a foreground event, so foreground alone is not enough.
-    startPolling(sb) {
+    startPolling(sb, district = 'KUNAK') {
       return setInterval(() => {
         if (typeof document !== 'undefined' && document.hidden) return;
-        this.pullFresh(sb, false);
+        this.pullFresh(sb, false, district);
       }, PULL_EVERY);
     },
   },

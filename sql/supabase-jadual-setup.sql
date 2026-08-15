@@ -31,8 +31,12 @@ create table if not exists public.jadual_pemeriksaan (
   pasukan    text not null,                -- which team, e.g. 'Pasukan A'
   lokasi     text not null,                -- where, e.g. 'Hospital Kunak'
   created_by text,                         -- email of the admin who added it
+  district   text not null default 'KUNAK',  -- multi-district foundation (§7.3)
   created_at timestamptz default now()
 );
+
+-- If the table already existed, top it up.
+alter table public.jadual_pemeriksaan add column if not exists district text not null default 'KUNAK';
 
 -- Sorting is always by date, so give the database an index for it.
 create index if not exists jadual_tarikh_idx on public.jadual_pemeriksaan (tarikh);
@@ -54,14 +58,14 @@ create policy "auth read jadual" on public.jadual_pemeriksaan
   for select to authenticated using (true);
 
 create policy "admin insert jadual" on public.jadual_pemeriksaan
-  for insert to authenticated with check (public.is_admin());
+  for insert to authenticated with check (public.can_write(district));
 
 create policy "admin update jadual" on public.jadual_pemeriksaan
   for update to authenticated
-  using (public.is_admin()) with check (public.is_admin());
+  using (public.can_write(district)) with check (public.can_write(district));
 
 create policy "admin delete jadual" on public.jadual_pemeriksaan
-  for delete to authenticated using (public.is_admin());
+  for delete to authenticated using (public.can_write(district));
 
 
 -- ---------------------------------------------------------------------------

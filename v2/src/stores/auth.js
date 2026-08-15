@@ -21,6 +21,12 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({
     email: '',
     role: 'viewer',
+    // The officer's home district (multi-district foundation, PRD §7.3). Every
+    // query is scoped to it and every write stamps it. Defaults to KUNAK — the
+    // only district today — and, like role, fails closed to that default on any
+    // error so a read failure can never silently widen scope to another
+    // district. There is no UI to change it: it is a fact about the account.
+    district: 'KUNAK',
     ready: false,
   }),
 
@@ -39,8 +45,14 @@ export const useAuthStore = defineStore('auth', {
         const user = u && u.data && u.data.user;
         if (!user) return 'viewer';
         this.email = user.email || '';
-        const res = await sb.from('profiles').select('role').eq('id', user.id).single();
-        if (res && !res.error && res.data && res.data.role) return res.data.role;
+        const res = await sb.from('profiles').select('role, district').eq('id', user.id).single();
+        if (res && !res.error && res.data) {
+          // Fail closed to KUNAK if the column is absent/null (a pre-migration
+          // profile), never to nothing — an empty district must not read as
+          // "matches no district" and silently strand the officer.
+          this.district = res.data.district || 'KUNAK';
+          if (res.data.role) return res.data.role;
+        }
         return 'viewer';
       } catch (e) {
         return 'viewer';
@@ -56,6 +68,7 @@ export const useAuthStore = defineStore('auth', {
     signOut() {
       this.email = '';
       this.role = 'viewer';
+      this.district = 'KUNAK';
       this.ready = false;
     },
   },

@@ -45,6 +45,12 @@ create table if not exists public.profiles (
 -- rather than needing a fresh install.
 alter table public.profiles add column if not exists signature text;
 
+-- The district this account belongs to (multi-district foundation, PRD §7.3).
+-- Defaults to KUNAK so every existing account is unambiguously Kunak until a
+-- second district is actually onboarded. can_write() below reads it to decide
+-- which district's rows this officer may write; reads stay global (mutual aid).
+alter table public.profiles add column if not exists district text not null default 'KUNAK';
+
 alter table public.profiles enable row level security;
 
 -- Is the CURRENT signed-in user an admin?
@@ -73,6 +79,32 @@ $$;
 -- Verified against a real Postgres; do not tighten this without doing the same.
 revoke execute on function public.is_admin() from public, anon;
 grant  execute on function public.is_admin() to authenticated;
+
+-- District-scoped write check (multi-district foundation, PRD §7.3).
+-- An admin may write ONLY rows tagged with their own district; reads stay
+-- global for mutual aid. SECURITY DEFINER so it can read profiles without
+-- recursing the profiles policies, exactly like is_admin(). It builds ON
+-- is_admin(), so a viewer is still refused everywhere first.
+create or replace function public.can_write(target text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.is_admin() and exists (
+    select 1 from public.profiles
+    where id = auth.uid() and district = target
+  );
+$$;
+
+-- Same grant discipline as is_admin(), and for the same reason: every write
+-- policy below calls can_write(), an RLS expression runs as the CALLING role,
+-- so `authenticated` MUST keep EXECUTE or every officer's save dies with
+-- "permission denied for function can_write". Revoke from public/anon only.
+-- (supabase-hardening.sql re-asserts this; kept here so a base install is safe.)
+revoke execute on function public.can_write(text) from public, anon;
+grant  execute on function public.can_write(text) to authenticated;
 
 drop policy if exists "read own profile"       on public.profiles;
 drop policy if exists "admins manage profiles" on public.profiles;
@@ -128,11 +160,17 @@ create table if not exists public.hydrants (
   lng        double precision not null,
   status     text not null default 'kerajaan',  -- 'kerajaan' = Awam, or 'swasta'
   location   text,                        -- Alamat Pili Bomba
+  district   text not null default 'KUNAK',     -- multi-district foundation (§7.3)
   updated_at timestamptz default now()
 );
 
 -- If the table already existed without the address column, add it.
 alter table public.hydrants add column if not exists location text;
+
+-- District tag (multi-district foundation, PRD §7.3). Default KUNAK so every
+-- seeded row is unambiguously Kunak. Writes are scoped to the officer's own
+-- district by can_write() below; reads stay global for mutual aid.
+alter table public.hydrants add column if not exists district text not null default 'KUNAK';
 
 alter table public.hydrants enable row level security;
 
@@ -146,17 +184,37 @@ drop policy if exists "admin insert hydrants" on public.hydrants;
 drop policy if exists "admin update hydrants" on public.hydrants;
 drop policy if exists "admin delete hydrants" on public.hydrants;
 
+-- Reads stay GLOBAL — every signed-in officer sees every district, for mutual
+-- aid. Only writes are district-scoped, via can_write(district).
 create policy "auth read hydrants" on public.hydrants
   for select to authenticated using (true);
 
 create policy "admin insert hydrants" on public.hydrants
-  for insert to authenticated with check (public.is_admin());
+  for insert to authenticated with check (public.can_write(district));
 
 create policy "admin update hydrants" on public.hydrants
-  for update to authenticated using (public.is_admin()) with check (public.is_admin());
+  for update to authenticated using (public.can_write(district)) with check (public.can_write(district));
 
 create policy "admin delete hydrants" on public.hydrants
-  for delete to authenticated using (public.is_admin());
+  for delete to authenticated using (public.can_write(district));
+
+-- Labels are unique WITHIN a district — A01 in Kunak and A01 in another
+-- district must coexist. Added only if the live data has no duplicate
+-- (district,label): the add form validates non-empty only, so a stray dup may
+-- exist, and skipping-with-notice beats failing the whole migration.
+do $$
+begin
+  if exists (
+    select 1 from public.hydrants group by district, label having count(*) > 1
+  ) then
+    raise notice 'hydrants: duplicate (district,label) present — unique constraint skipped';
+  elsif not exists (
+    select 1 from pg_constraint where conname = 'hydrants_district_label_key'
+  ) then
+    alter table public.hydrants
+      add constraint hydrants_district_label_key unique (district, label);
+  end if;
+end$$;
 
 
 -- ---------------------------------------------------------------------------

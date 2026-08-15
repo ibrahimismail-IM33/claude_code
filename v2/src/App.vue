@@ -124,8 +124,8 @@ function runSweep() {
 }
 function refreshDash() {
   runSweep();
-  jadual.load(sb.value, periodRange.value);
-  return dash.refresh(sb.value, hydrants.list, (id) => records.load(id));
+  jadual.load(sb.value, periodRange.value, auth.district);
+  return dash.refresh(sb.value, hydrants.list, (id) => records.load(id), auth.district);
 }
 
 /* The schedule's writes go through the store, then re-read so every device
@@ -133,10 +133,10 @@ function refreshDash() {
  * own audit trail is stamped in the database from the JWT regardless. */
 const jadualRange = () => periodRange.value;
 async function onJadualAdd(row) {
-  await jadual.add(sb.value, jadualRange(), Object.assign({ by: auth.email || null }, row));
+  await jadual.add(sb.value, jadualRange(), Object.assign({ by: auth.email || null }, row), auth.district);
 }
-async function onJadualUpdate(row) { await jadual.update(sb.value, jadualRange(), row); }
-async function onJadualDelete(id) { await jadual.remove(sb.value, jadualRange(), id); }
+async function onJadualUpdate(row) { await jadual.update(sb.value, jadualRange(), row, auth.district); }
+async function onJadualDelete(id) { await jadual.remove(sb.value, jadualRange(), id, auth.district); }
 /* V1's `refresh()`, as a signal. Bumped whenever a marker's APPEARANCE changes
  * without the visible SET changing — a saved or cleared inspection date, a
  * pending badge appearing or clearing. Without it the pin kept the old date
@@ -184,7 +184,7 @@ async function enter() {
   // `profile.ready` itself, so a slow read delays that one dialog and nothing
   // else.
   profile.load(sb.value);
-  await hydrants.pull(sb.value);          // first read fits the map
+  await hydrants.pull(sb.value, false, auth.district);   // first read fits the map, this district only
 }
 
 /* Saving the officer's own signature.
@@ -218,6 +218,7 @@ async function addHydrant(h) {
     const res = await sb.value.from('hydrants').insert({
       id: h.id, label: h.label, lat: h.lat, lng: h.lng,
       status: h.status, location: h.location, last_inspected: h.lastInspected || null,
+      district: auth.district,          // §7.3: new pili belongs to the officer's district
     });
     // The database first, the screen second. A pili that exists on one phone
     // and nowhere else is worse than one that failed loudly.
@@ -262,7 +263,7 @@ async function openCard(h) {
   // The card shows the cached copy immediately and catches up when the cloud
   // answers. Making the officer wait on a field connection to see a record
   // they already have is the wrong trade.
-  const res = await sync.open(sb.value, h.id, records.form);
+  const res = await sync.open(sb.value, h.id, records.form, auth.district);
   if (res.changed) {
     if (!res.form.header.lokasi && h.location) res.form.header.lokasi = h.location;
     records.form = res.form;
@@ -334,7 +335,7 @@ async function confirmSign(dataUrl) {
   if (!h || !signing.value || !dataUrl) return;
   signBusy.value = true; signError.value = '';
   const res = await sync.signRow(sb.value, h.id, records.form,
-    signing.value.section, signing.value.row, dataUrl, auth.email);
+    signing.value.section, signing.value.row, dataUrl, auth.email, auth.district);
   signBusy.value = false;
   if (!res.ok) { signError.value = res.reason || 'Gagal.'; return; }
   // Local copy second, and only once the server accepted it. A row marked
@@ -390,7 +391,7 @@ async function saveCard() {
     const loc = String((records.form.header && records.form.header.lokasi) || '').trim();
     if (loc && hy.location !== loc) { hy.location = loc; changed = true; }
     hydrants.persist();
-    if (changed) hydrants.saveOne(sb.value, hy);   // fire and forget, as V1 is
+    if (changed) hydrants.saveOne(sb.value, hy, auth.district);   // fire and forget, as V1 is
   }
   // The pin's badge follows the rows that now exist — redraw it immediately
   // rather than waiting for the next pull (V1 calls refresh() here).
@@ -398,7 +399,7 @@ async function saveCard() {
 
   saveState.value = 'saving';
   if (saveStateTimer) { clearTimeout(saveStateTimer); saveStateTimer = null; }
-  const res = await sync.save(sb.value, h.id, records.form, auth.isAdmin);
+  const res = await sync.save(sb.value, h.id, records.form, auth.isAdmin, auth.district);
   saveState.value = (res && res.ok) ? 'ok' : 'local';
   // A parked save shows the amber ! on the pin, so the map has to follow that too.
   refreshMap();
@@ -432,11 +433,11 @@ function tickClock() {
  * problem the date badge had. */
 function flushAll() {
   if (!sb.value || !auth.ready) return Promise.resolve();
-  return Promise.all(pending.ids().map((id) => sync.flush(sb.value, id)));
+  return Promise.all(pending.ids().map((id) => sync.flush(sb.value, id, auth.district)));
 }
 const quiet = () => {
   if (!auth.ready) return;
-  hydrants.pullFresh(sb.value);
+  hydrants.pullFresh(sb.value, false, auth.district);
   flushAll().then(refreshMap, refreshMap);
 };
 const onVisible = () => { if (!document.hidden) quiet(); };

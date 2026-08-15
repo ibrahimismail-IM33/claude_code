@@ -106,7 +106,7 @@ export const useRecordSyncStore = defineStore('recordSync', {
 
     /* Push what is safe to push. Returns counts so the caller can tell the
      * officer what happened rather than guessing. */
-    async flush(sb, id) {
+    async flush(sb, id, district = 'KUNAK') {
       const pending = usePendingStore();
       const p = pending.load(id);
       if (!p) return { nothing: true };
@@ -127,7 +127,7 @@ export const useRecordSyncStore = defineStore('recordSync', {
       if (plan.push.length) {
         try {
           const res = await sb.from('hydrant_records').upsert(
-            plan.push.map((r) => ({ hydrant_id: id, section: r.section, row_index: r.row_index, data: r.data })),
+            plan.push.map((r) => ({ hydrant_id: id, section: r.section, row_index: r.row_index, data: r.data, district })),
             { onConflict: 'hydrant_id,section,row_index' });
           okPushed = !(res && res.error);
         } catch (e) { okPushed = false; }
@@ -143,7 +143,7 @@ export const useRecordSyncStore = defineStore('recordSync', {
 
     /* Save. Parks BEFORE the request goes out, so a save that never comes back
      * (tab closed, phone asleep mid-request) is still recoverable. */
-    async save(sb, id, f, isAdmin) {
+    async save(sb, id, f, isAdmin, district = 'KUNAK') {
       const pending = usePendingStore();
       const baseFor = (s, i) => this.baseFor(id, s, i);
       const dead = deadRows(f, isAdmin, baseFor, (s, i) => this.signedInCloud(id, s, i));
@@ -154,7 +154,11 @@ export const useRecordSyncStore = defineStore('recordSync', {
 
       park();
       try {
-        const res = await sb.from('hydrant_records').upsert(rows, { onConflict: 'hydrant_id,section,row_index' });
+        // §7.3: stamp the officer's district on every row pushed. Parked/local
+        // rows stay district-free (flush re-stamps on push), so upsertRows —
+        // which is parity-tested — is left untouched and the tag is added here.
+        const res = await sb.from('hydrant_records')
+          .upsert(rows.map((r) => Object.assign({}, r, { district })), { onConflict: 'hydrant_id,section,row_index' });
         if (res && res.error) { this.note = 'Cloud ERROR · ' + (res.error.message || 'save failed'); return { ok: false, reason: res.error.message || 'save failed' }; }
         const delOk = await this.deleteRows(sb, id, dead);
         if (!delOk) { this.note = 'Cloud ERROR · baris tidak dapat dibuang'; return { ok: false, reason: 'baris tidak dapat dibuang' }; }
@@ -191,7 +195,7 @@ export const useRecordSyncStore = defineStore('recordSync', {
      * `upsert:false` on the upload means a path collision is an error rather
      * than a silent overwrite.
      */
-    async signRow(sb, id, f, sec, ri, dataUrl, email) {
+    async signRow(sb, id, f, sec, ri, dataUrl, email, district = 'KUNAK') {
       if (!sb) return { ok: false, reason: 'Perlu sambungan pelayan untuk tandatangan.' };
       const row = (f[sec] || [])[ri];
       if (!row) return { ok: false, reason: 'Baris tidak dijumpai.' };
@@ -211,6 +215,7 @@ export const useRecordSyncStore = defineStore('recordSync', {
       const payload = {
         hydrant_id: id, section: sec, row_index: ri, data: cleanRow(row),
         signed: true, signed_by: email || '', signed_at: signedAt, signature: path,
+        district,   // §7.3: the signing officer's district
       };
       try {
         const res = await sb.from('hydrant_records').upsert(payload, { onConflict: 'hydrant_id,section,row_index' });
@@ -233,8 +238,8 @@ export const useRecordSyncStore = defineStore('recordSync', {
      * ONLY when the record actually differs, because redrawing an identical
      * card reads as a blink on a phone and it was happening on almost every
      * open (CLAUDE.md §3, formFingerprint). */
-    async open(sb, id, local) {
-      await this.flush(sb, id);
+    async open(sb, id, local, district = 'KUNAK') {
+      await this.flush(sb, id, district);
       const rows = await this.cloudLoad(sb, id);
       if (!rows) { this.note = 'Local only'; return { form: local, changed: false, rows: null }; }
 

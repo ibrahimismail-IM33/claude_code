@@ -90,13 +90,27 @@ const AWAM = REG.filter((h) => h.status === 'kerajaan').length;
             // sign-out when it was in fact a working one.
             signOut: () => { window.sessionStorage.setItem('__signedOut', '1'); return ok({}); },
           },
-          from: (t) => ({
-            select: () => ({
-              eq: () => ({ single: () => ok({ role: cfg.role }) }),
-              order: () => ({ range: (f) => ok(f === 0 ? cfg.rows : []) }),
-            }),
-            insert: (row) => { window.__calls.push(['insert', row.label]); return ok([row]); },
-          }),
+          // Chainable so the district-scoped reads (§7.3) resolve: the register
+          // read is now .select().eq('district',…).order().range(), and the
+          // profile read is .select('role,district').eq('id',…).single(). A row
+          // with no district defaults to KUNAK, matching the column default.
+          from: (t) => {
+            const q = {
+              _f: {},
+              select() { return q; },
+              eq(k, v) { q._f[k] = v; return q; },
+              gte() { return q; }, lte() { return q; }, order() { return q; },
+              single: () => ok({ role: cfg.role, district: 'KUNAK' }),
+              range: (f) => {
+                if (t !== 'hydrants') return ok([]);
+                let rows = cfg.rows;
+                if (q._f.district) rows = rows.filter((r) => (r.district || 'KUNAK') === q._f.district);
+                return ok(f === 0 ? rows : []);
+              },
+              insert: (row) => { window.__calls.push(['insert', row.label]); return ok([row]); },
+            };
+            return q;
+          },
         }),
       };
       // Leaflet stub: the map is proven elsewhere; here it must merely not throw.

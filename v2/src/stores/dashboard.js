@@ -41,17 +41,22 @@ export const useDashboardStore = defineStore('dashboard', {
     /* `readForm` is passed in (the records store's `load`) rather than imported,
      * so this stays testable without localStorage and there is one definition of
      * how a cached card is read. */
-    async refresh(sb, hydrants, readForm) {
+    async refresh(sb, hydrants, readForm, district = 'KUNAK') {
       const local = scanLocal(hydrants, readForm);
       this.index = local;
       this.source = sb ? 'Menyemak awan…' : 'Data peranti ini';
       if (!sb) return this.index;
 
       this.scanning = true;
+      // §7.3: scan only this district's Pengujian rows. The dashboard already
+      // derives per-hydrant status only for the loaded (district-filtered)
+      // hydrants, so this changes nothing an officer sees today; it keeps the
+      // scan Kunak-sized rather than pulling every district's rows to discard.
       const cloud = await scanPages((from, to) =>
         sb.from('hydrant_records')
           .select('hydrant_id,data,signed')
           .eq('section', 'pengujian')
+          .eq('district', district)
           .order('hydrant_id', { ascending: true })
           .order('row_index', { ascending: true })
           .range(from, to));

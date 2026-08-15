@@ -69,10 +69,17 @@ function makeSb(rows, opts) {
           calls.upsert++;
           if (o.offline) return die();
           if (o.failUpsert) return Promise.resolve({ error: { message: 'refused' } });
+          // Model can_write(district) (PRD §7.3): the server refuses a row tagged
+          // with a district this officer may not write, and RLS rejects the WHOLE
+          // statement so nothing lands. §4.29: a stub that does not enforce what
+          // the server enforces is the client talking to itself.
+          if (o.allowDistrict && payload.some((r) => r.district !== o.allowDistrict)) {
+            return Promise.resolve({ error: { message: 'new row violates row-level security policy' } });
+          }
           payload.forEach((r) => {
             const i = db.findIndex((x) => x.section === r.section && x.row_index === r.row_index);
-            if (i >= 0) db[i] = Object.assign({}, db[i], { data: r.data });
-            else db.push({ hydrant_id: r.hydrant_id, section: r.section, row_index: r.row_index, data: r.data, signed: false });
+            if (i >= 0) db[i] = Object.assign({}, db[i], { data: r.data, district: r.district });
+            else db.push({ hydrant_id: r.hydrant_id, section: r.section, row_index: r.row_index, data: r.data, signed: false, district: r.district });
           });
           return Promise.resolve({ error: null });
         },
@@ -112,6 +119,7 @@ const pengCount = (sb) => sb._db.filter((x) => x.section === 'pengujian').length
   const RS = await import(path.join('file://', __dirname, '..', 'v2/src/stores/record-sync.js'));
   const P = await import(path.join('file://', __dirname, '..', 'v2/src/stores/pending.js'));
   const L = await import(path.join('file://', __dirname, '..', 'v2/src/stores/records-logic.js'));
+  const J = await import(path.join('file://', __dirname, '..', 'v2/src/stores/jadual.js'));
 
   const fresh = () => { setActivePinia(createPinia()); };
   const pendKey = 'bbpkunak_pending_1';
@@ -345,6 +353,58 @@ const pengCount = (sb) => sb._db.filter((x) => x.section === 'pengujian').length
   check('an unreadable cloud keeps the local card, it does not blank it',
     cellOf(res.form), cellOf(localCopy));
   check('and says so rather than claiming to be in sync', sync.note, 'Local only');
+
+  // ---------- T9: a write is scoped to the officer's own district (§7.3) ----------
+  // The security property of the multi-district foundation: an officer may write
+  // ONLY their own district's rows. Enforced by RLS's can_write() in the
+  // database; the stub models it (allowDistrict) so the assertion is about the
+  // real rule, not the client agreeing with itself (§4.29).
+  console.log('T9  a save is refused when it targets another district (can_write)');
+  fresh(); global.window.localStorage.m.clear();
+  sync = RS.useRecordSyncStore();
+  sb = makeSb([rowOf('pengujian', 0, PENG('ASAL'))], { allowDistrict: 'KUNAK' });
+  opened = await sync.open(sb, 1, L.blankForm(), 'KUNAK');
+  f = opened.form;
+  f.pengujian[0].penguji = 'CUBA TULIS LUAR DAERAH';
+
+  // Tagged as another district → RLS refuses the whole statement, nothing lands,
+  // and the officer's work is PARKED rather than lost (§4.10), exactly as an
+  // outage would park it.
+  let dr = await sync.save(sb, 1, f, true, 'LAHAD DATU');
+  check('a cross-district save is refused', dr.ok, false);
+  check('...and nothing reached the server for that row',
+    sb._db.find((x) => x.section === 'pengujian' && x.row_index === 0).data.penguji, 'ASAL');
+  check('...and the work is parked, not lost', !!P.usePendingStore().load(1), true);
+
+  // The SAME edit, correctly tagged with the officer's OWN district, lands.
+  dr = await sync.save(sb, 1, f, true, 'KUNAK');
+  check('the same edit in the officer\'s own district succeeds', dr.ok, true);
+  const landed = sb._db.find((x) => x.section === 'pengujian' && x.row_index === 0);
+  check('...it reached the server', landed.data.penguji, 'CUBA TULIS LUAR DAERAH');
+  check('...stamped with the officer\'s district', landed.district, 'KUNAK');
+
+  // ---------- T10: reads are scoped and the schedule stamps its district ------
+  // Not a security boundary (reads are global by design, for mutual aid) but the
+  // filter is what keeps each phone's load Kunak-sized (§7.2 item 5), so it is
+  // worth pinning. A capturing stub records the query it was handed.
+  console.log('T10  jadual read is district-scoped and its writes stamp the district');
+  fresh(); global.window.localStorage.m.clear();
+  const capSb = () => {
+    const captured = { selectEq: {}, inserted: null };
+    return { captured, from() { return {
+      select() { const q = { _eq: {},
+        eq(k, v) { this._eq[k] = v; captured.selectEq = this._eq; return this; },
+        gte() { return this; }, lte() { return this; }, order() { return this; },
+        range() { return Promise.resolve({ data: [], error: null }); } }; return q; },
+      insert(payload) { captured.inserted = payload; return { then(res) { return Promise.resolve({ error: null }).then(res); } }; },
+    }; } };
+  };
+  const jad = J.useJadualStore();
+  const csb = capSb();
+  await jad.load(csb, ['2026-01-01', '2026-06-30'], 'KUNAK');
+  check('the schedule read is filtered to the district', csb.captured.selectEq.district, 'KUNAK');
+  await jad.add(csb, ['2026-01-01', '2026-06-30'], { t: '2026-03-01', pas: 'A', l: 'Hospital Kunak' }, 'KUNAK');
+  check('a new schedule row stamps the district', csb.captured.inserted && csb.captured.inserted.district, 'KUNAK');
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

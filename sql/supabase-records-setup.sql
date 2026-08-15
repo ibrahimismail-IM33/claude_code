@@ -31,6 +31,7 @@ create table if not exists public.hydrant_records (
   signed_by  text,                       -- email of the admin who signed
   signed_at  timestamptz,
   signature  text,                       -- public URL of the signature image
+  district   text not null default 'KUNAK',  -- multi-district foundation (§7.3)
   updated_at timestamptz default now(),
   primary key (hydrant_id, section, row_index)
 );
@@ -40,6 +41,10 @@ alter table public.hydrant_records add column if not exists signed    boolean no
 alter table public.hydrant_records add column if not exists signed_by text;
 alter table public.hydrant_records add column if not exists signed_at timestamptz;
 alter table public.hydrant_records add column if not exists signature text;
+-- District tag (multi-district foundation, PRD §7.3). Stamped by the app from
+-- the record's own hydrant; default KUNAK. Writes scoped by can_write(district),
+-- keeping the signed-row guard intact. Reads stay global (mutual aid).
+alter table public.hydrant_records add column if not exists district text not null default 'KUNAK';
 
 alter table public.hydrant_records enable row level security;
 
@@ -65,16 +70,19 @@ create policy "auth read records" on public.hydrant_records
   for select to authenticated using (true);
 
 create policy "admin insert records" on public.hydrant_records
-  for insert to authenticated with check (public.is_admin());
+  for insert to authenticated with check (public.can_write(district));
 
+-- District scoping is added ALONGSIDE the signed guard, never replacing it: a
+-- signed row still falls outside the rule entirely (permanent), and now an
+-- officer can only write unsigned rows of their OWN district.
 create policy "admin update unsigned records" on public.hydrant_records
   for update to authenticated
-  using (public.is_admin() and coalesce(signed,false) = false)
-  with check (public.is_admin());
+  using (public.can_write(district) and coalesce(signed,false) = false)
+  with check (public.can_write(district));
 
 create policy "admin delete unsigned records" on public.hydrant_records
   for delete to authenticated
-  using (public.is_admin() and coalesce(signed,false) = false);
+  using (public.can_write(district) and coalesce(signed,false) = false);
 
 
 -- ---------------------------------------------------------------------------

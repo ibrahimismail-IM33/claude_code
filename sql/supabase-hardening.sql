@@ -64,6 +64,13 @@
 revoke execute on function public.is_admin() from public, anon;
 grant  execute on function public.is_admin() to authenticated;
 
+-- can_write(text) is the district-scoped write check (PRD §7.3). Like is_admin
+-- it is called INSIDE RLS policy expressions, so it follows the same rule:
+-- close the RPC endpoint to anon/PUBLIC, but `authenticated` MUST keep EXECUTE
+-- or every district-scoped write dies. Same failure mode, same fix.
+revoke execute on function public.can_write(text) from public, anon;
+grant  execute on function public.can_write(text) to authenticated;
+
 -- Trigger functions. Nothing calls these as a caller — each runs from its own
 -- trigger, as the trigger's owner — so all three roles can lose EXECUTE.
 revoke execute on function public.handle_new_user()      from public, anon, authenticated;
@@ -91,6 +98,7 @@ alter function public.stamp_row_audit() set search_path to 'public', 'pg_temp';
 --  Check it worked
 --    Expect exactly:
 --      function_name         anon   auth   search_path
+--      can_write             f      t      search_path=public   ← t is CORRECT
 --      handle_new_user       f      f      search_path=public
 --      is_admin              f      t      search_path=public   ← t is CORRECT
 --      lock_signed_records   f      f      search_path=public, pg_temp
@@ -118,7 +126,7 @@ select
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public'
-  and p.proname in ('is_admin','handle_new_user','lock_signed_records',
+  and p.proname in ('is_admin','can_write','handle_new_user','lock_signed_records',
                     'protect_signed_rows','stamp_row_audit')
 order by p.proname;
 
