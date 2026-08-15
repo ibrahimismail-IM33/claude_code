@@ -340,6 +340,62 @@ forever afterwards.
 and filters are cheap. Split the file by *feature* at ~6,000 lines or when a
 second developer joins — never by district.
 
+### 7.4 Full multi-district activation — FUTURE (do when district #2 arrives)
+
+Owner's decisions, 2026-08-15. **Not built — recorded so it is ready.** The
+trigger is deliberate: **build this when a second district actually onboards,
+not before.** A one-option selector and untested role paths shipped ahead of
+need are cost without value (§7.3 is why the visible selector was deferred).
+
+**What is already done** (§7.3, live): the `district` column, `can_write()`
+scoping every write to the officer's own district, and every read/scan/insert
+filtered and stamped. So "only own-district admin edits own district" — the
+owner's point #3 — **already holds.** What remains is the role tier, the
+provisioning panel, and the selector.
+
+**1. Role model — three tiers.** `viewer` < `admin` < **`upper_admin`** (a
+*district manager*). One or more `upper_admin` **per district**, who may
+create/promote the `admin`s and `viewer`s of **their own district only**. No
+cross-district authority. The `role` check constraint on `profiles` grows to
+`('viewer','admin','upper_admin')`.
+
+**2. Provisioning — an in-app admin panel.** A user-management screen (list
+accounts, set role, set district) so a district manager provisions their own
+people without touching Supabase. **This is the hard, security-critical part,
+and the crux is a hole that is latent today:** `admins manage profiles` is
+currently `for all ... using (is_admin())`, so **any admin can edit any
+profile's `role` AND `district`.** Harmless while single-district; the day there
+are two it is **privilege escalation** — a Kunak admin could set their own
+`district='TAWAU'` (and `can_write('TAWAU')` then passes) or promote anyone. So
+activation must:
+- **Scope `profiles` writes by district** — an `upper_admin` may write only rows
+  where `profiles.district = ` their own district.
+- **Constrain `role` and `district` changes** — an `upper_admin` may not grant
+  `upper_admin`, may not change their own `district`, and may not widen their own
+  scope. Ordinary `admin`/`viewer` keep no profile-write path at all.
+- **Forbid self-escalation.** §5 is the cautionary tale: a naive self-update
+  rule once handed viewers the ability to promote themselves. Enforce in RLS,
+  and prove it with a mutation-checked test — never trust the UI to hide it.
+
+**3. The `All › Kunak › Tawau …` selector.** **`All` is available to everyone,
+read-only across districts** (mutual aid); writes still only work in the
+officer's own district — `can_write` already enforces that, so a cross-district
+write is refused regardless of what the selector shows. **`All` deliberately
+breaks the flat-load** (§7.2 item 5): at many districts it is the full
+cross-district pull. Bound it or lazy-load it — do not let `All` become the
+default that puts every district on every phone.
+
+**Tests to add then** (extend the `v2-record-sync` T9/T10 pattern, stub the new
+policies, mutation-check each): an `upper_admin` cannot touch another district's
+profiles; cannot grant `upper_admin`; cannot change their own district; an
+`admin`/`viewer` still has no profile-write path; the `All` view reads
+cross-district but a cross-district *write* is still refused.
+
+**Cost estimate:** the role tier + `profiles` RLS is ~1 day and is where all the
+risk sits; the admin panel is a real feature (~2–3 days); the selector is small.
+Sequence the DB/RLS first (as with the foundation — schema before app), and the
+same escalation-guard test must be green before it ships.
+
 ## 8. Non-technical risks
 
 Every technical problem above is measurable and fixable in days. The risks in
