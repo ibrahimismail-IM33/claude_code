@@ -1,3 +1,9 @@
+// @ts-check
+/** @typedef {import('./types').Hydrant} Hydrant */
+/** A period as [startIso, endIso], both "YYYY-MM-DD". @typedef {[string, string]} Range */
+/** A half-year: h is 1 (Jan–Jun) or 2 (Jul–Dis). @typedef {{ y: number, h: number }} Half */
+/** One indexed Pengujian row: date, signed, penguji. @typedef {{ d: string, s: boolean, p: string }} PengRow */
+/** Pengujian rows keyed by hydrant id (as a string). @typedef {Record<string, PengRow[]>} PengIndex */
 /* The dashboard's data layer, as pure functions. Ported from index.html.
  *
  * The key architectural decision (CLAUDE.md §2): the dashboard stores NO
@@ -13,23 +19,35 @@
  */
 
 /* ---- period: rolling 6-month halves ---- */
+/** @param {Date} d @returns {1|2} */
 export function halfOf(d) { return d.getMonth() < 6 ? 1 : 2; }
 
+/** @param {Date} [now] @returns {Half[]} the current half plus three archived, newest first */
 export function halfList(now) {
   const n = now || new Date();
   let y = n.getFullYear(), h = halfOf(n);
-  const out = [];
+  /** @type {Half[]} */ const out = [];
   for (let i = 0; i < 4; i++) { out.push({ y, h }); if (h === 1) { h = 2; y--; } else { h = 1; } }
   return out;
 }
 
+/** @param {Half} o @returns {Range} */
 export function halfRange(o) {
   return o.h === 1 ? [o.y + '-01-01', o.y + '-06-30'] : [o.y + '-07-01', o.y + '-12-31'];
 }
 
+/** @param {Half} o @returns {string} */
 export function halfLabel(o) { return (o.h === 1 ? 'Jan – Jun ' : 'Jul – Dis ') + o.y; }
 
 /* ---- the index of Pengujian rows, by hydrant ---- */
+/**
+ * @param {PengIndex} idx mutated in place
+ * @param {string|number} id hydrant id
+ * @param {string|null|undefined} date a blank date is ignored (no row)
+ * @param {boolean|undefined} signed
+ * @param {string} [penguji]
+ * @returns {void}
+ */
 export function pushRow(idx, id, date, signed, penguji) {
   if (!date) return;
   const k = String(id);
@@ -53,9 +71,11 @@ export const SCAN_MAX = 50;     // hard stop so a bad response cannot loop forev
  * Returns null only if the FIRST page failed. A later failure keeps what has
  * been read so far, which is V1's behaviour: partial cloud data still beats
  * falling back to this device alone.
+ * @param {(from: number, to: number) => Promise<{ data?: any[]|null, error?: any }>} fetchPage
+ * @returns {Promise<PengIndex|null>} null only if the FIRST page failed
  */
 export async function scanPages(fetchPage) {
-  const idx = {};
+  /** @type {PengIndex} */ const idx = {};
   let from = 0, pages = 0;
   for (;;) {
     let res;
@@ -74,9 +94,13 @@ export async function scanPages(fetchPage) {
 
 /* Local cache first (synchronous, so the dashboard has figures immediately),
  * cloud merged in when it arrives. A device that has never opened a card still
- * shows real totals. */
+ * shows real totals.
+ * @param {Hydrant[]} hydrants
+ * @param {(id: number|undefined) => any} readForm reads a card's cached form by hydrant id
+ * @returns {PengIndex}
+ */
 export function scanLocal(hydrants, readForm) {
-  const idx = {};
+  /** @type {PengIndex} */ const idx = {};
   hydrants.forEach((h) => {
     const f = readForm(h.id);
     if (!f || !Array.isArray(f.pengujian)) return;
@@ -90,9 +114,10 @@ export function scanLocal(hydrants, readForm) {
  * A row present in both wins its SIGNED flag from either side — a signature
  * seen anywhere is real, and signatures are permanent, so this can only ever
  * move a row from unsigned to signed and never back.
+ * @param {PengIndex} a @param {PengIndex} b @returns {PengIndex}
  */
 export function mergeIndex(a, b) {
-  const out = {};
+  /** @type {PengIndex} */ const out = {};
   for (const k in a) if (Object.prototype.hasOwnProperty.call(a, k)) out[k] = a[k].slice();
   for (const k in b) {
     if (!Object.prototype.hasOwnProperty.call(b, k)) continue;
@@ -106,6 +131,7 @@ export function mergeIndex(a, b) {
   return out;
 }
 
+/** @param {PengIndex} idx @param {string|number} id @param {Range} range @returns {PengRow[]} */
 export function rowsInPeriod(idx, id, range) {
   const rows = idx[String(id)] || [];
   return rows.filter((r) => r.d >= range[0] && r.d <= range[1]);
@@ -132,6 +158,8 @@ export function rowsInPeriod(idx, id, range) {
  * Same-date rows are resolved together rather than by row order: the index
  * carries no row_index, and an unsigned row on the latest date needs a
  * signature whatever order it was typed in.
+ * @param {PengIndex} idx @param {Hydrant} h @param {Range} range
+ * @returns {'none'|'ok'|'wait'} none = no row; ok = Diperiksa; wait = Belum di-sign
  */
 export function inspStatusOf(idx, h, range) {
   const rows = rowsInPeriod(idx, h.id, range);
@@ -146,11 +174,13 @@ export function inspStatusOf(idx, h, range) {
  * state: no pill selected means the map shows everything, so the dashboard
  * covers all 187 too. An earlier version only asked "is it swasta?" and let
  * everything else fall through, so a cleared filter silently reported "Awam"
- * (CLAUDE.md §4.3). */
+ * (CLAUDE.md §4.3).
+ * @param {Hydrant[]} hydrants @param {string|null|undefined} activeFilter @returns {Hydrant[]} */
 export function dashList(hydrants, activeFilter) {
   return activeFilter ? hydrants.filter((h) => h.status === activeFilter) : hydrants;
 }
 
+/** @param {string|null|undefined} activeFilter @returns {string} */
 export function dashScopeLabel(activeFilter) {
   return activeFilter === 'swasta' ? 'Swasta' : (activeFilter === 'kerajaan' ? 'Awam' : 'Semua');
 }
@@ -163,9 +193,13 @@ export function dashScopeLabel(activeFilter) {
  * through so each row's Lokasi can search the map.
  *
  * Dates are ISO, so localeCompare on the string IS a date compare — no parsing
- * and no timezone, the same reasoning as the jadual sort. */
+ * and no timezone, the same reasoning as the jadual sort.
+ * @param {Hydrant[]} hydrants @param {string|null|undefined} activeFilter
+ * @param {PengIndex} idx @param {Range} range @param {number} [limit]
+ * @returns {{ d: string, label: string|undefined, loc: string, p: string, s: boolean }[]}
+ */
 export function recentRows(hydrants, activeFilter, idx, range, limit = 5) {
-  const byId = {};
+  /** @type {Record<string, Hydrant>} */ const byId = {};
   dashList(hydrants, activeFilter).forEach((h) => { byId[String(h.id)] = h; });
   const rows = [];
   Object.keys(idx).forEach((id) => {
@@ -179,6 +213,11 @@ export function recentRows(hydrants, activeFilter, idx, range, limit = 5) {
   return rows.slice(0, limit);
 }
 
+/**
+ * @param {Hydrant[]} hydrants @param {string|null|undefined} activeFilter
+ * @param {PengIndex} idx @param {Range} range
+ * @returns {{ total: number, ok: number, wait: number, none: number }}
+ */
 export function dashData(hydrants, activeFilter, idx, range) {
   const list = dashList(hydrants, activeFilter);
   const d = { total: list.length, ok: 0, wait: 0, none: 0 };

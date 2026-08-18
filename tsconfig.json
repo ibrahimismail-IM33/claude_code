@@ -1,0 +1,29 @@
+{
+  "//": [
+    "Type-CHECKING only — noEmit, checkJs. Scoped to the pure *-logic.js files:",
+    "they have no imports, no Pinia, no window, and their output is a contract",
+    "the parity suites pin, so they are exactly where a type slip is both most",
+    "likely to matter and cheapest to catch. The .vue and store/ files are NOT",
+    "in scope yet (Vue SFCs need vue-tsc; the stores pull in Pinia types) — this",
+    "is the incremental first step, not a whole-app migration.",
+    "",
+    "Deliberately loose: strict is OFF and noImplicitAny is OFF, so this documents",
+    "and catches real mistakes (undefined vars, wrong property access, bad arity)",
+    "without demanding every parameter be annotated. Tighten later, file by file."
+  ],
+  "compilerOptions": {
+    "checkJs": true,
+    "allowJs": true,
+    "noEmit": true,
+    "target": "es2020",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2020", "dom"],
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "types": [],
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["v2/src/stores/*-logic.js"]
+}

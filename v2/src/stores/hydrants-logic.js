@@ -1,3 +1,5 @@
+// @ts-check
+/** @typedef {import('./types').Hydrant} Hydrant */
 /* Reading the register, as pure functions. Ported from index.html.
  *
  * PostgREST caps a response at 1000 rows and reports NO error when it does, so
@@ -20,7 +22,11 @@ export const LOAD_MAX = 50;      // hard stop so a bad response cannot loop fore
  * {data, error}. Returns null when the read failed at any point — the caller
  * must then keep what it already has.
  *
- * Ordered by id at the call site so range() cannot repeat or skip a row. */
+ * Ordered by id at the call site so range() cannot repeat or skip a row.
+ * @param {(from: number, to: number) => Promise<{ data?: any[]|null, error?: any }>} fetchPage
+ * @param {{ pageSize?: number, maxPages?: number }} [opts]
+ * @returns {Promise<{ rows: any[], pages: number } | null>} null on any read failure
+ */
 export async function pageAll(fetchPage, opts = {}) {
   const pageSize = opts.pageSize || LOAD_PAGE;
   const maxPages = opts.maxPages || LOAD_MAX;
@@ -38,6 +44,7 @@ export async function pageAll(fetchPage, opts = {}) {
 }
 
 // A short page means the end. A full page means there may be more.
+/** @param {any[]|null|undefined} rows @returns {boolean} */
 export function shouldApply(rows) {
   return !!(rows && rows.length);
 }
@@ -47,6 +54,9 @@ export function shouldApply(rows) {
  * `lastInspected` falls back to what this device already knew: the pin's date
  * badge is derived from the Pengujian rows, which a hydrants read does not
  * carry, so dropping it would blank every badge on each background pull.
+ * @param {any[]} rows server rows (snake_case: last_inspected, lat, lng…)
+ * @param {Hydrant[]} [prev] the current in-memory list, for the lastInspected fallback
+ * @returns {Hydrant[]}
  */
 export function mapRows(rows, prev) {
   const known = {};
@@ -73,6 +83,7 @@ export function mapRows(rows, prev) {
 export const PULL_MIN = 10000;
 export const PULL_EVERY = 60000;
 
+/** @param {number} now @param {number} lastPull @param {boolean} [force] @returns {boolean} */
 export function shouldPull(now, lastPull, force) {
   if (force) return true;
   return now - lastPull >= PULL_MIN;

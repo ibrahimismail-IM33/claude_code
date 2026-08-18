@@ -1,3 +1,5 @@
+// @ts-check
+/** @typedef {import('./types').Hydrant} Hydrant */
 /* The map layer, as pure functions. Ported from index.html.
  *
  * Leaflet itself stays imperative behind v2/src/lib/leaflet.js — 187 markers
@@ -17,10 +19,12 @@ export const ORDER = ['kerajaan', 'swasta'];
 
 const pad = (n) => String(n).padStart(2, '0');
 
+/** @param {any} s @returns {string} HTML-escaped */
 export function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
 }
 
+/** @param {string|null|undefined} d ISO date @returns {string} "dd/mm/yy" or '' */
 export function fmtBadge(d) {
   if (!d) return '';
   const x = new Date(d);
@@ -45,10 +49,17 @@ export function fmtBadge(d) {
  *
  * Returned rather than performed, so the decision can be tested without a map.
  */
+/** @param {Hydrant[]} visible @returns {string} the sorted-id key the fit rule compares on */
 export function keyOf(visible) {
   return visible.map((h) => h.id).sort((a, b) => a - b).join(',');
 }
 
+/**
+ * @param {Hydrant[]} visible
+ * @param {string} fittedKey the key last fitted to
+ * @param {boolean} noFitOnce armed by a background pull to record the key without fitting
+ * @returns {{ fit: boolean, fittedKey: string, noFitOnce: boolean }}
+ */
 export function fitDecision(visible, fittedKey, noFitOnce) {
   const key = keyOf(visible);
   if (noFitOnce) return { fit: false, fittedKey: key, noFitOnce: false };
@@ -59,7 +70,12 @@ export function fitDecision(visible, fittedKey, noFitOnce) {
 /* ---- marker and tooltip markup ----
  * Copied from V1. The badge carries the last inspection date and the amber "!"
  * marks a card on this device that has not reached the server — an officer
- * should not have to open every pili to find what has not synced (§3). */
+ * should not have to open every pili to find what has not synced (§3).
+ * @param {string} status 'kerajaan' | 'swasta'
+ * @param {string|null|undefined} last last-inspected ISO date
+ * @param {boolean} [pending] there is unsent work on this pin
+ * @returns {string}
+ */
 export function markerHtml(status, last, pending) {
   const color = STATUS[status].hex;
   const badge = last ? '<div class="hydrant-date-badge ' + status + '">' + fmtBadge(last) + '</div>' : '';
@@ -79,6 +95,7 @@ export function markerHtml(status, last, pending) {
 
 export const ICON_OPTS = { className: '', iconSize: [42, 74], iconAnchor: [21, 52], popupAnchor: [0, -62] };
 
+/** @param {Hydrant} h @param {boolean} [pending] @returns {string} */
 export function tipHtml(h, pending) {
   const c = STATUS[h.status];
   return '<div style="display:flex;flex-direction:column;gap:2px"><div style="display:flex;align-items:center;gap:6px">'
@@ -98,22 +115,30 @@ export function tipHtml(h, pending) {
  * Kept pure and separate so the rules can be asserted without a map, a modal
  * or a geolocation prompt — none of which a headless browser gives honestly.
  */
+/** @param {Hydrant[]} hydrants @returns {number} the next free id */
 export function nextId(hydrants) {
   return hydrants.length ? Math.max.apply(null, hydrants.map((h) => h.id)) + 1 : 1;
 }
 
 // V1's default label for a new unit: "PILI 07". Deliberately NOT a zone label —
 // zones are derived from what the officer types, never invented here.
+/** @param {Hydrant[]} hydrants @returns {string} e.g. "PILI 07" */
 export function defaultLabel(hydrants) {
   return 'PILI ' + pad(nextId(hydrants));
 }
 
+/** @returns {string} today as "YYYY-MM-DD" */
 export function today() { return new Date().toISOString().split('T')[0]; }
 
 // A future inspection date is not a record of anything, so it is pulled back
 // to today rather than rejected — the officer keeps typing either way.
+/** @param {string} v ISO date @returns {string} v, or today if v is in the future */
 export function clampDate(v) { return (v && v > today()) ? today() : v; }
 
+/**
+ * @param {any} lat @param {any} lng @param {any} label
+ * @returns {{ la: boolean, lo: boolean, lb: boolean }} per-field validity: latitude, longitude, label
+ */
 export function validAdd(lat, lng, label) {
   const a = parseFloat(lat), b = parseFloat(lng);
   return {
@@ -123,6 +148,7 @@ export function validAdd(lat, lng, label) {
   };
 }
 
+/** @param {any} lat @param {any} lng @param {any} label @returns {boolean} all three fields valid */
 export function canAdd(lat, lng, label) {
   const v = validAdd(lat, lng, label);
   return v.la && v.lo && v.lb;
@@ -134,6 +160,11 @@ export function canAdd(lat, lng, label) {
 // one-line change then. Do not spread it.
 export const NEW_LOCATION = 'Kunak, Sabah';
 
+/**
+ * @param {Hydrant[]} hydrants the current register, for id allocation
+ * @param {{ label: string, lat: any, lng: any, status: string, insp: string }} fields
+ * @returns {Hydrant}
+ */
 export function newHydrant(hydrants, { label, lat, lng, status, insp }) {
   return {
     id: nextId(hydrants),
@@ -149,6 +180,7 @@ export function newHydrant(hydrants, { label, lat, lng, status, insp }) {
 /* The geolocation failure messages, in Bahasa Malaysia, keyed by the
  * PositionError code. Field-facing text: each one says what to DO, because an
  * officer standing beside a hydrant cannot act on "error 2". */
+/** @param {{ code?: number }|null|undefined} err a GeolocationPositionError @returns {string} */
 export function geoMessage(err) {
   if (!err) return 'Tidak dapat mengambil lokasi.';
   if (err.code === 1) return 'Kebenaran lokasi ditolak. Benarkan akses lokasi dalam tetapan pelayar.';
@@ -159,6 +191,7 @@ export function geoMessage(err) {
 
 // Accuracy is reported rather than hidden, and 30 m is the line V1 draws: a
 // pin that vague is worth re-taking in the open.
+/** @param {number} accuracy metres @returns {{ text: string, colour: string, low: boolean }} */
 export function geoAccuracyMessage(accuracy) {
   const acc = Math.round(accuracy || 0);
   return {

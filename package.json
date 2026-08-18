@@ -35,6 +35,7 @@
     "test:v2parity": "node tests/v2-parity-surface.js",
     "test:v2sigprint": "node tests/v2-signature-print-parity.js",
     "test:v2pendbanner": "node tests/v2-pending-banner.js",
+    "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint v2/src",
     "lint:ci": "eslint v2/src --max-warnings 0",
     "lint:fix": "eslint v2/src --fix",
@@ -44,6 +45,7 @@
   "devDependencies": {
     "@eslint/js": "9.39.1",
     "@vitejs/plugin-vue": "6.0.8",
+    "typescript": "5.9.3",
     "eslint": "9.39.1",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-vue": "10.5.0",

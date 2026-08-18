@@ -1,3 +1,9 @@
+// @ts-check
+/** One record row: dynamic column fields plus optional client-only `_`-prefixed state. @typedef {Record<string, any>} Row */
+/** A column definition. `t` is the input kind ('date' | 'text' | 'sign'). @typedef {{ k: string, t: string }} Col */
+/** A section definition (title, capacity, columns, print head). @typedef {{ title: string, perPage: number, cols: Col[], thead: string }} Section */
+/** A Kad Rekod form: a header plus one Row[] per section, reached by section key. @typedef {{ header: Record<string, any>, [section: string]: any }} Form */
+/** A parked-queue entry: an upsert (carries `data`) or a removal marker (carries `removed`). @typedef {{ section: string, row_index: number, base?: any, data?: any, removed?: boolean }} ParkedEntry */
 /* The Kad Rekod's shape and growth rules, as pure functions.
  *
  * READ docs/KAD-REKOD.md BEFORE CHANGING ANYTHING HERE. The Kad Rekod is a
@@ -63,17 +69,20 @@ export const SECTIONS = {
       + '<th>Tarikh</th><th>Masa</th><th>Seksyen</th><th>Jumlah Tawaran (RM)</th><th>No. Tawaran</th><th>Tarikh dan Jumlah Bayaran</th></tr>' },
 };
 
+/** @param {string} sec @returns {Row} a blank row with every column key present and '' */
 export function emptyRow(sec) {
-  const o = {};
+  /** @type {Row} */ const o = {};
   SECTIONS[sec].cols.forEach((c) => { o[c.k] = ''; });
   return o;
 }
 
+/** @param {Row} row @param {Col} c @returns {boolean} the cell has non-whitespace content */
 export function cellFilled(row, c) {
   return !!(row[c.k] && String(row[c.k]).trim() !== '');
 }
 
 // "Has anything been typed here" — signature columns do not count as content.
+/** @param {string} sec @param {Row} row @returns {boolean} */
 export function rowHasData(sec, row) {
   return SECTIONS[sec].cols.some((c) => c.t !== 'sign' && cellFilled(row, c));
 }
@@ -86,6 +95,7 @@ export function rowHasData(sec, row) {
  * worst possible failure for a field app. The first column of every section is
  * the Tarikh, and a record without a date is not a record, so that one is
  * required and one more field must back it up.
+ * @param {string} sec @param {Row} row @returns {boolean}
  */
 export function rowIsComplete(sec, row) {
   const cols = SECTIONS[sec].cols;
@@ -93,8 +103,9 @@ export function rowIsComplete(sec, row) {
   return cols.some((c, i) => i > 0 && c.t !== 'sign' && cellFilled(row, c));
 }
 
+/** @returns {Form} a fresh form: empty header + one page of blank rows per section */
 export function blankForm() {
-  const f = { header: { lokasi: '', tarikh_pasang: '', no_keahlian: '', tarikh_daftar: '' } };
+  /** @type {Form} */ const f = { header: { lokasi: '', tarikh_pasang: '', no_keahlian: '', tarikh_daftar: '' } };
   SEC_ORDER.forEach((s) => {
     f[s] = [];
     for (let i = 0; i < SECTIONS[s].perPage; i++) f[s].push(emptyRow(s));
@@ -106,7 +117,8 @@ export function blankForm() {
  * exact multiple of its perPage count, so card N shows rows
  * [N*perPage .. +perPage). Whichever section fills first decides: fifteen
  * Pengujian entries create a new card even though Kompaun still has eight free
- * rows, exactly as a new paper card would. */
+ * rows, exactly as a new paper card would.
+ * @param {Form} f @returns {number} how many whole 2-page cards this form spans */
 export function cardCount(f) {
   let n = 1;
   SEC_ORDER.forEach((s) => {
@@ -116,6 +128,7 @@ export function cardCount(f) {
   return n;
 }
 
+/** @param {Form} f mutated in place @param {number} n card count to pad to @returns {Form} */
 export function padToCards(f, n) {
   SEC_ORDER.forEach((s) => {
     if (!Array.isArray(f[s])) f[s] = [];
@@ -128,7 +141,8 @@ export function padToCards(f, n) {
 /* Signed rows carry their evidence through normalisation untouched. A signed
  * row is permanent — it cannot be edited, cleared or deleted by anyone,
  * including an admin — and that is enforced here, in RLS, and in a database
- * trigger independently. */
+ * trigger independently.
+ * @param {Form} f mutated in place @returns {Form} padded to whole cards, signed rows preserved */
 export function normalizeForm(f) {
   if (!f.header) f.header = { lokasi: '', tarikh_pasang: '', no_keahlian: '', tarikh_daftar: '' };
   SEC_ORDER.forEach((s) => {
@@ -167,7 +181,7 @@ export function normalizeForm(f) {
  * This is evaluated on SAVE, not on keystroke: a half-typed row is not a
  * record, and a card conjured by one stray keypress is a card the officer then
  * has to explain. See docs/KAD-REKOD.md §2.
- */
+ * @param {Form} f @returns {boolean} */
 export function needsNewCard(f) {
   return SEC_ORDER.some((s) => {
     const arr = (f && f[s]) || [];
@@ -180,6 +194,7 @@ export function needsNewCard(f) {
 // early on a blank used to leave the map advertising an inspection the record
 // no longer held while the dashboard, reading the same rows, said "Belum
 // diperiksa" (CLAUDE.md §3).
+/** @param {Form} f @returns {string} latest Pengujian date, or '' (which clears the badge) */
 export function latestPengujianDate(f) {
   let best = '';
   ((f && f.pengujian) || []).forEach((r) => {
@@ -197,6 +212,7 @@ export function latestPengujianDate(f) {
  * because it is a short-lived signed link resolved per viewing and never
  * persisted; including it would make every comparison differ.
  */
+/** @param {Form|null|undefined} f @returns {string} a stable fingerprint, `_sigUrl` excluded */
 export function formFingerprint(f) {
   if (!f) return '';
   const out = [f.header || {}];
@@ -225,15 +241,19 @@ export function formFingerprint(f) {
 
 // Anything prefixed `_` is client state (_signed, _sig, _sigUrl) and must never
 // be written to the database.
+/** @param {Row} r @returns {Row} r without any `_`-prefixed client-only field */
 export function cleanRow(r) {
-  const o = {};
+  /** @type {Row} */ const o = {};
   Object.keys(r || {}).forEach((k) => { if (k.charAt(0) !== '_') o[k] = r[k]; });
   return o;
 }
 
 /* The rows to upsert. A SIGNED ROW IS NEVER SENT — not as an update, not as an
  * identical no-op. It is permanent, and the safest client is one that never
- * even asks. */
+ * even asks.
+ * @param {number|string} id hydrant id @param {Form} f
+ * @returns {{ hydrant_id: (number|string), section: string, row_index: number, data: Object }[]}
+ */
 export function upsertRows(id, f) {
   const rows = [{ hydrant_id: id, section: 'header', row_index: 0, data: f.header }];
   SEC_ORDER.forEach((s) => {
@@ -257,9 +277,14 @@ export function upsertRows(id, f) {
  *               on a snapshot we never took would delete rows this device has
  *               simply not seen yet.
  *   null      → the row did not exist there, so there is nothing to delete.
+ * @param {Form} f
+ * @param {boolean} isAdmin a viewer's delete is refused by RLS, so never park one
+ * @param {(sec: string, idx: number) => (Object|null|undefined)} baseFor what the cloud held at open
+ * @param {((sec: string, idx: number) => boolean)|null|undefined} signedInCloud the cloud's own signedness
+ * @returns {{ section: string, row_index: number, base: Object }[]}
  */
 export function deadRows(f, isAdmin, baseFor, signedInCloud) {
-  const out = [];
+  /** @type {{ section: string, row_index: number, base: Object }[]} */ const out = [];
   if (!isAdmin) return out;          // a viewer's delete is refused by RLS; never park one
   const wasSigned = signedInCloud || (() => false);
   SEC_ORDER.forEach((s) => {
@@ -290,11 +315,20 @@ export function deadRows(f, isAdmin, baseFor, signedInCloud) {
 // What gets parked when a save cannot land. Removals carry no data, so they are
 // parked as an explicit marker — without it a clear made with no signal would
 // simply evaporate.
+/**
+ * @param {{ section: string, row_index: number, data: Object }[]} rows the upsert set
+ * @param {{ section: string, row_index: number, base: Object }[]} dead the cleared rows
+ * @param {(sec: string, idx: number) => any} baseFor
+ * @returns {ParkedEntry[]} the parked queue: upserts plus removal markers
+ */
 export function parkRows(rows, dead, baseFor) {
-  return rows
+  /** @type {ParkedEntry[]} */
+  const upserts = rows
     .filter((r) => r.section !== 'header' || true)
-    .map((r) => ({ section: r.section, row_index: r.row_index, data: r.data, base: baseFor(r.section, r.row_index) }))
-    .concat((dead || []).map((d) => ({ section: d.section, row_index: d.row_index, removed: true, base: d.base })));
+    .map((r) => ({ section: r.section, row_index: r.row_index, data: r.data, base: baseFor(r.section, r.row_index) }));
+  /** @type {ParkedEntry[]} */
+  const removals = (dead || []).map((d) => ({ section: d.section, row_index: d.row_index, removed: true, base: d.base }));
+  return upserts.concat(removals);
 }
 
 /* Rebuild a card from what the cloud actually holds.
@@ -306,9 +340,12 @@ export function parkRows(rows, dead, baseFor) {
  *
  * Returns the form and the last edit, which is stamped by the DATABASE from the
  * login token — evidence, not something the page asserts.
+ * @param {Form} f the cache form to overwrite from the cloud
+ * @param {any[]} rows the server's rows for this card
+ * @returns {{ form: Form, lastEdit: ({ at: string, by: string }|null) }}
  */
 export function applyCloudRows(f, rows) {
-  let lastEdit = null;
+  /** @type {{ at: string, by: string }|null} */ let lastEdit = null;
   (rows || []).forEach((rec) => {
     if (rec.updated_at && (!lastEdit || rec.updated_at > lastEdit.at)) {
       lastEdit = { at: rec.updated_at, by: rec.updated_by || '' };
