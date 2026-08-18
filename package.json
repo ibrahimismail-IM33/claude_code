@@ -4,7 +4,7 @@
   "private": true,
   "description": "Build and test tooling for e-Pili Bomba Kunak. V1 \u2014 what officers run today \u2014 is still one static index.html with no build step. The Vite/Vue/Pinia dependencies belong to the V2 migration (docs/V2-ROADMAP.md) and reach nobody until cutover.",
   "scripts": {
-    "test": "npm run test:wiring && npm run test:offline && npm run test:clear && npm run test:kad && npm run test:zones && npm run test:paging && npm run test:csp && npm run test:signatures && npm run test:v2csp && npm run test:v2pending && npm run test:v2filters && npm run test:v2hydrants && npm run test:v2records && npm run test:v2donut && npm run test:v2dashdata && npm run test:v2dash && npm run test:v2css && npm run test:v2jadual && npm run test:v2map && npm run test:v2mapview && npm run test:v2mapsearch && npm run test:v2shell && npm run test:v2kad && npm run test:v2sync && npm run test:v2sig && npm run test:v2app && npm run test:v2parity && npm run test:v2sigprint && npm run test:v2pendbanner",
+    "test": "npm run test:wiring && npm run test:offline && npm run test:clear && npm run test:kad && npm run test:zones && npm run test:paging && npm run test:csp && npm run test:signatures && npm run test:v2csp && npm run test:v2pending && npm run test:v2filters && npm run test:v2hydrants && npm run test:v2records && npm run test:v2donut && npm run test:v2dashdata && npm run test:v2dash && npm run test:v2css && npm run test:v2jadual && npm run test:v2map && npm run test:v2mapview && npm run test:v2mapsearch && npm run test:v2shell && npm run test:v2kad && npm run test:v2sync && npm run test:v2sig && npm run test:v2app && npm run test:v2parity && npm run test:v2sigprint && npm run test:v2pendbanner && npm run test:v2cssdedup",
     "test:offline": "node tests/p0-offline-sync.js",
     "test:clear": "node tests/clear-row.js",
     "test:kad": "node tests/kad-rekod.js",
@@ -35,7 +35,9 @@
     "test:v2parity": "node tests/v2-parity-surface.js",
     "test:v2sigprint": "node tests/v2-signature-print-parity.js",
     "test:v2pendbanner": "node tests/v2-pending-banner.js",
+    "test:v2cssdedup": "node tests/v2-css-dedup.js",
     "typecheck": "tsc -p tsconfig.json",
+    "coverage": "c8 npm test",
     "lint": "eslint v2/src",
     "lint:ci": "eslint v2/src --max-warnings 0",
     "lint:fix": "eslint v2/src --fix",
@@ -45,6 +47,7 @@
   "devDependencies": {
     "@eslint/js": "9.39.1",
     "@vitejs/plugin-vue": "6.0.8",
+    "c8": "10.1.3",
     "typescript": "5.9.3",
     "eslint": "9.39.1",
     "eslint-config-prettier": "10.1.8",

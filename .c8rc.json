@@ -1,0 +1,16 @@
+{
+  "//": [
+    "Coverage baseline for the NODE-EXECUTED layer. Nine parity suites import the",
+    "pure v2/src/stores/*-logic.js (and lib/*) modules in node and drive them",
+    "directly (the browser suites run .vue/store code in Chromium, which node",
+    "coverage cannot see — so this measures the logic layer, which is exactly the",
+    "layer those suites are built to pin). `all: false` keeps 0%-in-node files",
+    "(the .vue and Pinia stores) out of the number rather than reporting them as",
+    "untested, which they are not — they are tested in the browser."
+  ],
+  "include": ["v2/src/stores/*-logic.js", "v2/src/lib/*.js"],
+  "all": false,
+  "reporter": ["text", "text-summary"],
+  "reports-dir": "coverage",
+  "clean": true
+}

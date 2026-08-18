@@ -239,3 +239,8 @@ jobs:
       # escaped before it reaches v-html on a legal record.
       - name: Offline-conflict banner (buildPendingItems, escaping)
         run: npm run test:v2pendbanner
+
+      # No selector defined identically in two stylesheets — the §4.27 "edit the
+      # wrong copy and it silently does nothing" trap, kept closed after dedup.
+      - name: CSS de-duplication (no identical cross-file selectors)
+        run: npm run test:v2cssdedup

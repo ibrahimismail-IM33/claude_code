@@ -17,3 +17,7 @@ playwright-report/
 # commit — including the test harness bundle that v2-csp.js asserts must stay
 # out of a production build. Keep it in both places.
 dist/
+
+# Coverage output (baseline is regenerated on demand)
+coverage/
+.nyc_output/
