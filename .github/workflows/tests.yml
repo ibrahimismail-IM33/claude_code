@@ -214,3 +214,8 @@ jobs:
       # flooded into a BLACK BOX (§4.15, also found on paper).
       - name: Printed signature (V1 vs V2, erasure and black box)
         run: npm run test:v2sigprint
+
+      # The offline-conflict banner: the officer's parked typing is shown AND
+      # escaped before it reaches v-html on a legal record.
+      - name: Offline-conflict banner (buildPendingItems, escaping)
+        run: npm run test:v2pendbanner

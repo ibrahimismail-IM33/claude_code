@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-export { planFlush, settle, sameData } from './pending-logic.js';
+export { planFlush, settle, sameData, buildPendingItems } from './pending-logic.js';
 
 /* The offline queue. Ported from index.html line by line, NOT redesigned.
  *

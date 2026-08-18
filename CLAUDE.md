@@ -985,6 +985,39 @@ Draw order: caps → walls → top faces (painter's algorithm).
       absent. Fourth defect of that shape (§4.22, §4.23, and the viewer-edit
       gap): the control is present, the behaviour behind it is missing.
 
+33. **The offline-conflict banner never rendered in V2 — the officer's parked
+    typing was invisible.** Found 2026-08-18 in an EM code-quality pass, from
+    the `v-html` on `pending.items` in `KadRekod.vue`.
+
+    On a three-way offline conflict the cloud wins (§3) and V1 shows the officer
+    exactly what they typed, per row, so they can put it back or drop it
+    (`renderPendingNotice`, index.html:2412-2444). **V2 shipped the KadRekod
+    template AND the `dropPending` emit but wired NEITHER:** `App.vue` passed no
+    `:pending`, built no items, and bound no `@drop-pending`. `planFlush` still
+    parked the contested rows correctly — the data was safe — but nothing
+    surfaced it, so the recovery UI that exists precisely so §4.10 cannot happen
+    quietly was itself quiet. Fifth defect of the "control present, behaviour
+    missing" shape (§4.22, §4.23, §4.32, the viewer-edit gap): the `v-html` block
+    existed and lint even flagged it, while the prop feeding it was dead.
+
+    Fixed by porting V1's item builder as a pure function
+    (`buildPendingItems`, `pending-logic.js`) and wiring `:pending` +
+    `@drop-pending` in `App.vue`, refreshed at open/save/drop the way V1 calls
+    `renderPendingNotice`.
+
+    Two things worth carrying:
+
+    - **The `v-html` was safe only because V1 escapes.** Every officer value
+      goes through `esc()` before it is wrapped in `<b>`; the builder is a
+      transcription of that, and an unescaped value here would be stored XSS on
+      a legal record. `tests/v2-pending-banner.js` plants a `<script>` payload
+      and asserts it is inert — mutation-verified red (5 fail) when `esc()` is
+      made a no-op. A clean fixture would have passed on the bug (§5).
+    - **Lint found the thread, not the defect.** The `vue/no-v-html` warning is
+      what drew the eye to a banner whose data was never connected. The
+      structural parity suite was green throughout — the `v-html` and the emit
+      both EXIST — which is the same blind spot as every entry above.
+
 ## 5. Things I got wrong (so they aren't repeated)
 
 - **Overstated a CSS collision risk.** I claimed `table/th/td` was "especially"
