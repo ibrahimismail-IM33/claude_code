@@ -36,6 +36,7 @@
     "test:v2sigprint": "node tests/v2-signature-print-parity.js",
     "test:v2pendbanner": "node tests/v2-pending-banner.js",
     "lint": "eslint v2/src",
+    "lint:ci": "eslint v2/src --max-warnings 0",
     "lint:fix": "eslint v2/src --fix",
     "format": "prettier --write v2/src",
     "format:check": "prettier --check v2/src"

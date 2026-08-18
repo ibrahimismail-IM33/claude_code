@@ -52,6 +52,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Static analysis on the V2 app, BEFORE the browser suites — it needs no
+      # Chromium and runs in a second, so a lint failure fails fast without
+      # paying for the browser install. --max-warnings 0: the app is at zero
+      # today, so any new warning (an unused var, a self-compare, an
+      # unannotated v-html) breaks CI until fixed or explicitly justified.
+      # This is part of the publish gate (release-gate.yml calls this workflow),
+      # so a lint regression cannot reach officers. Scope is v2/src only — V1
+      # index.html is the frozen rollback and is deliberately not linted.
+      - name: Lint (V2, zero warnings)
+        run: npm run lint:ci
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
