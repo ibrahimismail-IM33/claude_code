@@ -33,12 +33,22 @@
     "test:v2sig": "node tests/v2-signatures.js",
     "test:v2app": "node tests/v2-app-live.js",
     "test:v2parity": "node tests/v2-parity-surface.js",
-    "test:v2sigprint": "node tests/v2-signature-print-parity.js"
+    "test:v2sigprint": "node tests/v2-signature-print-parity.js",
+    "lint": "eslint v2/src",
+    "lint:fix": "eslint v2/src --fix",
+    "format": "prettier --write v2/src",
+    "format:check": "prettier --check v2/src"
   },
   "devDependencies": {
+    "@eslint/js": "9.39.1",
     "@vitejs/plugin-vue": "6.0.8",
+    "eslint": "9.39.1",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-vue": "10.5.0",
     "playwright": "1.56.1",
-    "vite": "8.2.1"
+    "prettier": "3.6.2",
+    "vite": "8.2.1",
+    "vue-eslint-parser": "10.2.0"
   },
   "engines": {
     "node": ">=20"

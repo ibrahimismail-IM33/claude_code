@@ -1,0 +1,9 @@
+# V1 is the frozen rollback — one static file, no build step (CLAUDE.md §3).
+# Reformatting it would create a large, risky diff on the live rollback app.
+index.html
+
+# Not ours / generated.
+dist/
+node_modules/
+vendor/
+package-lock.json

@@ -1257,6 +1257,14 @@ Watch items:
   selected period and capped at 1000. Far beyond realistic volume for six
   months, and if it ever hits the cap the header says so rather than
   undercounting quietly. Paginate if it becomes real.
+- **National-scale map & geography is planned in `docs/PRD.md` §7.5 — FUTURE,
+  do not build.** Extends the §7.4 activation upward from one district to a
+  state and eventually all of Malaysia (~100k hydrants): a `state` tier above
+  `district`, and the recorded conclusion that the map scales **without a
+  WebGL/MapLibre rewrite** via three legs (state/district filter + bbox/viewport
+  loading on a spatial index + server-side count-bubble aggregation). The map is
+  the easy part; the **role/tenancy/governance model is the hard part**. Read
+  §7.5 before scaling past Kunak; onboarding state/district #2 is the trigger.
 
 ---
 

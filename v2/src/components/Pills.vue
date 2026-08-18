@@ -11,7 +11,7 @@ import { STATUS, ORDER } from '../stores/map-logic.js';
  * The counts are of the WHOLE register, not the filtered view: a pill showing
  * "17" that becomes "17 of 17" when tapped would tell an officer nothing.
  */
-const props = defineProps({
+defineProps({
   counts: { type: Object, required: true },     // { kerajaan, swasta } over the whole register
   active: { type: String, default: null },
 });

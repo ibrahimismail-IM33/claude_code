@@ -29,7 +29,7 @@ import logo from '../assets/logo.png';
  * The mobile kicker shows "BBP KUNAK" only. The full string is ~200px and
  * forced an extra header row; the short form costs nothing (§3).
  */
-const props = defineProps({
+defineProps({
   tab: { type: String, default: 'map' },
   counts: { type: Object, required: true },
   statusFilter: { type: String, default: null },

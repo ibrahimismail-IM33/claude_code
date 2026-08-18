@@ -396,6 +396,134 @@ risk sits; the admin panel is a real feature (~2–3 days); the selector is smal
 Sequence the DB/RLS first (as with the foundation — schema before app), and the
 same escalation-guard test must be green before it ships.
 
+### 7.5 National-scale map & geography — FUTURE (do when state/district #2 arrives)
+
+**Not built. A written plan for whoever scales past Kunak.** No code, no SQL, no
+RLS, no map-library change is implied here — this section only records the
+decisions already made about the growth path so the person who onboards
+district or state #2 inherits the reasoning instead of re-deriving it. Read
+§7.1 (never fork), §7.2 (what breaks), §7.3 (the district foundation, DONE) and
+§7.4 (activation) first; this extends all four upward, from one district to a
+state and eventually to the whole country.
+
+The scale being planned for: Kunak is ~200 hydrants today. Assume up to **~10k
+in one state** and **~100k+ nationally** as the outer envelope. The question
+that prompted this: *can the map scale to that without a WebGL/MapLibre
+rewrite?* **The answer is yes — and the map is the easy part. The hard part is
+roles, tenancy and governance.**
+
+#### 1. Geography is a hierarchy: Malaysia › State › District › Zone
+
+Add a **`state`** tier **above** the existing `district` column, using the exact
+same pattern the district foundation used (§7.3): a `state text not null default
+'SABAH'` column on `hydrants`, `hydrant_records`, `jadual_pemeriksaan` and
+`profiles`, with reads global (mutual aid) and writes scoped. Zones stay derived
+from the label's leading letter (§3), never stored — a fourth stored tier is a
+fourth thing to drift.
+
+**Do not fork per state or per district.** §7.1 already ruled this out and the
+reason is unchanged: `claude_code` and `e-pili-bomba` drifted 7 commits apart
+once and officers ran a live app missing fixes. One national Supabase project,
+one codebase, RLS-scoped by `state` **and** `district`. **~100k rows is trivial
+for one Postgres with the right indexes** — a spatial/composite index on
+`(state, district)` and on lat/lng makes every scoped or bounded query cheap.
+The database is not the constraint at this scale; nothing about 100k rows argues
+for sharding, a second project, or a rewrite.
+
+#### 2. The map scales WITHOUT WebGL — via three legs, not one
+
+The instinct is "just filter by state and it's fine." **The filter alone is not
+the whole answer.** Three legs work together, and the middle one is what makes
+100k a non-event:
+
+- **(a) State/district filter — bounds the common working set.** Extends §7.2
+  item 5 and §7.4: an officer's phone flat-loads only their own district's
+  hydrants, Kunak-sized whether the country holds 2 districts or 300. This keeps
+  the *everyday* view flat. It does **not**, on its own, answer "show me all of
+  Malaysia" — that is what (b) and (c) are for.
+- **(b) Bbox / viewport loading + a lat/lng spatial index — draws only one
+  screenful.** The map requests only the hydrants inside the current viewport
+  bounding box, served by a spatial index. **Any** view — even "All Malaysia"
+  zoomed to a city — then draws only one screen's worth of pins, a few hundred
+  at most, regardless of whether the register holds 200 or 100k. **This is the
+  leg that makes 100k a non-event**, because on-screen pin count stops tracking
+  total register size and starts tracking screen area, which is constant.
+- **(c) Server-side aggregation (RPC / materialized view) — count bubbles when
+  zoomed out.** At the national or state zoom level, showing individual pins is
+  neither useful nor drawable. Instead the server returns **per-region COUNT
+  bubbles** (per state, then per district) — "Sabah: 4,120", "Kunak: 203" — from
+  an RPC or a materialized view. Zooming in hands off from bubbles to (b)'s
+  real pins at a threshold zoom. The officer never sees 100k markers because the
+  UX never asks for them.
+
+**WebGL / MapLibre is explicitly DEFERRED — someday, probably never.** A vector/
+WebGL rewrite is only justified by **100k+ simultaneously on-screen pins** or
+heavy vector styling, and the three-leg approach above means this UX never puts
+more than a screenful of pins down at once. Leaflet + the current tile stack
+stays. Revisit only if a concrete requirement appears that legs (a)–(c) cannot
+serve — and note that no requirement seen so far comes close.
+
+#### 3. Measure before building any leg
+
+Do not build (a), (b) or (c) on faith. **Seed a throwaway Supabase branch with
+~10k synthetic hydrants, open the "All" view on a real mid-range phone over a
+throttled network, and record render time AND payload size.** That single
+measurement decides which legs are actually needed and in what order — it is
+entirely possible the filter plus bbox loading is enough and aggregation waits.
+Same discipline as every other decision in this file: measure on the device and
+the network the app is actually used on, never reason from a screenshot or a
+desktop.
+
+#### 4. THE HARD PART is governance, not the map
+
+The three legs above are, together, a few days of well-understood work. **The
+real work is the role and tenancy model**, and it is where every risk sits. At
+state/national scale the §7.4 `upper_admin` (district-manager) tier needs a
+**state tier above it** — a JBPM state HQ that manages the districts within its
+state — and every governance mechanism gets one layer deeper:
+
+- **Role model grows a tier.** `viewer` < `admin` < `upper_admin` (district
+  manager) < **state manager** (or an `upper_admin` scoped to a whole state).
+  The `profiles` `role`/scope model from §7.4 extends to carry `state` as well
+  as `district`, and "who may provision whom" now spans two levels of
+  hierarchy.
+- **Provisioning goes one level deeper.** The in-app account panel (§7.4 item 2)
+  must scope by `state` as well as `district`: a state manager provisions and
+  manages the district managers of *their own state only*, who in turn manage
+  their own district's admins and viewers. No cross-state authority, mirroring
+  the no-cross-district rule.
+- **The self-escalation guard gets harder, and it is the crux.** §7.4 already
+  flags that `admins manage profiles` is `using (is_admin())` — any admin can
+  today edit any profile's `role` and `district`, which becomes privilege
+  escalation the moment there are two districts. Adding a `state` tier widens the
+  same hole: a profiles-write rule must now forbid changing one's own `state`,
+  granting a tier at or above one's own, or widening one's own scope — across two
+  hierarchy levels instead of one. **§5 is the cautionary tale** (a naive
+  self-update rule once let viewers promote themselves). Enforce every part in
+  RLS, never in the UI, and prove each with a mutation-checked test before it
+  ships.
+- **The audit trail gets one layer deeper.** `stamp_row_audit()` takes identity
+  from the JWT and never the request body (§3, §5); at national scale the audit
+  question becomes "which officer, in which district, in which state" — the same
+  token-derived identity, one more dimension to record and query.
+
+**Flag for whoever picks this up:** budget the map as the small, measurable part
+and the governance/RLS/provisioning as the large, risky part. Do the DB/RLS
+first (schema before app, as with the foundation), keep the escalation-guard
+tests green, and remember the §8 non-technical risks (single maintainer, support
+coverage, account administration, deploy windows) scale *faster* than any of
+this — they, not the map, are what end projects at this size.
+
+#### Constraints that still bind at every scale
+
+Nothing here loosens the invariants. `authenticated` **keeps EXECUTE** on
+`is_admin()` and `can_write()` (§5); signed rows and signature images stay
+permanent, the bucket keeps no UPDATE/DELETE policy; **reads stay global for
+mutual aid, writes stay scoped** — now by `(state, district)` rather than
+district alone; and the `sql/` scripts are what a recovery actually applies, so
+any of this that is ever built changes production **and** the script in the same
+step ("change production, change the script", §7 watch-list).
+
 ## 8. Non-technical risks
 
 Every technical problem above is measurable and fixable in days. The risks in
