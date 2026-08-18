@@ -14,7 +14,7 @@ import { useRecordsStore } from './stores/records.js';
 import { useRecordSyncStore } from './stores/record-sync.js';
 import { useDashboardStore } from './stores/dashboard.js';
 import { inspStatusOf as inspStatusFor, halfList, halfRange } from './stores/dashboard-logic.js';
-import { usePendingStore } from './stores/pending.js';
+import { usePendingStore, buildPendingItems } from './stores/pending.js';
 import { useJadualStore } from './stores/jadual.js';
 import { useProfileStore } from './stores/profile.js';
 import { counts as countsOf } from './stores/filters-logic.js';
@@ -236,6 +236,12 @@ async function addHydrant(h) {
 /* The open card. `openHydrant` non-null IS the open state — there is no second
  * boolean to fall out of step with it. */
 const openHydrant = ref(null);
+/* The offline-conflict banner for the open card: what the officer typed while
+ * offline on rows another device also changed (§4.10). Held as a ref and
+ * refreshed imperatively at the same points V1 calls renderPendingNotice —
+ * open, save, drop — because the parked rows live in localStorage, not in
+ * reactive state. Null when there is nothing contested to show. */
+const cardPending = ref(null);
 const signing = ref(null);          // {section,row} while the popup is open
 const signBusy = ref(false);
 const signError = ref('');
@@ -274,6 +280,9 @@ async function openCard(h) {
   if (records.needsNewCard(records.form)) records.grow(records.form);
   // Signed links are a separate round trip and the officer must not wait on it.
   await sync.resolveSignatures(sb.value, records.form);
+  // sync.open flushed first and parked anything genuinely contested (§4.10);
+  // surface it so the officer can see and re-enter what the cloud overwrote.
+  refreshCardPending();
 }
 
 /* Signing. Admin-only here AND in RLS — this component's check is courtesy. */
@@ -343,7 +352,31 @@ async function confirmSign(dataUrl) {
   records.saveLocal(h.id, records.form);
   signing.value = null;
 }
-function closeCard() { openHydrant.value = null; }
+function closeCard() { openHydrant.value = null; cardPending.value = null; }
+
+/* Rebuild the offline-conflict banner from what is currently parked for the
+ * open card. Called after open, save and drop — the same points V1 re-renders
+ * renderPendingNotice — because parked rows live in localStorage and do not
+ * drive Vue reactivity on their own. */
+function refreshCardPending() {
+  const h = openHydrant.value;
+  if (!h) { cardPending.value = null; return; }
+  const p = pending.load(h.id);
+  const items = p ? buildPendingItems(p.rows) : [];
+  cardPending.value = items.length ? { items } : null;
+}
+
+/* The officer discards their parked offline copy for this card. V1's #fPendDrop:
+ * a confirm, then the parked entry is removed and the banner re-rendered. The
+ * map pin's amber "!" must clear too, so redraw it. */
+function dropPending() {
+  const h = openHydrant.value;
+  if (!h) return;
+  if (!window.confirm('Buang taipan luar talian ini? Tindakan ini tidak boleh dibatalkan.')) return;
+  pending.save(h.id, null);
+  refreshMap();
+  refreshCardPending();
+}
 
 function editCell(e) {
   const f = records.form;
@@ -403,6 +436,8 @@ async function saveCard() {
   saveState.value = (res && res.ok) ? 'ok' : 'local';
   // A parked save shows the amber ! on the pin, so the map has to follow that too.
   refreshMap();
+  // A contested row parked by this save has to appear in the banner too.
+  refreshCardPending();
   saveStateTimer = setTimeout(() => { saveState.value = ''; saveStateTimer = null; }, 4000);
 }
 
@@ -548,9 +583,10 @@ onBeforeUnmount(() => {
               :last-edit="sync.lastEdit" :cloud-note="sync.note" :save-state="saveState"
               :signing="signing" :sign-busy="signBusy" :sign-error="signError"
               :profile-sig="profileSig" :profile-sig-loading="profileSigLoading"
+              :pending="cardPending"
               @close="closeCard" @save="saveCard" @edit="editCell"
               @sign="startSign" @sign-cancel="signing = null" @sign-confirm="confirmSign"
-              @sign-go-profile="signGoProfile" />
+              @sign-go-profile="signGoProfile" @drop-pending="dropPending" />
 
     <AuthGate v-if="!auth.ready" :busy="authBusy" :error="authError" @sign-in="signIn" />
   </div>
