@@ -1,3 +1,4 @@
+// @ts-check
 /* The offline queue's decision table, as pure functions.
  *
  * Kept separate from the store on purpose: no Pinia import, no `window`, no
@@ -12,6 +13,16 @@
  * is identical.
  */
 
+/**
+ * A parked row: the officer's offline change queued for the server.
+ * `base` is what the cloud held when the card opened; `undefined` means the
+ * cloud was never read this session (so: change nothing).
+ * @typedef {{ section: string, row_index: number, data?: Object, base?: Object, removed?: boolean }} ParkedRow
+ */
+/** The server's current view of one row, keyed "section|row_index". @typedef {{ data?: Object, signed?: boolean }} CloudRow */
+/** @typedef {{ push: ParkedRow[], drop: ParkedRow[], keep: ParkedRow[] }} FlushPlan */
+
+/** @param {any} a @param {any} b @returns {boolean} deep-equal by JSON, false if either won't serialize */
 export function sameData(a, b) {
   try { return JSON.stringify(a || {}) === JSON.stringify(b || {}); } catch (e) { return false; }
 }
@@ -28,9 +39,14 @@ export function sameData(a, b) {
  * place. `base === undefined` means the cloud was never read this session, and
  * must mean "change nothing": acting on a snapshot we never took would remove
  * rows this device has simply not seen yet.
+ * @param {ParkedRow[]} parked
+ * @param {Record<string, CloudRow>} cloud keyed "section|row_index"
+ * @returns {FlushPlan}
  */
 export function planFlush(parked, cloud) {
-  const push = [], drop = [], keep = [];
+  /** @type {ParkedRow[]} */ const push = [];
+  /** @type {ParkedRow[]} */ const drop = [];
+  /** @type {ParkedRow[]} */ const keep = [];
   parked.forEach((row) => {
     const cur = cloud[row.section + '|' + row.row_index];
     if (cur && cur.signed) { keep.push(row); return; }   // signed is permanent, never overwrite
@@ -55,6 +71,10 @@ export function planFlush(parked, cloud) {
  * cache, no longer flagged as unsent, and overwritten by the cloud on the next
  * open. That is §4.10 returning on a flaky connection rather than a clean
  * outage, which is the more common case in the field.
+ * @param {FlushPlan} plan
+ * @param {boolean} okPushed
+ * @param {boolean} okDropped
+ * @returns {ParkedRow[]} what to keep parked
  */
 export function settle(plan, okPushed, okDropped) {
   let left = plan.keep.slice();
@@ -94,10 +114,12 @@ const SEC_TITLE = {
   kompaun: 'Kompaun',
 };
 
+/** @param {any} s @returns {string} HTML-escaped */
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
 }
 
+/** @param {ParkedRow[]} rows the parked rows (`pending.load(id).rows`) @returns {string[]} one <li> per row worth showing */
 export function buildPendingItems(rows) {
   return (rows || []).map((r) => {
     const where = esc(SEC_TITLE[r.section] || r.section)

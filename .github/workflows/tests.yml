@@ -63,6 +63,15 @@ jobs:
       - name: Lint (V2, zero warnings)
         run: npm run lint:ci
 
+      # Type-CHECK the pure *-logic.js files (checkJs + JSDoc, noEmit). Same
+      # fail-fast placement as lint: no browser needed. These modules are where
+      # the parity suites pin behaviour and where a type slip (undefined access,
+      # wrong arity, a mismatched shape like the parkRows union) is both most
+      # likely to matter and cheapest to catch. Scope is v2/src/stores/*-logic.js;
+      # the .vue and Pinia stores are a later step.
+      - name: Typecheck (V2 logic, checkJs)
+        run: npm run typecheck
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 

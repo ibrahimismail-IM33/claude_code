@@ -1,3 +1,8 @@
+// @ts-check
+/** @typedef {import('./types').Hydrant} Hydrant */
+/** @typedef {import('./types').ZoneEntry} ZoneEntry */
+/** @typedef {import('./types').FilterState} FilterState */
+/** @typedef {import('./types').Counts} Counts */
 /* Scope, search and zones, as pure functions.
  *
  * Ported from index.html. Kept free of Pinia and the DOM so
@@ -20,15 +25,18 @@
 
 export const ZONE_RE = /^([A-Za-z])0*(\d+)$/;
 
+/** @param {string|null|undefined} label @returns {string|null} the leading letter, upper-cased, or null */
 export function zoneOf(label) {
   const m = ZONE_RE.exec(String(label == null ? '' : label).trim());
   return m ? m[1].toUpperCase() : null;
 }
 
+/** @param {string} z @param {number} n @returns {string} e.g. ("A", 7) → "A07" */
 export function zoneLabel(z, n) {
   return z + (n < 10 ? '0' + n : String(n));
 }
 
+/** @param {Hydrant[]} hydrants @param {string} query @returns {Hydrant[]|null} null when the query is blank */
 export function searchMatches(hydrants, query) {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return null;
@@ -39,7 +47,12 @@ export function searchMatches(hydrants, query) {
 
 /* `inspStatusOf` is passed in rather than imported: it depends on the selected
  * period and on the Pengujian rows, which belong to the records store. Keeping
- * it a parameter is what lets this stay pure and directly comparable to V1. */
+ * it a parameter is what lets this stay pure and directly comparable to V1.
+ * @param {Hydrant[]} hydrants
+ * @param {FilterState} filters
+ * @param {(h: Hydrant) => string} inspStatusOf
+ * @returns {Hydrant[]}
+ */
 export function visible(hydrants, { status, insp, zone, query }, inspStatusOf) {
   const m = searchMatches(hydrants, query);
   if (m) return m;
@@ -62,6 +75,10 @@ export function visible(hydrants, { status, insp, zone, query }, inspStatusOf) {
  *    because it is the answer an officer needs to notice.
  *
  * Returned as data rather than HTML so the assertion can be about meaning.
+ * @param {number} matchCount
+ * @param {string} query
+ * @param {string|null|undefined} status
+ * @returns {{ show: boolean, clear: boolean, count: number, none: boolean, note: boolean }}
  */
 export function searchInfo(matchCount, query, status) {
   const q = String(query || '').trim();
@@ -75,6 +92,7 @@ export function searchInfo(matchCount, query, status) {
   };
 }
 
+/** @param {Hydrant[]} hydrants @returns {Counts} */
 export function counts(hydrants) {
   const c = { kerajaan: 0, swasta: 0 };
   hydrants.forEach((h) => { c[h.status]++; });
@@ -95,8 +113,11 @@ export function counts(hydrants) {
  * `gap` flags a range that implies more pili than the zone holds. Dormant
  * today because every zone is contiguous; delete one pili and `A01 – A114`
  * would otherwise keep claiming 114.
+ * @param {Hydrant[]} hydrants
+ * @returns {{ zones: ZoneEntry[], odd: number }}
  */
 export function zoneSummary(hydrants) {
+  /** @type {Record<string, ZoneEntry>} */
   const by = {};
   let odd = 0;
   hydrants.forEach((h) => {
