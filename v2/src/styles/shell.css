@@ -68,19 +68,8 @@
   .hide{display:none!important}
   header{position:relative;z-index:1000;border-bottom:1px solid rgba(255,255,255,.06);
     padding:14px 28px;}
-  header::before{content:"";position:absolute;inset:0;pointer-events:none;
-    background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
-      linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
-    background-size:30px 30px;
-    -webkit-mask-image:radial-gradient(ellipse 70% 120% at 50% 0%,#000 30%,transparent 80%);
-    mask-image:radial-gradient(ellipse 70% 120% at 50% 0%,#000 30%,transparent 80%);}
-  .hrow{position:relative;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-  .brand{display:flex;align-items:center;gap:12px}
-  .bar{width:4px;height:44px;border-radius:9999px;background:linear-gradient(180deg,#f87171,#dc2626);
-    box-shadow:0 0 14px rgba(239,68,68,.6)}
-  .logo{height:46px;width:46px;display:grid;place-items:center}
-  .logo img{height:100%;width:100%;object-fit:contain;display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
-
+    .hrow{position:relative;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+        
   /* ---- login gate (z-index 100000 — above everything) ---- */
   /* The BACKGROUND ONLY changed here (user's call, 2026-08-10): the smoke
      photograph is gone and the ground is the mockup's near-white page with the
@@ -245,11 +234,7 @@
      first screen an officer sees. Same import the header uses, so the two
      cannot drift. */
   .authlogo{width:88px;height:88px;object-fit:contain;display:block;margin:0 auto 14px}
-  .signout{background:none;border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.6);cursor:pointer;
-    font-size:11px;padding:4px 9px;border-radius:9999px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.12em}
-  .signout:hover{color:#fff;border-color:rgba(255,255,255,.3)}
-  .ro-hidden{display:none!important}
-
+      
   /* ---- tabs: a full-width bar across the very top (redesign, 2026-08-10) ----
      Three equal tabs, the active one filled. It sits above .hrow inside the
      header, so the header's own z-index and stacking context still apply
@@ -416,9 +401,7 @@
      specificity, later wins — §4.7 shipped it the other way round once and the
      phone menu silently vanished. */
   @media (max-width:640px){
-    .menubtn{display:flex;position:absolute;top:0;right:0;margin-left:0}
-    .tabb{padding:7px 12px;font-size:12px}
-    /* The tabs move into the hamburger on a phone.
+            /* The tabs move into the hamburger on a phone.
        DISPLAY, not v-if: above 640px nothing changes, no JS needs to know the
        viewport, and — the reason it is written this way — every suite that
        clicks #tabDash runs at 1280px, so a breakpoint mistake would be

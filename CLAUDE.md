@@ -743,11 +743,23 @@ Draw order: caps → walls → top faces (painter's algorithm).
     `kad-rekod.css` copy is the one that wins. Confirmed by accident: a mutation
     changing `.signout`'s colour in `kad-rekod.css` reached the header.
 
-    **Not cleaned up yet — deliberately.** De-duplicating 29 rules across five
-    stylesheets on a live app is its own change with its own verification, not
-    a side quest inside a design task. Until it is done, the rule stands:
-    **grep a selector across `v2/src/styles/` before editing it, and count the
-    files.**
+    **DONE 2026-08-18** (in a dedicated change with its own verification, as
+    this note asked). **30 context-aware identical duplicate blocks removed** —
+    the losing copy dropped, the winning (later-imported) copy kept, so no
+    selector's effective declarations moved. Proven behaviour-neutral by an
+    **effective-cascade invariant**: the last declaration block per
+    (media-context, selector) across the concatenated sheets in import order was
+    byte-identical before and after (0 diffs). Verified further by the computed-
+    style suites in a real browser (`v2-app-live` 172, `v2-shell`, `v2-css`) and
+    the build. The **base-vs-mobile pairs were left untouched** — the check keys
+    on `@media` context, so a base rule and its override are not "identical".
+    `tests/v2-css-dedup.js` now fails if any selector is defined identically in
+    two stylesheets again, so the "edit the wrong copy" trap stays closed —
+    mutation-verified red on a reintroduced duplicate. The 15 NON-identical
+    cross-file pairs (genuinely different declarations, where import order
+    decides the winner) were **not** touched: those are a behaviour question,
+    not a duplicate, and still warrant the old caution — **grep a selector
+    across `v2/src/styles/` before editing it when the guard is not enough.**
 
 28. **A `filter` silently switched off `mix-blend-mode`, and I read the symptom
     backwards.** Found 2026-08-13 while placing the 50th-anniversary watermark.
