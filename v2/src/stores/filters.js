@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { visible, counts, zoneSummary, zoneOf } from './filters-logic.js';
+import { visible, counts, zoneSummary } from './filters-logic.js';
 import { useHydrantsStore } from './hydrants.js';
 
 export { visible, counts, zoneSummary, zoneOf, zoneLabel, searchMatches } from './filters-logic.js';

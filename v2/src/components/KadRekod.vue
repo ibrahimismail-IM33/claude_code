@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
-import { SECTIONS, SEC_ORDER, cardCount, padToCards, emptyRow } from '../stores/records-logic.js';
+import { SECTIONS, cardCount, padToCards, emptyRow } from '../stores/records-logic.js';
 import { addPrintSigs } from '../lib/signature-print.js';
 import SignPopup from './SignPopup.vue';
 
@@ -202,6 +202,7 @@ watch(() => props.form, refreshPrintSigs, { deep: true });
       <b>Belum dihantar ke pelayan.</b> Baris di bawah telah diubah oleh peranti lain,
       jadi salinan pelayan yang dipaparkan. Ini yang anda taip semasa di luar talian —
       sila masukkan semula jika masih perlu:
+      <!-- eslint-disable-next-line vue/no-v-html -- app-built conflict lines (the officer's parked field values wrapped in <b>), not raw user markup; ported from V1 -->
       <ul><li v-for="(it, ix) in pending.items" :key="ix" v-html="it"></li></ul>
       <button class="fbtn ghost" id="fPendDrop" type="button" @click="emit('dropPending')">Buang salinan ini</button>
     </div>
@@ -246,6 +247,7 @@ watch(() => props.form, refreshPrintSigs, { deep: true });
           <template v-for="sec in ['kerosakan', 'pemantauan']" :key="sec">
             <div class="fsec-title">{{ SECTIONS[sec].title }}</div>
             <table class="ftab" :class="sec">
+              <!-- eslint-disable-next-line vue/no-v-html -- static column-header markup from the SECTIONS constant, byte-identical to V1 (§4.20); no user input -->
               <thead v-html="SECTIONS[sec].thead"></thead>
               <tbody>
                 <tr v-for="{ i, r } in rowsOf(sec, c - 1)" :key="i" :class="{ rowsigned: r._signed }">
@@ -284,6 +286,7 @@ watch(() => props.form, refreshPrintSigs, { deep: true });
           <template v-for="sec in ['pengujian', 'kompaun']" :key="sec">
             <div class="fsec-title">{{ SECTIONS[sec].title }}</div>
             <table class="ftab" :class="sec">
+              <!-- eslint-disable-next-line vue/no-v-html -- static column-header markup from the SECTIONS constant, byte-identical to V1 (§4.20); no user input -->
               <thead v-html="SECTIONS[sec].thead"></thead>
               <tbody>
                 <tr v-for="{ i, r } in rowsOf(sec, c - 1)" :key="i" :class="{ rowsigned: r._signed }">
