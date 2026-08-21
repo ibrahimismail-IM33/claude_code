@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SRS — e-Pili Bomba (V2)</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm 20mm 18mm; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #1a1d21; font-size: 10.5pt; line-height: 1.5; margin: 0; }
+  h1, h2, h3, h4 { color: #003049; line-height: 1.25; }
+  h1 { font-size: 20pt; margin: 0 0 4pt; }
+  h2 { font-size: 15pt; border-bottom: 2px solid #669BBC; padding-bottom: 3pt; margin: 22pt 0 8pt; page-break-after: avoid; }
+  h3 { font-size: 12pt; margin: 14pt 0 5pt; page-break-after: avoid; }
+  h4 { font-size: 10.8pt; margin: 10pt 0 3pt; page-break-after: avoid; }
+  p { margin: 5pt 0; }
+  ul, ol { margin: 5pt 0 5pt 0; padding-left: 18pt; }
+  li { margin: 2.5pt 0; }
+  code, .mono { font-family: "JetBrains Mono", Consolas, monospace; font-size: 9pt; background: #f2f4f6; padding: 0.5pt 3pt; border-radius: 3px; }
+  table { border-collapse: collapse; width: 100%; margin: 8pt 0; font-size: 9.3pt; }
+  th, td { border: 1px solid #cbd3da; padding: 5pt 7pt; text-align: left; vertical-align: top; }
+  th { background: #003049; color: #fff; font-weight: 600; }
+  tr:nth-child(even) td { background: #f6f8fa; }
+  .bm { background: #fdf6ec; border-left: 3px solid #f4a52422; border-left-color: #e0a53a; padding: 6pt 10pt; margin: 6pt 0; font-style: italic; color: #4a3f2a; border-radius: 0 4px 4px 0; }
+  .bm b { color: #7a5a12; font-style: normal; }
+  .req { font-family: "JetBrains Mono", Consolas, monospace; font-size: 8.6pt; font-weight: 700; color: #003049; white-space: nowrap; }
+  .prio-high { color: #b91c1c; font-weight: 700; }
+  .prio-med { color: #b45309; font-weight: 700; }
+  .prio-low { color: #15803d; font-weight: 700; }
+  .cover { height: 257mm; display: flex; flex-direction: column; justify-content: center; page-break-after: always; text-align: center; }
+  .cover .crest { font-size: 46pt; margin-bottom: 6pt; }
+  .cover h1 { font-size: 30pt; color: #003049; border: none; }
+  .cover .sub { font-size: 14pt; color: #669BBC; margin-top: 2pt; }
+  .cover .meta { margin-top: 40pt; font-size: 10.5pt; color: #555; }
+  .cover .band { height: 5px; background: linear-gradient(90deg,#003049,#669BBC,#e0a53a); margin: 18pt auto; width: 70%; }
+  .toc { page-break-after: always; }
+  .toc h2 { border: none; }
+  .toc ol { list-style: none; padding-left: 0; }
+  .toc > ol > li { font-weight: 600; margin: 6pt 0 2pt; }
+  .toc ol ol { padding-left: 16pt; font-weight: 400; }
+  .section { page-break-before: always; }
+  .doc-control td:first-child { font-weight: 600; width: 32%; background: #f0f3f6; }
+  .callout { background: #eef4f8; border: 1px solid #cfe0ea; border-radius: 5px; padding: 8pt 12pt; margin: 8pt 0; }
+  .small { font-size: 9pt; color: #555; }
+  a { color: #005a8c; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<!-- ===================== COVER ===================== -->
+<div class="cover">
+  <div class="crest">🚒</div>
+  <h1>Software Requirements Specification</h1>
+  <div class="sub">e-Pili Bomba Kunak — Version 2 (V2)</div>
+  <div class="sub" style="font-size:12pt">Spesifikasi Keperluan Perisian · Sistem Rekod Pili Bomba</div>
+  <div class="band"></div>
+  <div class="meta">
+    <b>Organisation / Organisasi:</b> Bahagian Bomba dan Penyelamat (BBP) Kunak, JBPM Sabah<br>
+    <b>System / Sistem:</b> epilibomba.com · Fire-Hydrant Inspection & Record Application<br>
+    <b>Document standard:</b> IEEE Std 830-1998 (adapted)<br>
+    <b>Status:</b> LIVE in production · Single district (Kunak)<br>
+    <b>Prepared by / Disediakan oleh:</b> Project Management &amp; Engineering<br>
+    <b>Date / Tarikh:</b> 2026-08-18 &nbsp;·&nbsp; <b>Revision:</b> 1.0
+  </div>
+</div>
+
+<!-- ===================== DOC CONTROL ===================== -->
+<h2>Document Control / Kawalan Dokumen</h2>
+<table class="doc-control">
+  <tr><td>Document title</td><td>Software Requirements Specification — e-Pili Bomba (V2)</td></tr>
+  <tr><td>Version / Revisi</td><td>1.0</td></tr>
+  <tr><td>Date / Tarikh</td><td>2026-08-18</td></tr>
+  <tr><td>Classification</td><td>Internal — JBPM / BBP Kunak</td></tr>
+  <tr><td>Status</td><td>Baseline (system already live in production)</td></tr>
+  <tr><td>Related documents</td><td>PRD.md, FULL-ARCHITECTURE.md, KAD-REKOD.md, CUTOVER.md, STAGING.md, RESTORE.md, V2-ROADMAP.md</td></tr>
+</table>
+<h4>Revision history / Sejarah semakan</h4>
+<table>
+  <tr><th>Rev</th><th>Date</th><th>Author</th><th>Description</th></tr>
+  <tr><td>1.0</td><td>2026-08-18</td><td>PM / Eng</td><td>Initial baseline SRS capturing the live V2 system, technology rationale, and forward roadmap.</td></tr>
+</table>
+
+<!-- ===================== TOC ===================== -->
+<div class="toc section">
+<h2>Table of Contents / Kandungan</h2>
+<ol>
+  <li>1. Introduction / Pengenalan
+    <ol><li>1.1 Purpose · 1.2 Scope · 1.3 Definitions &amp; Acronyms · 1.4 References · 1.5 Overview</li></ol></li>
+  <li>2. Overall Description / Perihal Keseluruhan
+    <ol><li>2.1 Product Perspective · 2.2 Product Functions · 2.3 User Classes · 2.4 Operating Environment · 2.5 Constraints · 2.6 Assumptions &amp; Dependencies</li></ol></li>
+  <li>3. Technology Stack &amp; Rationale / Teknologi &amp; Justifikasi
+    <ol><li>3.1 Vite · 3.2 Vue 3 · 3.3 Pinia · 3.4 SQL / PostgreSQL · 3.5 Supabase · 3.6 Cloudflare · 3.7 Supporting libraries · 3.8 Summary matrix</li></ol></li>
+  <li>4. Specific Requirements / Keperluan Khusus
+    <ol><li>4.1 External Interfaces · 4.2 Functional Requirements (FR) · 4.3 Non-Functional Requirements (NFR)</li></ol></li>
+  <li>5. Future Plans &amp; Roadmap / Pelan Masa Hadapan
+    <ol><li>5.1 Organisational actions (items 2–9) · 5.2 Technical roadmap (District #2, National scale) · 5.3 Sequencing</li></ol></li>
+  <li>Appendix A — Data Model · Appendix B — Glossary</li>
+</ol>
+</div>
+
+<!-- ===================== 1. INTRODUCTION ===================== -->
+<div class="section">
+<h2>1. Introduction / Pengenalan</h2>
+
+<h3>1.1 Purpose / Tujuan</h3>
+<p>This Software Requirements Specification (SRS) defines the functional and non-functional requirements, the technology stack and its justification, and the forward roadmap for <b>e-Pili Bomba Kunak Version 2 (V2)</b> — a mobile-first web application used by BBP Kunak officers to locate fire hydrants (pili bomba), record inspections, and maintain the legally-controlled inspection record card (Kad Rekod Pili Bomba) under MS ISO 9001:2015 procedure PS-8.</p>
+<div class="bm"><b>Tujuan:</b> Dokumen ini menetapkan keperluan berfungsi dan bukan-berfungsi, teknologi yang digunakan beserta justifikasi, dan pelan masa hadapan bagi sistem e-Pili Bomba Kunak Versi 2 — aplikasi web mudah alih untuk pegawai BBP Kunak mengesan pili bomba, merekod pemeriksaan, dan menyelenggara Kad Rekod Pili Bomba di bawah prosedur MS ISO 9001:2015.</div>
+
+<h3>1.2 Scope / Skop</h3>
+<p>The system provides: an interactive hydrant map, a two-page inspection record card, digital signatures, an inspection dashboard, a shared inspection schedule (jadual), role-based access, and full offline capability. It is live at <span class="mono">epilibomba.com</span>, currently serving <b>one district (Kunak, Sabah)</b>, and is architected to expand to additional districts and, in future, state/national scale without re-writing the map engine. The user-facing language is Bahasa Malaysia.</p>
+<div class="bm"><b>Skop:</b> Sistem menyediakan peta pili bomba interaktif, kad rekod pemeriksaan dua muka surat, tandatangan digital, papan pemuka pemeriksaan, jadual pemeriksaan dikongsi, kawalan akses mengikut peranan, dan keupayaan luar talian penuh. Kini melayani satu daerah (Kunak) dan direka untuk berkembang ke daerah lain tanpa menulis semula enjin peta.</div>
+
+<h3>1.3 Definitions, Acronyms &amp; Abbreviations / Definisi &amp; Singkatan</h3>
+<table>
+  <tr><th>Term</th><th>Meaning</th></tr>
+  <tr><td class="mono">Pili Bomba</td><td>Fire hydrant.</td></tr>
+  <tr><td class="mono">Kad Rekod</td><td>The inspection record card — a controlled MS ISO document (2 pages).</td></tr>
+  <tr><td class="mono">Awam / Swasta</td><td>Public (government-maintained) / Private hydrant.</td></tr>
+  <tr><td class="mono">Jadual</td><td>Shared inspection schedule.</td></tr>
+  <tr><td class="mono">RLS</td><td>Row-Level Security (PostgreSQL access control).</td></tr>
+  <tr><td class="mono">SPA</td><td>Single-Page Application.</td></tr>
+  <tr><td class="mono">CSP</td><td>Content Security Policy.</td></tr>
+  <tr><td class="mono">JBPM</td><td>Jabatan Bomba dan Penyelamat Malaysia.</td></tr>
+  <tr><td class="mono">V1 / V2</td><td>Version 1 (single static <span class="mono">index.html</span>, frozen rollback) / Version 2 (Vue build, current).</td></tr>
+</table>
+
+<h3>1.4 References / Rujukan</h3>
+<ul>
+  <li>IEEE Std 830-1998 — Recommended Practice for Software Requirements Specifications.</li>
+  <li>Project documents: <span class="mono">PRD.md</span>, <span class="mono">FULL-ARCHITECTURE.md</span>, <span class="mono">KAD-REKOD.md</span>, <span class="mono">CUTOVER.md</span>, <span class="mono">STAGING.md</span>, <span class="mono">RESTORE.md</span>, <span class="mono">V2-ROADMAP.md</span>.</li>
+  <li>MS ISO 9001:2015 — procedure PS-8 Pili Bomba (record-card layout &amp; retention).</li>
+</ul>
+
+<h3>1.5 Overview / Gambaran</h3>
+<p>Section 2 describes the product and its users. Section 3 justifies each technology choice. Section 4 lists functional and non-functional requirements. Section 5 sets out the forward roadmap, including the organisational actions (items 2–9) required before the system scales beyond one district.</p>
+</div>
+
+<!-- ===================== 2. OVERALL DESCRIPTION ===================== -->
+<div class="section">
+<h2>2. Overall Description / Perihal Keseluruhan</h2>
+
+<h3>2.1 Product Perspective / Perspektif Produk</h3>
+<p>A self-contained web SPA delivered as a static bundle from a CDN, talking to a managed PostgreSQL backend (Supabase) over HTTPS. There is no custom application server: the browser is the client, and all business rules that matter for integrity are enforced in the database (RLS policies + triggers). V1 (a single static <span class="mono">index.html</span>) remains deployed and untouched as the one-minute rollback.</p>
+
+<h3>2.2 Product Functions / Fungsi Produk</h3>
+<ul>
+  <li>Interactive hydrant map with clustering, status filters, zone filters, and place search.</li>
+  <li>Two-page inspection record card (Kad Rekod) with automatic card growth and permanent signed rows.</li>
+  <li>Digital signature capture, reusable profile signature, and print-accurate signature rendering.</li>
+  <li>Inspection dashboard (derived — stores no numbers of its own) with a hand-built 3D donut.</li>
+  <li>Shared inspection schedule (jadual), admin-writable.</li>
+  <li>Role-based access (viewer / admin) enforced by RLS.</li>
+  <li>Full offline operation with automatic sync and conflict recovery.</li>
+</ul>
+
+<h3>2.3 User Classes &amp; Characteristics / Kelas Pengguna</h3>
+<table>
+  <tr><th>Class</th><th>Rights</th><th>Notes</th></tr>
+  <tr><td>Viewer</td><td>Read-only across all data (mutual aid).</td><td>Default for new accounts.</td></tr>
+  <tr><td>Admin</td><td>Read all; write (edit records, sign, add hydrants, edit jadual).</td><td>Writes are scoped to the officer's own district.</td></tr>
+  <tr><td>Upper-admin (planned)</td><td>District manager — provisions accounts within their district.</td><td>Designed, not built (Section 5).</td></tr>
+</table>
+<div class="bm"><b>Kelas pengguna:</b> Viewer (baca sahaja), Admin (baca &amp; tulis dalam daerah sendiri), dan Upper-admin/Pengurus Daerah (dirancang) yang menguruskan akaun dalam daerahnya.</div>
+
+<h3>2.4 Operating Environment / Persekitaran Operasi</h3>
+<ul>
+  <li><b>Client:</b> modern mobile browsers (Android/iOS), used one-handed in the field, sometimes in gloves, often on weak/intermittent signal.</li>
+  <li><b>Delivery:</b> static bundle on Cloudflare Pages (global CDN + edge).</li>
+  <li><b>Backend:</b> Supabase (PostgreSQL 15, Auth, Storage) — project <span class="mono">isxfhocfkjamjchmicwq</span>.</li>
+  <li><b>Map tiles:</b> OpenStreetMap via Leaflet.</li>
+</ul>
+
+<h3>2.5 Design &amp; Implementation Constraints / Kekangan</h3>
+<ul>
+  <li><b>Legal record:</b> a signed Kad Rekod row is <b>permanent</b> — never editable, clearable, or deletable — enforced in RLS <i>and</i> an independent trigger <i>and</i> the client.</li>
+  <li><b>Security:</b> <span class="mono">script-src 'self'</span> — no third-party scripts; all vendor libraries self-hosted. Audit identity is taken from the database JWT, never the request body.</li>
+  <li><b>Print fidelity:</b> the record card is tuned to the millimetre for A4/Letter; print CSS order is load-bearing.</li>
+  <li><b>Reads global, writes district-scoped</b> (mutual aid between stations).</li>
+  <li><b>No data loss with no signal</b> — offline work is parked and synced.</li>
+</ul>
+
+<h3>2.6 Assumptions &amp; Dependencies / Andaian &amp; Kebergantungan</h3>
+<ul>
+  <li>Supabase remains available and within plan limits (free tier today — see Section 5, item 7).</li>
+  <li>Cloudflare Pages remains the host; the DNS custom domain is the rollback switch.</li>
+  <li>Each officer has an individual login (signatures attribute who signed).</li>
+</ul>
+</div>
+
+<!-- ===================== 3. TECH STACK ===================== -->
+<div class="section">
+<h2>3. Technology Stack &amp; Rationale / Teknologi &amp; Justifikasi</h2>
+<p>Each technology below is stated with <b>what it is</b>, <b>the version in use</b>, and <b>why it was chosen</b> for this specific government field application.</p>
+
+<h3>3.1 Vite <span class="small">(build tool — v8.2.1)</span></h3>
+<p><b>What:</b> a fast front-end build tool and bundler that compiles Vue single-file components into an optimised static bundle.</p>
+<p><b>Why chosen:</b> V2 needs a build step (V1 had none), and Vite gives a predictable, single-artifact output that suits the strict security posture: one external CSS file (<span class="mono">cssCodeSplit:false</span>) so the millimetre-tuned print stylesheet arrives in a known order; no inline scripts, so the CSP can stay <span class="mono">script-src 'self'</span> with no <span class="mono">'unsafe-inline'</span>/<span class="mono">'unsafe-eval'</span>; and nothing silently inlined (<span class="mono">assetsInlineLimit:0</span>). It is fast enough that the whole app builds in ~1 second, keeping the release gate cheap.</p>
+<div class="bm"><b>Vite:</b> alat binaan pantas yang menghasilkan satu bundle statik. Dipilih kerana menyokong dasar keselamatan ketat (tiada skrip luaran) dan susunan CSS cetakan yang tepat untuk Kad Rekod.</div>
+
+<h3>3.2 Vue 3 <span class="small">(UI framework — v3.5.41)</span></h3>
+<p><b>What:</b> a progressive, component-based JavaScript framework for building reactive user interfaces.</p>
+<p><b>Why chosen:</b> V1 was one 3,600-line file that had become hard to change safely. Vue 3's component model breaks the app into testable, single-responsibility pieces (map, card, dashboard, schedule) while keeping a gentle learning curve for a small team. The <b>runtime-only</b> build is used deliberately — no template compiler in the browser — which removes <span class="mono">new Function</span>/eval and lets the CSP stay strict. Vue's reactivity drives the live dashboard and offline-sync indicators without manual DOM wiring.</p>
+<div class="bm"><b>Vue 3:</b> kerangka antara muka berasaskan komponen. Dipilih untuk memecahkan aplikasi kepada bahagian yang boleh diuji dan diselenggara, sambil mengekalkan keselamatan (tiada penyusun templat dalam pelayar).</div>
+
+<h3>3.3 Pinia <span class="small">(state management — v3.0.3)</span></h3>
+<p><b>What:</b> the official state-management library for Vue 3 — centralised, reactive stores.</p>
+<p><b>Why chosen:</b> the app has genuinely shared state (the signed-in session, the register, scope filters, the offline queue) read by multiple components. Pinia gives one source of truth for that state, and — critically for this app — it enabled a clean split between <b>pure logic modules</b> (<span class="mono">*-logic.js</span>, no framework, no browser) and thin Pinia stores. That split is what lets the most dangerous code (the offline sync decision table) be unit-tested in isolation against the V1 baseline.</p>
+<div class="bm"><b>Pinia:</b> pengurusan keadaan rasmi untuk Vue. Dipilih kerana membolehkan satu sumber kebenaran untuk data dikongsi, dan memisahkan logik tulen (boleh diuji) daripada antara muka.</div>
+
+<h3>3.4 SQL / PostgreSQL <span class="small">(database engine — PostgreSQL 15, via Supabase)</span></h3>
+<p><b>What:</b> a mature, standards-compliant relational database; the data is modelled in SQL tables with constraints, Row-Level Security policies, and triggers.</p>
+<p><b>Why chosen:</b> the Kad Rekod is a <b>legal record</b>, so integrity cannot live in the client. PostgreSQL enforces the rules where they cannot be bypassed: <b>RLS</b> decides who may read/write; a <b>trigger</b> makes signed rows permanent independently of the app; the audit column is stamped from the login token, not the request body. SQL also scales trivially to national volume (~100k rows) with ordinary indexes, and its DR scripts (<span class="mono">sql/</span>) are the exact artefact a recovery re-applies.</p>
+<div class="bm"><b>SQL / PostgreSQL:</b> pangkalan data hubungan. Dipilih kerana integriti rekod undang-undang dikuatkuasakan di pangkalan data (RLS + pencetus), bukan di pelayar — baris bertandatangan kekal selamanya.</div>
+
+<h3>3.5 Supabase <span class="small">(backend platform — client v2.112.0)</span></h3>
+<p><b>What:</b> a managed backend built on PostgreSQL, bundling the database, authentication, file storage, and auto-generated APIs.</p>
+<p><b>Why chosen:</b> a small team needed a production backend without operating servers. Supabase provides Auth (individual officer logins), Storage (signature images), and a Postgres API in one managed service — with RLS as the single, database-level security model across all of them. It removes the need for a custom application server entirely: the browser talks to Supabase directly, and every row is gated by RLS evaluated as the calling user. This keeps operational burden low (fitting the single-maintainer reality) while keeping integrity high.</p>
+<div class="bm"><b>Supabase:</b> platform backend terurus atas PostgreSQL (pangkalan data + log masuk + storan). Dipilih supaya pasukan kecil mendapat backend produksi tanpa mengurus pelayan, dengan keselamatan RLS satu lapisan.</div>
+
+<h3>3.6 Cloudflare <span class="small">(hosting &amp; CDN — Cloudflare Pages)</span></h3>
+<p><b>What:</b> a global content-delivery network and static-site host (Cloudflare Pages) with edge caching and security headers.</p>
+<p><b>Why chosen:</b> the app is a static bundle, so a CDN is the correct, cheapest, and fastest host — pages load quickly on weak field connections from an edge near the user. Cloudflare Pages builds the repository directly and serves it, applies the security headers (<span class="mono">_headers</span>: CSP, HSTS, <span class="mono">geolocation=(self)</span> for "Guna Lokasi Saya"), and — importantly — the rollback is a one-minute DNS switch back to the previous Pages project. Hashed, immutable asset caching plus a no-cache HTML index prevents stale deploys.</p>
+<div class="bm"><b>Cloudflare:</b> rangkaian penghantaran kandungan (CDN) &amp; hos laman statik. Dipilih kerana pantas di talian lemah, murah, menguatkuasakan pengepala keselamatan, dan membolehkan rollback dalam satu minit.</div>
+
+<h3>3.7 Supporting libraries / Pustaka sokongan</h3>
+<table>
+  <tr><th>Library</th><th>Version</th><th>Role</th></tr>
+  <tr><td>Leaflet</td><td>1.9.4</td><td>Interactive map rendering (OpenStreetMap tiles). Self-hosted.</td></tr>
+  <tr><td>Leaflet.markercluster</td><td>1.5.3</td><td>Clusters hydrant pins at low zoom. Self-hosted.</td></tr>
+  <tr><td>Node.js</td><td>≥20 (CI: 22)</td><td>Build &amp; test tooling only — never shipped to the browser.</td></tr>
+</table>
+<p class="small">All third-party libraries are <b>self-hosted</b> (no CDN, no SRI needed): a CDN script would run with full access to the signed-in session and every record card. Self-hosting lets the CSP drop to <span class="mono">script-src 'self'</span>.</p>
+
+<h3>3.8 Rationale summary matrix / Ringkasan justifikasi</h3>
+<table>
+  <tr><th>Layer</th><th>Technology</th><th>Primary reason chosen</th></tr>
+  <tr><td>Build</td><td>Vite 8.2.1</td><td>Strict-CSP-friendly single artifact; fast release gate.</td></tr>
+  <tr><td>UI</td><td>Vue 3.5.41</td><td>Testable components; runtime-only (no eval).</td></tr>
+  <tr><td>State</td><td>Pinia 3.0.3</td><td>Shared state + pure/testable logic split.</td></tr>
+  <tr><td>Data</td><td>PostgreSQL 15</td><td>Integrity in the DB (RLS + triggers); scales to national volume.</td></tr>
+  <tr><td>Backend</td><td>Supabase 2.112</td><td>Managed DB+Auth+Storage; no server to operate.</td></tr>
+  <tr><td>Hosting</td><td>Cloudflare Pages</td><td>Fast CDN on weak signal; 1-minute rollback; security headers.</td></tr>
+  <tr><td>Map</td><td>Leaflet 1.9.4</td><td>Proven, lightweight, self-hostable; no WebGL rewrite needed.</td></tr>
+</table>
+</div>
+
+<!-- ===================== 4. SPECIFIC REQUIREMENTS ===================== -->
+<div class="section">
+<h2>4. Specific Requirements / Keperluan Khusus</h2>
+
+<h3>4.1 External Interface Requirements / Antara Muka Luaran</h3>
+<h4>4.1.1 User interfaces</h4>
+<ul>
+  <li>Mobile-first, Bahasa Malaysia UI; large touch targets; no zoom-on-focus; no horizontal scroll; high contrast for sunlight.</li>
+  <li>Header tabs: <b>Peta Pili</b> (map), <b>Dashboard</b>, <b>Profil</b>; hamburger navigation below 640px.</li>
+</ul>
+<h4>4.1.2 Software / communications interfaces</h4>
+<ul>
+  <li>HTTPS to the Supabase REST/Realtime/Storage endpoints; JWT auth; RLS enforced server-side.</li>
+  <li>Map tiles fetched from OpenStreetMap; geolocation API for "Guna Lokasi Saya".</li>
+</ul>
+
+<h3>4.2 Functional Requirements / Keperluan Berfungsi</h3>
+
+<h4>4.2.1 Authentication &amp; Roles / Pengesahan &amp; Peranan</h4>
+<table>
+  <tr><th>ID</th><th>Requirement</th><th>Priority</th></tr>
+  <tr><td class="req">FR-AUTH-1</td><td>Users authenticate with an individual email/password login via Supabase Auth.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-AUTH-2</td><td>Any signed-in user may read all data; only <span class="mono">admin</span> may write, enforced by RLS.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-AUTH-3</td><td>New accounts default to <span class="mono">viewer</span>; role changes are made by an administrator.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-AUTH-4</td><td>Writes are scoped to the officer's own district; reads remain global (mutual aid).</td><td class="prio-high">High</td></tr>
+</table>
+
+<h4>4.2.2 Hydrant Map / Peta Pili</h4>
+<table>
+  <tr><th>ID</th><th>Requirement</th><th>Priority</th></tr>
+  <tr><td class="req">FR-MAP-1</td><td>Display all hydrants as clustered pins with status colour (Awam/Swasta) and last-inspection date badge.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-MAP-2</td><td>Filter by status (Awam/Swasta), inspection status, and zone; filters stack with AND.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-MAP-3</td><td>Place-name search; tapping a pin opens a detail modal with coordinates, Directions, and last-inspected.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-MAP-4</td><td>Admins may add a hydrant, validating latitude/longitude and label; "Guna Lokasi Saya" uses device GPS with accuracy feedback.</td><td class="prio-med">Med</td></tr>
+  <tr><td class="req">FR-MAP-5</td><td>An amber "!" marks any pin with unsynced local work.</td><td class="prio-high">High</td></tr>
+</table>
+
+<h4>4.2.3 Kad Rekod (Inspection Record Card) / Kad Rekod Pemeriksaan</h4>
+<table>
+  <tr><th>ID</th><th>Requirement</th><th>Priority</th></tr>
+  <tr><td class="req">FR-KAD-1</td><td>Provide a two-page record card with four sections (Kerosakan, Pemantauan, Pengujian, Kompaun) at fixed per-page row capacities.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-KAD-2</td><td>Automatically create a new card when the last row of any section is completed, on save.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-KAD-3</td><td>A signed row is permanent: never editable, clearable, or deletable, by anyone (RLS + trigger + client).</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-KAD-4</td><td>Card numbering is permanent and chronological; newest card first on screen, oldest first in print.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-KAD-5</td><td>Saving the card is the master source for a hydrant's Lokasi and last-inspected date.</td><td class="prio-med">Med</td></tr>
+  <tr><td class="req">FR-KAD-6</td><td>Viewers see the card read-only (inputs disabled, Print/Close available).</td><td class="prio-high">High</td></tr>
+</table>
+
+<h4>4.2.4 Digital Signatures / Tandatangan Digital</h4>
+<table>
+  <tr><th>ID</th><th>Requirement</th><th>Priority</th></tr>
+  <tr><td class="req">FR-SIG-1</td><td>Admins may sign a Pengujian row; the signature image is stored in a private bucket and the row is marked signed.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-SIG-2</td><td>An officer may store one reusable profile signature (a stencil) that fills the sign popup.</td><td class="prio-med">Med</td></tr>
+  <tr><td class="req">FR-SIG-3</td><td>A filed signature image is never overwritten (bucket allows INSERT only); replacing the profile stencil writes a new object.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-SIG-4</td><td>Signatures render solid and legible on printed A4 without being erased or blocked out.</td><td class="prio-high">High</td></tr>
+</table>
+
+<h4>4.2.5 Dashboard / Papan Pemuka</h4>
+<table>
+  <tr><th>ID</th><th>Requirement</th><th>Priority</th></tr>
+  <tr><td class="req">FR-DASH-1</td><td>Derive all figures from the Pengujian rows (Diperiksa / Belum di-sign / Belum diperiksa) — the dashboard stores no numbers of its own.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-DASH-2</td><td>Show status via a 3D donut and status rows; every figure reconciles to the underlying records.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-DASH-3</td><td>Support a rolling 6-month period (current + three archived) and per-zone number ranges (Nombor Pili Terkini).</td><td class="prio-med">Med</td></tr>
+  <tr><td class="req">FR-DASH-4</td><td>Donut labels and status rows filter the map; scope follows the Awam/Swasta pills.</td><td class="prio-low">Low</td></tr>
+</table>
+
+<h4>4.2.6 Jadual (Schedule) &amp; 4.2.7 Offline Sync / Jadual &amp; Segerak Luar Talian</h4>
+<table>
+  <tr><th>ID</th><th>Requirement</th><th>Priority</th></tr>
+  <tr><td class="req">FR-JAD-1</td><td>Provide a shared inspection schedule stored in Supabase (admin-writable), ordered latest date first, foldered by period.</td><td class="prio-med">Med</td></tr>
+  <tr><td class="req">FR-OFF-1</td><td>The app is fully usable with no signal; a failed save is parked locally and pushed automatically on reconnect.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-OFF-2</td><td>On a cross-device conflict the cloud copy wins, and the officer is shown exactly what they typed to re-enter or discard.</td><td class="prio-high">High</td></tr>
+  <tr><td class="req">FR-OFF-3</td><td>Cross-device changes are picked up on foreground/focus/online and a 60-second poll while visible.</td><td class="prio-med">Med</td></tr>
+</table>
+
+<h3>4.3 Non-Functional Requirements / Keperluan Bukan-Berfungsi</h3>
+<table>
+  <tr><th>ID</th><th>Category</th><th>Requirement</th></tr>
+  <tr><td class="req">NFR-SEC-1</td><td>Security</td><td>Integrity rules enforced in the database (RLS + triggers); signed rows permanent; audit identity from JWT only. <span class="mono">script-src 'self'</span>; all vendor code self-hosted.</td></tr>
+  <tr><td class="req">NFR-SEC-2</td><td>Security</td><td>Signature bucket private; permits INSERT only (no UPDATE/DELETE), preserving evidence permanence.</td></tr>
+  <tr><td class="req">NFR-PERF-1</td><td>Performance</td><td>Dashboard entry animation holds 60 fps on a mid-range phone; large reads are paged (1,000-row cap handled).</td></tr>
+  <tr><td class="req">NFR-REL-1</td><td>Reliability</td><td>No inspection data lost, including with no signal (offline queue + auto-sync).</td></tr>
+  <tr><td class="req">NFR-AVAIL-1</td><td>Availability</td><td>Static CDN hosting; one-minute rollback via DNS to the previous Pages project; nightly backups verified weekly by automated restore.</td></tr>
+  <tr><td class="req">NFR-USE-1</td><td>Usability</td><td>Mobile-first, one-handed, glove-friendly, Bahasa Malaysia, high contrast; usable offline.</td></tr>
+  <tr><td class="req">NFR-MAINT-1</td><td>Maintainability</td><td>Component + pure-logic architecture; 30 automated suites, ESLint + type-check gates, 89.9% logic coverage; publishing blocked on tests.</td></tr>
+  <tr><td class="req">NFR-COMP-1</td><td>Compliance</td><td>Kad Rekod conforms to MS ISO 9001:2015 PS-8 (2 pages, capacities, retention, permanence).</td></tr>
+  <tr><td class="req">NFR-PORT-1</td><td>Portability</td><td>Runs on any modern mobile/desktop browser; no install.</td></tr>
+</table>
+</div>
+
+<!-- ===================== 5. FUTURE PLANS ===================== -->
+<div class="section">
+<h2>5. Future Plans &amp; Roadmap / Pelan Masa Hadapan</h2>
+<p>The current system is healthy and live at single-district scale. The improvements below are what the project needs before and during expansion. Items 5.1(2)–5.1(9) are the <b>organisational actions</b> identified in the PM review — each requires a decision above the maintainer and is a bigger risk to the project than any code.</p>
+<div class="bm"><b>Nota:</b> Item 5.1(2)–(9) ialah tindakan organisasi — setiap satu memerlukan keputusan di peringkat pengurusan, dan merupakan risiko lebih besar kepada projek berbanding kod. Perlu diselesaikan sebelum daerah kedua.</div>
+
+<h3>5.1 Organisational actions (roadmap items 2–9) / Tindakan Organisasi</h3>
+<table>
+  <tr><th>#</th><th>Action / Tindakan</th><th>Why it matters</th><th>Owner</th><th>Timescale</th></tr>
+  <tr><td>1</td><td><b>Field test on a real phone</b> — <span class="prio-low">DONE ✓</span></td><td>Verified working in Kunak on a real device (2026-08-18).</td><td>Maintainer + officer</td><td>Done</td></tr>
+  <tr><td>2</td><td><b>Recruit &amp; train maintainer #2</b><br><span class="small">Latih penyelenggara kedua</span></td><td>Highest project-ending risk. One person holds the "why"; a transfer/illness strands the app. Negligent at ten districts.</td><td>JBPM management</td><td class="prio-high">Months (approval)</td></tr>
+  <tr><td>3</td><td><b>Support &amp; escalation model</b><br><span class="small">Model sokongan &amp; eskalasi</span></td><td>"Who does an officer call at 6am?" A blocked, unsupported officer produces bad data trusted by all. Define tiers + published contact/hours.</td><td>District managers</td><td class="prio-med">Weeks (assign)</td></tr>
+  <tr><td>4</td><td><b>Data-correction procedure</b><br><span class="small">Prosedur pembetulan data</span></td><td>Signed rows are permanent by design; a disputed legal record needs a written, above-maintainer procedure before it is needed.</td><td>JBPM policy</td><td class="prio-med">Weeks (policy)</td></tr>
+  <tr><td>5</td><td><b>Backup resilience (offsite)</b><br><span class="small">Sandaran luar tapak</span></td><td>Backups live only in 90-day GitHub artifacts that vanish with the account; add an offsite copy of dumps + signature images.</td><td>Maintainer</td><td class="prio-med">Days</td></tr>
+  <tr><td>6</td><td><b>Deploy window + approver</b><br><span class="small">Tetingkap penerbitan + pelulus</span></td><td>Auto-publish on every commit is unsafe across Sabah where someone is always mid-inspection. Add a release window and an approver.</td><td>Maintainer + mgmt</td><td class="prio-med">Days</td></tr>
+  <tr><td>7</td><td><b>Budget &amp; procurement (paid tier)</b><br><span class="small">Bajet &amp; perolehan</span></td><td>Supabase free tier ends at scale; a lapsed card stops the app for everyone. Create a budget line; also unblocks leaked-password protection (Pro-only).</td><td>JBPM finance</td><td class="prio-high">Fiscal year</td></tr>
+  <tr><td>8</td><td><b>Feature authority + admin-grant policy</b><br><span class="small">Kuasa keputusan ciri</span></td><td>At many districts, conflicting requests need someone who can say no with backing; and a defined policy for who may grant admin.</td><td>JBPM management</td><td class="prio-med">Months</td></tr>
+  <tr><td>9</td><td><b>Training materials (Bahasa Malaysia)</b><br><span class="small">Bahan latihan</span></td><td>~200 officers on shift patterns need written guides + video + a per-station trainer, or they use it wrong and produce trusted-but-wrong data.</td><td>JBPM training</td><td class="prio-med">Before scale</td></tr>
+</table>
+
+<h3>5.2 Technical roadmap / Pelan Teknikal</h3>
+<h4>5.2.1 District #2 activation (do when a second station is willing)</h4>
+<p>The district-ready foundation is already built (a <span class="mono">district</span> column, <span class="mono">can_write()</span> scoping writes to the officer's own district, reads global). Activation adds the <span class="mono">upper_admin</span> (district-manager) role tier, an in-app account-provisioning panel with district-scoped <span class="mono">profiles</span> RLS and self-escalation guards, and an <span class="mono">All › Kunak › Tawau</span> selector. Run <b>one</b> extra district for three months before designing for ten.</p>
+<div class="bm"><b>Daerah #2:</b> asas sudah dibina (lajur daerah + kawalan tulis mengikut daerah). Pengaktifan menambah peranan Pengurus Daerah, panel pengurusan akaun, dan pemilih daerah. Jalankan satu daerah tambahan selama tiga bulan dahulu.</div>
+
+<h4>5.2.2 National-scale map &amp; geography (future)</h4>
+<p>Scaling toward state and eventually national volume (~100k hydrants) adds a <span class="mono">state</span> tier above <span class="mono">district</span>. The map scales <b>without</b> a WebGL/MapLibre rewrite via three legs: (a) state/district filter, (b) bounding-box/viewport loading on a spatial index, and (c) server-side count-bubble aggregation when zoomed out. The hard part is governance (roles/tenancy/audit one layer deeper), not the map.</p>
+<div class="bm"><b>Skala nasional:</b> menambah lapisan negeri. Peta berskala tanpa menulis semula enjin (penapis + muatan mengikut paparan + agregat kiraan). Bahagian sukar ialah tadbir urus peranan, bukan peta.</div>
+
+<h3>5.3 Sequencing / Urutan</h3>
+<div class="callout">
+<b>Golden rule:</b> settle the organisational actions (5.1 items 2–9) <b>before</b> onboarding district #2 — that event is exactly what turns "runs on one person's goodwill" from acceptable into negligent. In the words of the roadmap: <i>one extra district generates answers; ten generate problems.</i>
+<div class="bm" style="margin-top:6pt"><b>Peraturan emas:</b> selesaikan tindakan organisasi (item 2–9) sebelum memulakan daerah kedua. Satu daerah tambahan memberi jawapan; sepuluh daerah memberi masalah.</div>
+</div>
+</div>
+
+<!-- ===================== APPENDICES ===================== -->
+<div class="section">
+<h2>Appendix A — Data Model (summary) / Model Data</h2>
+<table>
+  <tr><th>Table</th><th>Holds</th><th>Key rules</th></tr>
+  <tr><td class="mono">hydrants</td><td>The register (label, lat/lng, status, location, district).</td><td>Read all; write scoped by district; unique (district,label).</td></tr>
+  <tr><td class="mono">hydrant_records</td><td>Kad Rekod rows (per section/row_index, data, signed).</td><td>Signed rows permanent (RLS + trigger); audit from JWT.</td></tr>
+  <tr><td class="mono">jadual_pemeriksaan</td><td>Shared inspection schedule.</td><td>Admin-writable; district-scoped.</td></tr>
+  <tr><td class="mono">profiles</td><td>Accounts, role, district, profile signature path.</td><td>Role defaults to viewer; admin-managed.</td></tr>
+  <tr><td class="mono">Storage: signatures</td><td>Signature images (private bucket).</td><td>INSERT only — no UPDATE/DELETE (evidence permanence).</td></tr>
+</table>
+
+<h2 style="page-break-before:avoid">Appendix B — Glossary / Glosari</h2>
+<p class="small">See Section 1.3. Additional: <b>Diperiksa</b> = inspected &amp; signed; <b>Belum di-sign</b> = filled, awaiting signature; <b>Belum diperiksa</b> = not inspected this period; <b>Zon</b> = zone, derived from the label's leading letter (A/B/C/D/E), never stored.</p>
+
+<hr style="margin-top:20pt;border:none;border-top:1px solid #ccc">
+<p class="small" style="text-align:center">End of document — <i>Tamat dokumen</i> · e-Pili Bomba (V2) SRS v1.0 · 2026-08-18</p>
+</div>
+
+</body>
+</html>
